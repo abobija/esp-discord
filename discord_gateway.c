@@ -38,6 +38,25 @@ static esp_err_t discord_gw_identify() {
     return ESP_OK;
 }
 
+static esp_err_t discord_gw_process_event(const cJSON* payload) {
+    cJSON* t = cJSON_GetObjectItem(payload, "t");
+    
+    if(cJSON_IsNull(t)) {
+        ESP_LOGW(TAG, "Missing event name");
+        return ESP_FAIL;
+    }
+
+    char* event_name = t->valuestring;
+
+    if(strcmp("READY", event_name) == 0) {
+        ESP_LOGI(TAG, "Successfully identified");
+    } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
+        ESP_LOGI(TAG, "Received discord message");
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
     cJSON* payload = cJSON_Parse(data->data_ptr);
     int op = cJSON_GetObjectItem(payload, "op")->valueint;
@@ -49,7 +68,7 @@ static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
             discord_gw_identify();
             break;
         case 0: // event
-
+            discord_gw_process_event(payload);
             break;
         default:
             ESP_LOGW(TAG, "Unknown OP code %d", op);
