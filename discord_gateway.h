@@ -7,7 +7,8 @@
 extern "C" {
 #endif
 
-esp_err_t discord_gw_open(const discord_bot_config_t* config);
+esp_err_t discord_gw_init(const discord_bot_config_t config);
+esp_err_t discord_gw_open();
 
 #ifdef __cplusplus
 }

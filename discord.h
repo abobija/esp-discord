@@ -10,7 +10,7 @@ typedef struct {
     char* token;
 } discord_bot_config_t;
 
-esp_err_t discord_init(const discord_bot_config_t* config);
+esp_err_t discord_init(const discord_bot_config_t config);
 esp_err_t discord_login();
 
 #ifdef __cplusplus

@@ -5,15 +5,11 @@
 #include "discord.h"
 #include "discord_gateway.h"
 
-static const char* TAG = "discord";
-
-static const discord_bot_config_t* _config;
-
-esp_err_t discord_init(const discord_bot_config_t* config) {
-    _config = config;
+esp_err_t discord_init(const discord_bot_config_t config) {
+    discord_gw_init(config);
     return ESP_OK;
 }
 
 esp_err_t discord_login() {
-    return discord_gw_open(&_config);
+    return discord_gw_open();
 }
