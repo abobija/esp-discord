@@ -8,11 +8,24 @@
 
 static const char* TAG = "discord_gateway";
 
+typedef enum {
+    DISCORD_GATEWAY_STATE_ERROR = -1,
+    DISCORD_GATEWAY_STATE_UNKNOWN = 0,
+    DISCORD_GATEWAY_STATE_INIT,
+    DISCORD_GATEWAY_STATE_READY
+} discord_gateway_state_t;
+
 struct discord_gateway {
+    discord_gateway_state_t state;
     discord_bot_config_t bot;
     esp_websocket_client_handle_t ws;
     esp_timer_handle_t heartbeat_timer;
 };
+
+static void heartbeat_timer_callback(void* arg);
+static esp_err_t heartbeat_init(discord_gateway_handle_t gateway);
+static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval);
+static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 
 static esp_err_t identify(discord_gateway_handle_t gateway) {
     cJSON* props = cJSON_CreateObject();
@@ -42,7 +55,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
     return ESP_OK;
 }
 
-static esp_err_t process_event(const cJSON* payload) {
+static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* payload) {
     cJSON* t = cJSON_GetObjectItem(payload, "t");
     
     if(cJSON_IsNull(t)) {
@@ -54,42 +67,12 @@ static esp_err_t process_event(const cJSON* payload) {
 
     if(strcmp("READY", event_name) == 0) {
         ESP_LOGI(TAG, "Successfully identified");
+        gateway->state = DISCORD_GATEWAY_STATE_READY;
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
     }
 
     return ESP_OK;
-}
-
-static void heartbeat_timer_callback(void* arg) {
-    ESP_LOGI(TAG, "Heartbeating...");
-
-    discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
-
-    const char* payload_raw = "{ \"op\": 1, \"d\": null }";
-    ESP_LOGI(TAG, "Sending=%s", payload_raw);
-    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
-}
-
-static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
-    ESP_LOGI(TAG, "Heartbeat init");
-
-    const esp_timer_create_args_t timer_args = {
-        .callback = &heartbeat_timer_callback,
-        .arg = (void*) gateway
-    };
-
-    return esp_timer_create(&timer_args, &(gateway->heartbeat_timer));
-}
-
-static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval) {
-    ESP_LOGI(TAG, "Heartbeat start");
-    return esp_timer_start_periodic(gateway->heartbeat_timer, interval * 1000);
-}
-
-static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway) {
-    ESP_LOGI(TAG, "Heartbeat stop");
-    return esp_timer_stop(gateway->heartbeat_timer);
 }
 
 static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
@@ -101,7 +84,7 @@ static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_e
 
     switch(op) {
         case 0: // event
-            process_event(payload);
+            process_event(gateway, payload);
             break;
         case 10: // heartbeat and identify
             d = cJSON_GetObjectItem(payload, "d");
@@ -132,9 +115,11 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
     switch (event_id) {
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGW(TAG, "WEBSOCKET_EVENT_CONNECTED");
+            gateway->state = DISCORD_GATEWAY_STATE_INIT;
             break;
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "WEBSOCKET_EVENT_DISCONNECTED");
+            gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
             break;
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == 1) {
@@ -151,12 +136,14 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
             break;
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGW(TAG, "WEBSOCKET_EVENT_ERROR");
+            gateway->state = DISCORD_GATEWAY_STATE_ERROR;
             break;
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGW(TAG, "WEBSOCKET_EVENT_CLOSED");
+            gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
             break;
         default:
-            ESP_LOGW(TAG, "WEBSOCKET_EVENT_UNKNOWN %d", event_id);
+            ESP_LOGE(TAG, "WEBSOCKET_EVENT_UNKNOWN %d", event_id);
             break;
     }
 }
@@ -170,6 +157,15 @@ discord_gateway_handle_t discord_gw_init(const discord_gateway_config_t* config)
 }
 
 esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
+    if(gateway == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if(gateway->state >= DISCORD_GATEWAY_STATE_INIT) {
+        ESP_LOGE(TAG, "The gateway has been already open");
+        return ESP_FAIL;
+    }
+
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json"
     };
@@ -194,4 +190,37 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     free(gateway);
 
     return ESP_OK;
+}
+
+// Heartbeat
+
+static void heartbeat_timer_callback(void* arg) {
+    ESP_LOGI(TAG, "Heartbeating...");
+
+    discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
+
+    const char* payload_raw = "{ \"op\": 1, \"d\": null }";
+    ESP_LOGI(TAG, "Sending=%s", payload_raw);
+    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+}
+
+static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
+    ESP_LOGI(TAG, "Heartbeat init");
+
+    const esp_timer_create_args_t timer_args = {
+        .callback = &heartbeat_timer_callback,
+        .arg = (void*) gateway
+    };
+
+    return esp_timer_create(&timer_args, &(gateway->heartbeat_timer));
+}
+
+static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval) {
+    ESP_LOGI(TAG, "Heartbeat start");
+    return esp_timer_start_periodic(gateway->heartbeat_timer, interval * 1000);
+}
+
+static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway) {
+    ESP_LOGI(TAG, "Heartbeat stop");
+    return esp_timer_stop(gateway->heartbeat_timer);
 }
