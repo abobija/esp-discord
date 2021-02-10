@@ -8,6 +8,7 @@ extern "C" {
 
 typedef struct {
     char* token;
+    int intents;
 } discord_bot_config_t;
 
 esp_err_t discord_init(const discord_bot_config_t config);

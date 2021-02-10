@@ -5,11 +5,18 @@
 #include "discord.h"
 #include "discord_gateway.h"
 
+discord_gateway_handle_t gateway;
+
 esp_err_t discord_init(const discord_bot_config_t config) {
-    discord_gw_init(config);
+    discord_gateway_config_t gateway_cfg = {
+        .bot = config
+    };
+
+    gateway = discord_gw_init(&gateway_cfg);
+    
     return ESP_OK;
 }
 
 esp_err_t discord_login() {
-    return discord_gw_open();
+    return discord_gw_open(gateway);
 }

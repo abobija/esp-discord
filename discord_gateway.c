@@ -5,22 +5,24 @@
 #include "esp_timer.h"
 #include "esp_websocket_client.h"
 #include "discord_gateway.h"
-#include "discord_gateway_heartbeat.h"
 
 static const char* TAG = "discord_gateway";
 
-static discord_bot_config_t _config;
-static esp_websocket_client_handle_t ws_client;
+struct discord_gateway {
+    discord_bot_config_t bot;
+    esp_websocket_client_handle_t ws;
+    esp_timer_handle_t heartbeat_timer;
+};
 
-static esp_err_t discord_gw_identify() {
+static esp_err_t identify(discord_gateway_handle_t gateway) {
     cJSON* props = cJSON_CreateObject();
     cJSON_AddStringToObject(props, "$os", "freertos");
     cJSON_AddStringToObject(props, "$browser", "esp-idf");
     cJSON_AddStringToObject(props, "$device", "esp32");
 
     cJSON* data = cJSON_CreateObject();
-    cJSON_AddStringToObject(data, "token", _config.token);
-    cJSON_AddNumberToObject(data, "intents", 512);
+    cJSON_AddStringToObject(data, "token", gateway->bot.token);
+    cJSON_AddNumberToObject(data, "intents", gateway->bot.intents);
     cJSON_AddItemToObject(data, "properties", props);
     
     cJSON* payload = cJSON_CreateObject();
@@ -33,14 +35,14 @@ static esp_err_t discord_gw_identify() {
 
     ESP_LOGI(TAG, "Sending=%s", payload_raw);
 
-    esp_websocket_client_send_text(ws_client, payload_raw, strlen(payload_raw), portMAX_DELAY);
+    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
 
     free(payload_raw);
 
     return ESP_OK;
 }
 
-static esp_err_t discord_gw_process_event(const cJSON* payload) {
+static esp_err_t process_event(const cJSON* payload) {
     cJSON* t = cJSON_GetObjectItem(payload, "t");
     
     if(cJSON_IsNull(t)) {
@@ -59,7 +61,31 @@ static esp_err_t discord_gw_process_event(const cJSON* payload) {
     return ESP_OK;
 }
 
-static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
+static void heartbeat_timer_callback(void* arg) {
+    ESP_LOGI(TAG, "Heartbeating...");
+
+    discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
+
+    const char* payload_raw = "{ \"op\": 1, \"d\": null }";
+    ESP_LOGI(TAG, "Sending=%s", payload_raw);
+    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+}
+
+static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
+    const esp_timer_create_args_t timer_args = {
+        .callback = &heartbeat_timer_callback,
+        .arg = (void*) gateway
+    };
+
+    return esp_timer_create(&timer_args, &(gateway->heartbeat_timer));
+}
+
+static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval) {
+    ESP_LOGI(TAG, "Heartbeat starting");
+    return esp_timer_start_periodic(gateway->heartbeat_timer, interval * 1000);
+}
+
+static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
     cJSON* payload = cJSON_Parse(data->data_ptr);
     int op = cJSON_GetObjectItem(payload, "op")->valueint;
     ESP_LOGW(TAG, "OP: %d", op);
@@ -68,13 +94,13 @@ static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
 
     switch(op) {
         case 0: // event
-            discord_gw_process_event(payload);
+            process_event(payload);
             break;
         case 10: // heartbeat and identify
             d = cJSON_GetObjectItem(payload, "d");
             heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint;
-            discord_gw_heartbeat_start(heartbeat_interval);
-            discord_gw_identify();
+            heartbeat_start(gateway, heartbeat_interval);
+            identify(gateway);
             break;
         case 11: // heartbeat ack
             // TODO:
@@ -93,6 +119,7 @@ static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
 }
 
 static void websocket_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
+    discord_gateway_handle_t gateway = (discord_gateway_handle_t) handler_args;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
     switch (event_id) {
@@ -107,7 +134,12 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
                 ESP_LOGI(TAG, "Total payload length=%d, data_len=%d, current payload offset=%d", data->payload_len, data->data_len, data->payload_offset);
                 ESP_LOGI(TAG, "Received=%.*s", data->data_len, (char*) data->data_ptr);
 
-                discord_gw_parse_payload(data);
+                if(data->payload_offset > 0 || data->payload_len > 1024) {
+                    ESP_LOGE(TAG, "Payload too big. Buffering not implemented yet. Parsing skipped.");
+                    break;
+                }
+
+                parse_payload(gateway, data);
             }
             break;
         case WEBSOCKET_EVENT_ERROR:
@@ -122,22 +154,25 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
     }
 }
 
-esp_err_t discord_gw_init(const discord_bot_config_t config) {
-    _config = config;
-    return ESP_OK;
+discord_gateway_handle_t discord_gw_init(const discord_gateway_config_t* config) {
+    discord_gateway_handle_t gateway = calloc(1, sizeof(struct discord_gateway));
+
+    gateway->bot = config->bot;
+
+    return gateway;
 }
 
-esp_err_t discord_gw_open() {
+esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json"
     };
 
-    ws_client = esp_websocket_client_init(&ws_cfg);
-    
-    ESP_ERROR_CHECK(discord_gw_heartbeat_init(ws_client));
+    gateway->ws = esp_websocket_client_init(&ws_cfg);
 
-    esp_websocket_register_events(ws_client, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*) ws_client);
-    esp_websocket_client_start(ws_client);
+    ESP_ERROR_CHECK(heartbeat_init(gateway));
+
+    esp_websocket_register_events(gateway->ws, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*) gateway);
+    esp_websocket_client_start(gateway->ws);
 
     return ESP_OK;
 }
