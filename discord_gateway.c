@@ -20,6 +20,7 @@ struct discord_gateway {
     discord_bot_config_t bot;
     esp_websocket_client_handle_t ws;
     esp_timer_handle_t heartbeat_timer;
+    discord_gateway_identification_t* identification;
 };
 
 static void heartbeat_timer_callback(void* arg);
@@ -69,8 +70,20 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* pa
     char* event_name = t->valuestring;
 
     if(strcmp("READY", event_name) == 0) {
-        ESP_LOGI(TAG, "Successfully identified");
+        ESP_LOGI(TAG, "Identified.");
+
+        if(gateway->identification != NULL) {
+            discord_model_gateway_identification_free(gateway->identification);
+        }
+        
+        gateway->identification = discord_model_gateway_identification(cJSON_GetObjectItem(payload, "d"));
         gateway->state = DISCORD_GATEWAY_STATE_READY;
+
+        ESP_LOGW(TAG, "Session: %s, uid: %s, bot: %d", 
+            gateway->identification->session_id,
+            gateway->identification->user->id,
+            gateway->identification->user->bot
+        );
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
     } else {
@@ -192,6 +205,9 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
 
     esp_websocket_client_destroy(gateway->ws);
     gateway->ws = NULL;
+
+    discord_model_gateway_identification_free(gateway->identification);
+    gateway->identification = NULL;
 
     free(gateway);
 
