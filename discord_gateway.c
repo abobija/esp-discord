@@ -72,6 +72,8 @@ static void heartbeat_timer_callback(void* arg) {
 }
 
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
+    ESP_LOGI(TAG, "Heartbeat init");
+
     const esp_timer_create_args_t timer_args = {
         .callback = &heartbeat_timer_callback,
         .arg = (void*) gateway
@@ -81,8 +83,13 @@ static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
 }
 
 static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval) {
-    ESP_LOGI(TAG, "Heartbeat starting");
+    ESP_LOGI(TAG, "Heartbeat start");
     return esp_timer_start_periodic(gateway->heartbeat_timer, interval * 1000);
+}
+
+static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway) {
+    ESP_LOGI(TAG, "Heartbeat stop");
+    return esp_timer_stop(gateway->heartbeat_timer);
 }
 
 static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
@@ -170,9 +177,21 @@ esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
     gateway->ws = esp_websocket_client_init(&ws_cfg);
 
     ESP_ERROR_CHECK(heartbeat_init(gateway));
+    ESP_ERROR_CHECK(esp_websocket_register_events(gateway->ws, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*) gateway));
+    ESP_ERROR_CHECK(esp_websocket_client_start(gateway->ws));
 
-    esp_websocket_register_events(gateway->ws, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*) gateway);
-    esp_websocket_client_start(gateway->ws);
+    return ESP_OK;
+}
+
+esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
+    heartbeat_stop(gateway);
+    esp_timer_delete(gateway->heartbeat_timer);
+    gateway->heartbeat_timer = NULL;
+
+    esp_websocket_client_destroy(gateway->ws);
+    gateway->ws = NULL;
+
+    free(gateway);
 
     return ESP_OK;
 }
