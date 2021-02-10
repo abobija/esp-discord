@@ -5,12 +5,12 @@
 #include "esp_timer.h"
 #include "esp_websocket_client.h"
 #include "discord_gateway.h"
+#include "discord_gateway_heartbeat.h"
 
 static const char* TAG = "discord_gateway";
 
 static discord_bot_config_t _config;
 static esp_websocket_client_handle_t ws_client;
-static esp_timer_handle_t heartbeat_timer;
 
 static esp_err_t discord_gw_identify() {
     cJSON* props = cJSON_CreateObject();
@@ -57,35 +57,6 @@ static esp_err_t discord_gw_process_event(const cJSON* payload) {
     }
 
     return ESP_OK;
-}
-
-static esp_err_t discord_gw_send_heartbeat() {
-    const char* payload_raw = "{ \"op\": 1, \"d\": null }";
-    ESP_LOGI(TAG, "Sending=%s", payload_raw);
-    esp_websocket_client_send_text(ws_client, payload_raw, strlen(payload_raw), portMAX_DELAY);
-
-    return ESP_OK;
-}
-
-static void discord_gw_heartbeat_timer_cb(void* arg) {
-    ESP_LOGI(TAG, "Heartbeating...");
-    discord_gw_send_heartbeat();
-}
-
-static esp_err_t discord_gw_heartbeat_start(int interval) {
-    ESP_LOGI(TAG, "Heartbeat starting");
-
-    return esp_timer_start_periodic(heartbeat_timer, interval * 1000);
-}
-
-static esp_err_t discord_gw_heartbeat_init() {
-    ESP_LOGI(TAG, "Heartbeat initialized");
-
-    const esp_timer_create_args_t heartbeat_timer_args = {
-        .callback = &discord_gw_heartbeat_timer_cb
-    };
-
-    return esp_timer_create(&heartbeat_timer_args, &heartbeat_timer);
 }
 
 static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
@@ -153,9 +124,6 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
 
 esp_err_t discord_gw_init(const discord_bot_config_t config) {
     _config = config;
-
-    ESP_ERROR_CHECK(discord_gw_heartbeat_init());
-
     return ESP_OK;
 }
 
@@ -165,6 +133,9 @@ esp_err_t discord_gw_open() {
     };
 
     ws_client = esp_websocket_client_init(&ws_cfg);
+    
+    ESP_ERROR_CHECK(discord_gw_heartbeat_init(ws_client));
+
     esp_websocket_register_events(ws_client, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*) ws_client);
     esp_websocket_client_start(ws_client);
 
