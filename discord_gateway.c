@@ -14,8 +14,8 @@ static esp_timer_handle_t heartbeat_timer;
 
 static esp_err_t discord_gw_identify() {
     cJSON* props = cJSON_CreateObject();
-    cJSON_AddStringToObject(props, "$os", "esp-idf");
-    cJSON_AddStringToObject(props, "$browser", "esp32");
+    cJSON_AddStringToObject(props, "$os", "freertos");
+    cJSON_AddStringToObject(props, "$browser", "esp-idf");
     cJSON_AddStringToObject(props, "$device", "esp32");
 
     cJSON* data = cJSON_CreateObject();
@@ -60,21 +60,16 @@ static esp_err_t discord_gw_process_event(const cJSON* payload) {
 }
 
 static esp_err_t discord_gw_send_heartbeat() {
-    cJSON* payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(payload, "op", 1);
-    char* payload_raw = cJSON_PrintUnformatted(payload);
-    cJSON_Delete(payload);
-
+    const char* payload_raw = "{ \"op\": 1, \"d\": null }";
     ESP_LOGI(TAG, "Sending=%s", payload_raw);
     esp_websocket_client_send_text(ws_client, payload_raw, strlen(payload_raw), portMAX_DELAY);
-    free(payload_raw);
 
     return ESP_OK;
 }
 
 static void discord_gw_heartbeat_timer_cb(void* arg) {
-    ESP_LOGI(TAG, "Heartbeat now should be sent but its seems its cannot be sent from different task... Fix this with events?.");
-    //discord_gw_send_heartbeat();
+    ESP_LOGI(TAG, "Heartbeating...");
+    discord_gw_send_heartbeat();
 }
 
 static esp_err_t discord_gw_heartbeat_start(int interval) {
@@ -101,14 +96,21 @@ static esp_err_t discord_gw_parse_payload(esp_websocket_event_data_t* data) {
     int heartbeat_interval;
 
     switch(op) {
+        case 0: // event
+            discord_gw_process_event(payload);
+            break;
         case 10: // heartbeat and identify
             d = cJSON_GetObjectItem(payload, "d");
             heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint;
             discord_gw_heartbeat_start(heartbeat_interval);
             discord_gw_identify();
             break;
-        case 0: // event
-            discord_gw_process_event(payload);
+        case 11: // heartbeat ack
+            // TODO:
+            // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
+            // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
+            // it should immediately terminate the connection with a non-1000 close code,
+            // reconnect, and attempt to resume.
             break;
         default:
             ESP_LOGW(TAG, "Unknown OP code %d", op);
