@@ -9,6 +9,8 @@ extern "C" {
 typedef struct {
     char* id;
     bool bot;
+    char* username;
+    char* discriminator;
 } discord_user_t;
 
 typedef struct {

@@ -75,14 +75,16 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* pa
         if(gateway->identification != NULL) {
             discord_model_gateway_identification_free(gateway->identification);
         }
-        
+
         gateway->identification = discord_model_gateway_identification(cJSON_GetObjectItem(payload, "d"));
         gateway->state = DISCORD_GATEWAY_STATE_READY;
-
-        ESP_LOGW(TAG, "Session: %s, uid: %s, bot: %d", 
+        
+        ESP_LOGW(TAG, "Session: %s, uid: %s, bot: %d, (%s#%s)", 
             gateway->identification->session_id,
             gateway->identification->user->id,
-            gateway->identification->user->bot
+            gateway->identification->user->bot,
+            gateway->identification->user->username,
+            gateway->identification->user->discriminator
         );
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
