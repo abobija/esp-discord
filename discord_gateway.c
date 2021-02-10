@@ -27,6 +27,12 @@ static esp_err_t heartbeat_init(discord_gateway_handle_t gateway);
 static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval);
 static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 
+static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload) {
+    ESP_LOGI(TAG, "Sending=%s", payload);
+    esp_websocket_client_send_text(gateway->ws, payload, strlen(payload), portMAX_DELAY);
+    return ESP_OK;
+}
+
 static esp_err_t identify(discord_gateway_handle_t gateway) {
     cJSON* props = cJSON_CreateObject();
     cJSON_AddStringToObject(props, "$os", "freertos");
@@ -46,10 +52,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
 
     cJSON_Delete(payload);
 
-    ESP_LOGI(TAG, "Sending=%s", payload_raw);
-
-    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
-
+    gw_push(gateway, payload_raw);
     free(payload_raw);
 
     return ESP_OK;
@@ -70,6 +73,8 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* pa
         gateway->state = DISCORD_GATEWAY_STATE_READY;
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
+    } else {
+        ESP_LOGW(TAG, "Unprocessed event \"%s\"", event_name);
     }
 
     return ESP_OK;
@@ -79,32 +84,33 @@ static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_e
     cJSON* payload = cJSON_Parse(data->data_ptr);
     int op = cJSON_GetObjectItem(payload, "op")->valueint;
     ESP_LOGW(TAG, "OP: %d", op);
-    cJSON* d;
-    int heartbeat_interval;
 
-    switch(op) {
-        case 0: // event
-            process_event(gateway, payload);
-            break;
-        case 10: // heartbeat and identify
-            d = cJSON_GetObjectItem(payload, "d");
-            heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint;
-            heartbeat_start(gateway, heartbeat_interval);
-            identify(gateway);
-            break;
-        case 11: // heartbeat ack
-            // TODO:
-            // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
-            // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
-            // it should immediately terminate the connection with a non-1000 close code,
-            // reconnect, and attempt to resume.
-            break;
-        default:
-            ESP_LOGW(TAG, "Unknown OP code %d", op);
-            break;
+    if(op == 0) { // event
+        process_event(gateway, payload);
+    } else if(op == 10) { // heartbeat and identify
+        cJSON* d = cJSON_GetObjectItem(payload, "d");
+        int heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint;
+
+        heartbeat_start(gateway, heartbeat_interval);
+
+        cJSON_Delete(payload);
+        payload = NULL;
+
+        identify(gateway);
+    } else if(op == 11) {// heartbeat ack
+        // TODO:
+        // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
+        // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
+        // it should immediately terminate the connection with a non-1000 close code,
+        // reconnect, and attempt to resume.
+    } else {
+        ESP_LOGW(TAG, "Unknown OP code %d", op);
     }
 
-    cJSON_Delete(payload);
+    if(payload != NULL) {
+        cJSON_Delete(payload);
+    }
+
     return ESP_OK;
 }
 
@@ -198,10 +204,7 @@ static void heartbeat_timer_callback(void* arg) {
     ESP_LOGI(TAG, "Heartbeating...");
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
-
-    const char* payload_raw = "{ \"op\": 1, \"d\": null }";
-    ESP_LOGI(TAG, "Sending=%s", payload_raw);
-    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+    gw_push(gateway, "{ \"op\": 1, \"d\": null }");
 }
 
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
