@@ -16,12 +16,12 @@ typedef struct {
 typedef struct {
     char* session_id;
     discord_user_t* user;
-} discord_gateway_identification_t;
+} discord_gateway_session_t;
 
 discord_user_t* discord_model_user(cJSON* root);
 void discord_model_user_free(discord_user_t* user);
-discord_gateway_identification_t* discord_model_gateway_identification(cJSON* root);
-void discord_model_gateway_identification_free(discord_gateway_identification_t* id);
+discord_gateway_session_t* discord_model_gateway_session(cJSON* root);
+void discord_model_gateway_session_free(discord_gateway_session_t* id);
 
 #ifdef __cplusplus
 }

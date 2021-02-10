@@ -20,7 +20,7 @@ struct discord_gateway {
     discord_bot_config_t bot;
     esp_websocket_client_handle_t ws;
     esp_timer_handle_t heartbeat_timer;
-    discord_gateway_identification_t* identification;
+    discord_gateway_session_t* session;
 };
 
 static void heartbeat_timer_callback(void* arg);
@@ -72,19 +72,19 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* pa
     if(strcmp("READY", event_name) == 0) {
         ESP_LOGI(TAG, "Identified.");
 
-        if(gateway->identification != NULL) {
-            discord_model_gateway_identification_free(gateway->identification);
+        if(gateway->session != NULL) {
+            discord_model_gateway_session_free(gateway->session);
         }
 
-        gateway->identification = discord_model_gateway_identification(cJSON_GetObjectItem(payload, "d"));
+        gateway->session = discord_model_gateway_session(cJSON_GetObjectItem(payload, "d"));
         gateway->state = DISCORD_GATEWAY_STATE_READY;
         
         ESP_LOGW(TAG, "Session: %s, uid: %s, bot: %d, (%s#%s)", 
-            gateway->identification->session_id,
-            gateway->identification->user->id,
-            gateway->identification->user->bot,
-            gateway->identification->user->username,
-            gateway->identification->user->discriminator
+            gateway->session->session_id,
+            gateway->session->user->id,
+            gateway->session->user->bot,
+            gateway->session->user->username,
+            gateway->session->user->discriminator
         );
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
@@ -208,8 +208,8 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     esp_websocket_client_destroy(gateway->ws);
     gateway->ws = NULL;
 
-    discord_model_gateway_identification_free(gateway->identification);
-    gateway->identification = NULL;
+    discord_model_gateway_session_free(gateway->session);
+    gateway->session = NULL;
 
     free(gateway);
 

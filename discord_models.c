@@ -23,8 +23,8 @@ void discord_model_user_free(discord_user_t* user) {
     free(user);
 }
 
-discord_gateway_identification_t* discord_model_gateway_identification(cJSON* root) {
-    discord_gateway_identification_t* id = calloc(1, sizeof(discord_gateway_identification_t));
+discord_gateway_session_t* discord_model_gateway_session(cJSON* root) {
+    discord_gateway_session_t* id = calloc(1, sizeof(discord_gateway_session_t));
 
     id->session_id = strdup(cJSON_GetObjectItem(root, "session_id")->valuestring);
     id->user = discord_model_user(cJSON_GetObjectItem(root, "user"));
@@ -32,7 +32,7 @@ discord_gateway_identification_t* discord_model_gateway_identification(cJSON* ro
     return id;
 }
 
-void discord_model_gateway_identification_free(discord_gateway_identification_t* id) {
+void discord_model_gateway_session_free(discord_gateway_session_t* id) {
     discord_model_user_free(id->user);
     free(id->session_id);
     free(id);
