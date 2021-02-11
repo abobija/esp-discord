@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+#define streq(s1, s2) strcmp(s1, s2) == 0
+
 #define DISCORD_INTENT_GUILDS                    (1 << 0)
 #define DISCORD_INTENT_GUILD_MEMBERS             (1 << 1)
 #define DISCORD_INTENT_GUILD_BANS                (1 << 2)

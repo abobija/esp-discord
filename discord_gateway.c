@@ -61,7 +61,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
 
 /**
  * @brief Check event name in payload and invoke appropriate functions.
- *        If MESSAGE_CREATE event occurs, payload will be freed,
+ *        In case of some events, this function will free the payload with cJSON_Delete,
  *        and payload_ref will be set to NULL.
  */
 static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload_ref) {
@@ -77,7 +77,7 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
 
     char* event_name = t->valuestring;
 
-    if(strcmp("READY", event_name) == 0) {
+    if(streq("READY", event_name)) {
         if(gateway->session != NULL) {
             discord_model_gateway_session_free(gateway->session);
         }
@@ -91,7 +91,7 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
             gateway->session->user->id,
             gateway->session->session_id
         );
-    } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
+    } else if(streq("MESSAGE_CREATE", event_name)) {
         discord_message_t* msg = discord_model_message(d);
 
         cJSON_Delete(payload);
