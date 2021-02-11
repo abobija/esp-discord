@@ -50,19 +50,21 @@ static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_r
 }
 
 static esp_err_t identify(discord_gateway_handle_t gateway) {
-    cJSON* props = cJSON_CreateObject();
-    cJSON_AddStringToObject(props, "$os", "freertos");
-    cJSON_AddStringToObject(props, "$browser", "esp-idf");
-    cJSON_AddStringToObject(props, "$device", "esp32");
+    discord_gateway_identify_t* identify = discord_model_gateway_identify(
+        gateway->bot.token,
+        gateway->bot.intents,
+        discord_model_gateway_identify_properties(
+            "freertos",
+            "esp-idf",
+            "esp32"
+        )
+    );
 
-    cJSON* data = cJSON_CreateObject();
-    cJSON_AddStringToObject(data, "token", gateway->bot.token);
-    cJSON_AddNumberToObject(data, "intents", gateway->bot.intents);
-    cJSON_AddItemToObject(data, "properties", props);
-    
     cJSON* payload = cJSON_CreateObject();
     cJSON_AddNumberToObject(payload, "op", DISCORD_OP_IDENTIFY);
-    cJSON_AddItemToObject(payload, "d", data);
+    cJSON_AddItemToObject(payload, "d", discord_model_gateway_identify_to_cjson(identify));
+
+    discord_model_gateway_identify_free(identify);
 
     gw_push_cjson(gateway, &payload);
 

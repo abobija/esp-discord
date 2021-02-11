@@ -3,6 +3,59 @@
 #include "cJSON.h"
 #include "discord_models.h"
 
+discord_gateway_identify_properties_t* discord_model_gateway_identify_properties(const char* $os, const char* $browser, const char* $device) {
+    discord_gateway_identify_properties_t* props = calloc(1, sizeof(discord_gateway_identify_properties_t));
+
+    props->$os = strdup($os);
+    props->$browser = strdup($browser);
+    props->$device = strdup($device);
+
+    return props;
+}
+
+cJSON* discord_model_gateway_identify_properties_to_cjson(discord_gateway_identify_properties_t* properties) {
+    cJSON* root = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(root, "$os", properties->$os);
+    cJSON_AddStringToObject(root, "$browser", properties->$browser);
+    cJSON_AddStringToObject(root, "$device", properties->$device);
+
+    return root;
+}
+
+void discord_model_gateway_identify_properties_free(discord_gateway_identify_properties_t* properties) {
+    free(properties->$os);
+    free(properties->$browser);
+    free(properties->$device);
+    free(properties);
+}
+
+discord_gateway_identify_t* discord_model_gateway_identify(const char* token, int intents, discord_gateway_identify_properties_t* properties) {
+    discord_gateway_identify_t* identify = calloc(1, sizeof(discord_gateway_identify_t));
+
+    identify->token = strdup(token);
+    identify->intents = intents;
+    identify->properties = properties;
+
+    return identify;
+}
+
+cJSON* discord_model_gateway_identify_to_cjson(discord_gateway_identify_t* identify) {
+    cJSON* root = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(root, "token", identify->token);
+    cJSON_AddNumberToObject(root, "intents", identify->intents);
+    cJSON_AddItemToObject(root, "properties", discord_model_gateway_identify_properties_to_cjson(identify->properties));
+
+    return root;
+}
+
+void discord_model_gateway_identify_free(discord_gateway_identify_t* identify) {
+    free(identify->token);
+    discord_model_gateway_identify_properties_free(identify->properties);
+    free(identify);
+}
+
 discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJSON* root) {
     discord_gateway_session_user_t* user = calloc(1, sizeof(discord_gateway_session_user_t));
 

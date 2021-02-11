@@ -7,6 +7,18 @@ extern "C" {
 #endif
 
 typedef struct {
+    char* $os;
+    char* $browser;
+    char* $device;
+} discord_gateway_identify_properties_t;
+
+typedef struct {
+    char* token;
+    int intents;
+    discord_gateway_identify_properties_t* properties;
+} discord_gateway_identify_t;
+
+typedef struct {
     char* id;
     char* username;
     char* discriminator;
@@ -31,6 +43,12 @@ typedef struct {
     discord_user_t* author;
 } discord_message_t;
 
+discord_gateway_identify_properties_t* discord_model_gateway_identify_properties(const char* $os, const char* $browser, const char* $device);
+cJSON* discord_model_gateway_identify_properties_to_cjson(discord_gateway_identify_properties_t* properties);
+void discord_model_gateway_identify_properties_free(discord_gateway_identify_properties_t* properties);
+discord_gateway_identify_t* discord_model_gateway_identify(const char* token, int intents, discord_gateway_identify_properties_t* properties);
+cJSON* discord_model_gateway_identify_to_cjson(discord_gateway_identify_t* identify);
+void discord_model_gateway_identify_free(discord_gateway_identify_t* identify);
 discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJSON* root);
 void discord_model_gateway_session_user_free(discord_gateway_session_user_t* user);
 discord_gateway_session_t* discord_model_gateway_session_from_cjson(cJSON* root);
