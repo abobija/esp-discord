@@ -32,6 +32,20 @@ static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload) {
     ESP_LOGD(TAG, "Sending:\n%s", payload);
     esp_websocket_client_send_text(gateway->ws, payload, strlen(payload), portMAX_DELAY);
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Serialize json and send it to gateway. cJSON object will be freed and set to NULL by reference.
+ */
+static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_ref) {
+    char* payload_raw = cJSON_PrintUnformatted(*cjson_ref);
+    cJSON_Delete(*cjson_ref);
+    *cjson_ref = NULL;
+    gw_push(gateway, payload_raw);
+    free(payload_raw);
+
     return ESP_OK;
 }
 
@@ -50,12 +64,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
     cJSON_AddNumberToObject(payload, "op", DISCORD_OP_IDENTIFY);
     cJSON_AddItemToObject(payload, "d", data);
 
-    char* payload_raw = cJSON_PrintUnformatted(payload);
-
-    cJSON_Delete(payload);
-
-    gw_push(gateway, payload_raw);
-    free(payload_raw);
+    gw_push_cjson(gateway, &payload);
 
     return ESP_OK;
 }
@@ -133,13 +142,13 @@ static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_e
             identify(gateway);
             break;
         
-        case DISCORD_OP_HEARTBEAT_ACK:
-            // TODO:
-            // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
-            // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
-            // it should immediately terminate the connection with a non-1000 close code,
-            // reconnect, and attempt to resume.
-            break;
+        // TODO:
+        // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
+        // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
+        // it should immediately terminate the connection with a non-1000 close code,
+        // reconnect, and attempt to resume.
+        //case DISCORD_OP_HEARTBEAT_ACK:
+        //    break;
 
         case DISCORD_OP_DISPATCH:
             process_event(gateway, &payload);
@@ -272,12 +281,7 @@ static void heartbeat_timer_callback(void* arg) {
         cJSON_AddNumberToObject(payload, "d", gateway->last_sequence_number);
     }
 
-    char* payload_raw = cJSON_PrintUnformatted(payload);
-
-    cJSON_Delete(payload);
-
-    gw_push(gateway, payload_raw);
-    free(payload_raw);
+    gw_push_cjson(gateway, &payload);
 }
 
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
