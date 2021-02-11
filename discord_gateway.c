@@ -79,12 +79,11 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* pa
         gateway->session = discord_model_gateway_session(cJSON_GetObjectItem(payload, "d"));
         gateway->state = DISCORD_GATEWAY_STATE_READY;
         
-        ESP_LOGW(TAG, "Session: %s, uid: %s, bot: %d, (%s#%s)", 
-            gateway->session->session_id,
-            gateway->session->user->id,
-            gateway->session->user->bot,
+        ESP_LOGW(TAG, "Welcome %s#%s [%s], (session: %s)", 
             gateway->session->user->username,
-            gateway->session->user->discriminator
+            gateway->session->user->discriminator,
+            gateway->session->user->id,
+            gateway->session->session_id
         );
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
