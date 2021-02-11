@@ -92,7 +92,7 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
             discord_model_gateway_session_free(gateway->session);
         }
 
-        gateway->session = discord_model_gateway_session(d);
+        gateway->session = discord_model_gateway_session_from_cjson(d);
         gateway->state = DISCORD_GATEWAY_STATE_READY;
         
         ESP_LOGD(TAG, "Identified [%s#%s (%s), session: %s]", 
@@ -102,7 +102,7 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
             gateway->session->session_id
         );
     } else if(streq("MESSAGE_CREATE", event_name)) {
-        discord_message_t* msg = discord_model_message(d);
+        discord_message_t* msg = discord_model_message_from_cjson(d);
 
         cJSON_Delete(payload);
         *payload_ref = NULL;

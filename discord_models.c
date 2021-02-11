@@ -3,7 +3,7 @@
 #include "cJSON.h"
 #include "discord_models.h"
 
-discord_gateway_session_user_t* discord_model_gateway_session_user(cJSON* root) {
+discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJSON* root) {
     discord_gateway_session_user_t* user = calloc(1, sizeof(discord_gateway_session_user_t));
 
     user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
@@ -20,11 +20,11 @@ void discord_model_gateway_session_user_free(discord_gateway_session_user_t* use
     free(user);
 }
 
-discord_gateway_session_t* discord_model_gateway_session(cJSON* root) {
+discord_gateway_session_t* discord_model_gateway_session_from_cjson(cJSON* root) {
     discord_gateway_session_t* id = calloc(1, sizeof(discord_gateway_session_t));
 
     id->session_id = strdup(cJSON_GetObjectItem(root, "session_id")->valuestring);
-    id->user = discord_model_gateway_session_user(cJSON_GetObjectItem(root, "user"));
+    id->user = discord_model_gateway_session_user_from_cjson(cJSON_GetObjectItem(root, "user"));
 
     return id;
 }
@@ -35,7 +35,7 @@ void discord_model_gateway_session_free(discord_gateway_session_t* id) {
     free(id);
 }
 
-discord_user_t* discord_model_user(cJSON* root) {
+discord_user_t* discord_model_user_from_cjson(cJSON* root) {
     discord_user_t* user = calloc(1, sizeof(discord_user_t));
 
     user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
@@ -55,13 +55,13 @@ void discord_model_user_free(discord_user_t* user) {
     free(user);
 }
 
-discord_message_t* discord_model_message(cJSON* root) {
+discord_message_t* discord_model_message_from_cjson(cJSON* root) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
     message->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
     message->content = strdup(cJSON_GetObjectItem(root, "content")->valuestring);
     message->channel_id = strdup(cJSON_GetObjectItem(root, "channel_id")->valuestring);
-    message->author = discord_model_user(cJSON_GetObjectItem(root, "author"));
+    message->author = discord_model_user_from_cjson(cJSON_GetObjectItem(root, "author"));
 
     return message;
 }
