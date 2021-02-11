@@ -21,6 +21,7 @@ struct discord_gateway {
     esp_websocket_client_handle_t ws;
     esp_timer_handle_t heartbeat_timer;
     discord_gateway_session_t* session;
+    int last_sequence_number;
 };
 
 static void heartbeat_timer_callback(void* arg);
@@ -46,7 +47,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
     cJSON_AddItemToObject(data, "properties", props);
     
     cJSON* payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(payload, "op", 2);
+    cJSON_AddNumberToObject(payload, "op", DISCORD_OP_IDENTIFY);
     cJSON_AddItemToObject(payload, "d", data);
 
     char* payload_raw = cJSON_PrintUnformatted(payload);
@@ -114,6 +115,12 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
 static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
     cJSON* payload = cJSON_Parse(data->data_ptr);
     cJSON* d = cJSON_GetObjectItem(payload, "d");
+    cJSON* s = cJSON_GetObjectItem(payload, "s");
+
+    if(cJSON_IsNumber(s)) {
+        gateway->last_sequence_number = s->valueint;
+    }
+    
     int op = cJSON_GetObjectItem(payload, "op")->valueint;
 
     ESP_LOGD(TAG, "Payload OP code: %d", op);
@@ -167,8 +174,13 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
 
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == 1) {
-                ESP_LOGD(TAG, "Received (payload_len=%d, data_len=%d, payload_offset=%d):", data->payload_len, data->data_len, data->payload_offset);
-                ESP_LOGD(TAG, "%.*s", data->data_len, (char*) data->data_ptr);
+                ESP_LOGD(TAG, "Received (payload_len=%d, data_len=%d, payload_offset=%d):\n%.*s", 
+                    data->payload_len, 
+                    data->data_len, 
+                    data->payload_offset,
+                    data->data_len,
+                    data->data_ptr
+                );
 
                 if(data->payload_offset > 0 || data->payload_len > 1024) {
                     ESP_LOGW(TAG, "Payload too big. Buffering not implemented. Parsing skipped.");
@@ -213,6 +225,8 @@ esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
         return ESP_FAIL;
     }
 
+    gateway->last_sequence_number = -1;
+
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json"
     };
@@ -248,7 +262,22 @@ static void heartbeat_timer_callback(void* arg) {
     ESP_LOGD(TAG, "Sending heartbeat...");
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
-    gw_push(gateway, "{ \"op\": 1, \"d\": null }");
+
+    cJSON* payload = cJSON_CreateObject();
+    cJSON_AddNumberToObject(payload, "op", DISCORD_OP_HEARTBEAT);
+
+    if(gateway->last_sequence_number <= 0) {
+        cJSON_AddNullToObject(payload, "d");
+    } else {
+        cJSON_AddNumberToObject(payload, "d", gateway->last_sequence_number);
+    }
+
+    char* payload_raw = cJSON_PrintUnformatted(payload);
+
+    cJSON_Delete(payload);
+
+    gw_push(gateway, payload_raw);
+    free(payload_raw);
 }
 
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
