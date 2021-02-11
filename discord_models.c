@@ -20,13 +20,15 @@ cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
     cJSON* root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "op", payload->op);
 
+    const char* d = "d";
+
     switch (payload->type) {
         case DISCORD_MODEL_HEARTBEAT:
-            cJSON_AddItemToObject(root, "d", discord_model_gateway_heartbeat_to_cjson((discord_gateway_heartbeat_t*) payload->d));
+            cJSON_AddItemToObject(root, d, discord_model_gateway_heartbeat_to_cjson((discord_gateway_heartbeat_t*) payload->d));
             break;
 
         case DISCORD_MODEL_GATEWAY_IDENTIFY:
-            cJSON_AddItemToObject(root, "d", discord_model_gateway_identify_to_cjson((discord_gateway_identify_t*) payload->d));
+            cJSON_AddItemToObject(root, d, discord_model_gateway_identify_to_cjson((discord_gateway_identify_t*) payload->d));
             break;
         
         default:
@@ -66,7 +68,7 @@ void discord_model_payload_free(discord_payload_t* payload) {
 
 cJSON* discord_model_gateway_heartbeat_to_cjson(discord_gateway_heartbeat_t* heartbeat) {
     int hb = *((int*) (heartbeat));
-    
+
     return hb <= 0 ? cJSON_CreateNull() : cJSON_CreateNumber(hb);
 }
 
