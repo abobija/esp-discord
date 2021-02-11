@@ -24,51 +24,40 @@ struct discord_gateway {
     int last_sequence_number;
 };
 
+/**
+ * @brief Send raw data to gateway
+ */
+static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload);
+
+/**
+ * @brief Serialize json and send it to gateway. cJSON object will be freed and set to NULL by reference
+ */
+static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_ref);
+
+/**
+ * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
+ */
+static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_payload_t* payload);
+
 static void heartbeat_timer_callback(void* arg);
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway);
 static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval);
 static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 
-static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload) {
-    ESP_LOGD(TAG, "Sending:\n%s", payload);
-    esp_websocket_client_send_text(gateway->ws, payload, strlen(payload), portMAX_DELAY);
-
-    return ESP_OK;
-}
-
-/**
- * @brief Serialize json and send it to gateway. cJSON object will be freed and set to NULL by reference.
- */
-static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_ref) {
-    char* payload_raw = cJSON_PrintUnformatted(*cjson_ref);
-    cJSON_Delete(*cjson_ref);
-    *cjson_ref = NULL;
-    gw_push(gateway, payload_raw);
-    free(payload_raw);
-
-    return ESP_OK;
-}
-
 static esp_err_t identify(discord_gateway_handle_t gateway) {
-    discord_gateway_identify_t* identify = discord_model_gateway_identify(
-        gateway->bot.token,
-        gateway->bot.intents,
-        discord_model_gateway_identify_properties(
-            "freertos",
-            "esp-idf",
-            "esp32"
+    return gw_push_payload(gateway, discord_model_payload(
+        DISCORD_OP_IDENTIFY,
+        DISCORD_MODEL_GATEWAY_IDENTIFY,
+        discord_model_gateway_identify(
+            gateway->bot.token,
+            gateway->bot.intents,
+            discord_model_gateway_identify_properties(
+                "freertos",
+                "esp-idf",
+                "esp32"
+            )
         )
-    );
-
-    cJSON* payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(payload, "op", DISCORD_OP_IDENTIFY);
-    cJSON_AddItemToObject(payload, "d", discord_model_gateway_identify_to_cjson(identify));
-
-    discord_model_gateway_identify_free(identify);
-
-    gw_push_cjson(gateway, &payload);
-
-    return ESP_OK;
+    ));
 }
 
 /**
@@ -263,6 +252,33 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     gateway->session = NULL;
 
     free(gateway);
+
+    return ESP_OK;
+}
+
+// ========== Pushers
+
+static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload) {
+    ESP_LOGD(TAG, "Sending:\n%s", payload);
+    esp_websocket_client_send_text(gateway->ws, payload, strlen(payload), portMAX_DELAY);
+
+    return ESP_OK;
+}
+
+static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_ref) {
+    char* payload_raw = cJSON_PrintUnformatted(*cjson_ref);
+    cJSON_Delete(*cjson_ref);
+    *cjson_ref = NULL;
+    gw_push(gateway, payload_raw);
+    free(payload_raw);
+
+    return ESP_OK;
+}
+
+static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_payload_t* payload) {
+    cJSON* cjson = discord_model_payload_to_cjson(payload);
+    discord_model_payload_free(payload);
+    gw_push_cjson(gateway, &cjson);
 
     return ESP_OK;
 }

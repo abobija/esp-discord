@@ -1,7 +1,53 @@
 #include "string.h"
 #include "esp_heap_caps.h"
 #include "cJSON.h"
+#include "esp_log.h"
 #include "discord_models.h"
+
+static const char* TAG = "discord_models";
+
+discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void* d) {
+    discord_payload_t* pl = calloc(1, sizeof(discord_payload_t));
+
+    pl->op = op;
+    pl->type = type;
+    pl->d = d;
+
+    return pl;
+}
+
+cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
+    cJSON* root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "op", payload->op);
+
+    switch (payload->type) {
+        case DISCORD_MODEL_GATEWAY_IDENTIFY:
+            cJSON_AddItemToObject(root, "d", discord_model_gateway_identify_to_cjson((discord_gateway_identify_t*) payload->d));
+            break;
+        
+        default:
+            ESP_LOGE(TAG, "%s:%d %s", __FILE__, __LINE__, "Function discord_model_payload_to_cjson cannot recognize payload type");
+            cJSON_Delete(root);
+            root = NULL;
+            break;
+    }
+
+    return root;
+}
+
+void discord_model_payload_free(discord_payload_t* payload) {
+    switch (payload->type) {
+        case DISCORD_MODEL_GATEWAY_IDENTIFY:
+            discord_model_gateway_identify_free((discord_gateway_identify_t*) payload->d);
+            break;
+        
+        default:
+            ESP_LOGE(TAG, "%s:%d %s", __FILE__, __LINE__, "Function discord_model_payload_free cannot recognize payload type");
+            break;
+    }
+
+    free(payload);
+}
 
 discord_gateway_identify_properties_t* discord_model_gateway_identify_properties(const char* $os, const char* $browser, const char* $device) {
     discord_gateway_identify_properties_t* props = calloc(1, sizeof(discord_gateway_identify_properties_t));
