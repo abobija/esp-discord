@@ -59,7 +59,8 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
     return ESP_OK;
 }
 
-static esp_err_t process_event(discord_gateway_handle_t gateway, const cJSON* payload) {
+static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload_ref) {
+    cJSON* payload = *payload_ref;
     cJSON* t = cJSON_GetObjectItem(payload, "t");
     
     if(cJSON_IsNull(t)) {
@@ -100,7 +101,7 @@ static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_e
     ESP_LOGW(TAG, "OP: %d", op);
 
     if(op == 0) { // event
-        process_event(gateway, payload);
+        process_event(gateway, &payload);
     } else if(op == 10) { // heartbeat and identify
         cJSON* d = cJSON_GetObjectItem(payload, "d");
         int heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint;
@@ -111,7 +112,7 @@ static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_e
         payload = NULL;
 
         identify(gateway);
-    } else if(op == 11) {// heartbeat ack
+    } else if(op == 11) { // heartbeat ack
         // TODO:
         // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
         // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
