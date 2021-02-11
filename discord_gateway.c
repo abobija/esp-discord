@@ -113,29 +113,34 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
 
 static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
     cJSON* payload = cJSON_Parse(data->data_ptr);
+    cJSON* d = cJSON_GetObjectItem(payload, "d");
     int op = cJSON_GetObjectItem(payload, "op")->valueint;
+
     ESP_LOGD(TAG, "Payload OP code: %d", op);
 
-    if(op == 0) { // event
-        process_event(gateway, &payload);
-    } else if(op == 10) { // heartbeat and identify
-        cJSON* d = cJSON_GetObjectItem(payload, "d");
-        int heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint;
+    switch (op) {
+        case DISCORD_OP_HELLO:
+            heartbeat_start(gateway, cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
+            cJSON_Delete(payload);
+            payload = NULL;
+            identify(gateway);
+            break;
+        
+        case DISCORD_OP_HEARTBEAT_ACK:
+            // TODO:
+            // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
+            // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
+            // it should immediately terminate the connection with a non-1000 close code,
+            // reconnect, and attempt to resume.
+            break;
 
-        heartbeat_start(gateway, heartbeat_interval);
-
-        cJSON_Delete(payload);
-        payload = NULL;
-
-        identify(gateway);
-    } else if(op == 11) { // heartbeat ack
-        // TODO:
-        // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
-        // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
-        // it should immediately terminate the connection with a non-1000 close code,
-        // reconnect, and attempt to resume.
-    } else {
-        ESP_LOGW(TAG, "Unknown payload OP code %d", op);
+        case DISCORD_OP_DISPATCH:
+            process_event(gateway, &payload);
+            break;
+        
+        default:
+            ESP_LOGW(TAG, "Unhandled payload with OP code %d", op);
+            break;
     }
 
     if(payload != NULL) {
@@ -154,10 +159,12 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_CONNECTED");
             gateway->state = DISCORD_GATEWAY_STATE_INIT;
             break;
+
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_DISCONNECTED");
             gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
             break;
+
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == 1) {
                 ESP_LOGD(TAG, "Received (payload_len=%d, data_len=%d, payload_offset=%d):", data->payload_len, data->data_len, data->payload_offset);
@@ -171,14 +178,17 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
                 parse_payload(gateway, data);
             }
             break;
+
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_ERROR");
             gateway->state = DISCORD_GATEWAY_STATE_ERROR;
             break;
+
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_CLOSED");
             gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
             break;
+            
         default:
             ESP_LOGW(TAG, "WEBSOCKET_EVENT_UNKNOWN %d", event_id);
             break;

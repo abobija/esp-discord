@@ -23,6 +23,20 @@ extern "C" {
 #define DISCORD_INTENT_DIRECT_MESSAGE_REACTIONS  (1 << 13)
 #define DISCORD_INTENT_DIRECT_MESSAGE_TYPING     (1 << 14)
 
+enum {
+    DISCORD_OP_DISPATCH,               /*!< [Receive] An event was dispatched */
+    DISCORD_OP_HEARTBEAT,              /*!< [Send/Receive] An event was dispatched */
+    DISCORD_OP_IDENTIFY,               /*!< [Send] Starts a new session during the initial handshake */
+    DISCORD_OP_PRESENCE_UPDATE,        /*!< [Send] Update the client's presence */
+    DISCORD_OP_VOICE_STATE_UPDATE,     /*!< [Send] Used to join/leave or move between voice channels */
+    DISCORD_OP_RESUME = 6,             /*!< [Send] Resume a previous session that was disconnected */
+    DISCORD_OP_RECONNECT,              /*!< [Receive] You should attempt to reconnect and resume immediately */
+    DISCORD_OP_REQUEST_GUILD_MEMBERS,  /*!< [Send] Request information about offline guild members in a large guild */
+    DISCORD_OP_INVALID_SESSION,        /*!< [Receive] The session has been invalidated. You should reconnect and identify/resume accordingly */
+    DISCORD_OP_HELLO,                  /*!< [Receive] Sent immediately after connecting, contains the heartbeat_interval to use */
+    DISCORD_OP_HEARTBEAT_ACK,          /*!< [Receive] Sent in response to receiving a heartbeat to acknowledge that it has been received */
+};
+
 typedef struct {
     char* token;
     int intents;
