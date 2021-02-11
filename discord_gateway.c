@@ -256,7 +256,7 @@ static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_paylo
     cJSON_Delete(cjson);
 
     ESP_LOGD(TAG, "Sending payload:\n%s", payload_raw);
-    
+
     esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
     free(payload_raw);
 
@@ -274,7 +274,7 @@ static void heartbeat_timer_callback(void* arg) {
     gw_push_payload(gateway, discord_model_payload(
         DISCORD_OP_HEARTBEAT,
         DISCORD_MODEL_HEARTBEAT,
-        &s
+        (discord_gateway_heartbeat_t*) &s
     ));
 }
 

@@ -18,7 +18,7 @@ typedef struct {
     void* d;
 } discord_payload_t;
 
-typedef int discord_heartbeat_t;
+typedef int discord_gateway_heartbeat_t;
 
 typedef struct {
     char* $os;
@@ -60,6 +60,8 @@ typedef struct {
 discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void* d);
 cJSON* discord_model_payload_to_cjson(discord_payload_t* payload);
 void discord_model_payload_free(discord_payload_t* payload);
+
+cJSON* discord_model_gateway_heartbeat_to_cjson(discord_gateway_heartbeat_t* heartbeat);
 
 discord_gateway_identify_properties_t* discord_model_gateway_identify_properties(const char* $os, const char* $browser, const char* $device);
 cJSON* discord_model_gateway_identify_properties_to_cjson(discord_gateway_identify_properties_t* properties);

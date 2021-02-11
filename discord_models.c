@@ -17,20 +17,12 @@ discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void
 }
 
 cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
-    int tmp;
     cJSON* root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "op", payload->op);
 
     switch (payload->type) {
         case DISCORD_MODEL_HEARTBEAT:
-            tmp = *((int*) (payload->d));
-
-            if(tmp <= 0) {
-                cJSON_AddNullToObject(root, "d");
-            } else {
-                cJSON_AddNumberToObject(root, "d", tmp);
-            }
-
+            cJSON_AddItemToObject(root, "d", discord_model_gateway_heartbeat_to_cjson((discord_gateway_heartbeat_t*) payload->d));
             break;
 
         case DISCORD_MODEL_GATEWAY_IDENTIFY:
@@ -70,6 +62,12 @@ void discord_model_payload_free(discord_payload_t* payload) {
     }
 
     free(payload);
+}
+
+cJSON* discord_model_gateway_heartbeat_to_cjson(discord_gateway_heartbeat_t* heartbeat) {
+    int hb = *((int*) (heartbeat));
+    
+    return hb <= 0 ? cJSON_CreateNull() : cJSON_CreateNumber(hb);
 }
 
 discord_gateway_identify_properties_t* discord_model_gateway_identify_properties(const char* $os, const char* $browser, const char* $device) {
