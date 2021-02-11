@@ -105,7 +105,7 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
             msg->author->discriminator,
             msg->content
         );
-
+        
         discord_model_message_free(msg);
     } else {
         ESP_LOGW(TAG, "Unprocessed event \"%s\"", event_name);
