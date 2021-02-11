@@ -8,6 +8,7 @@ extern "C" {
 
 typedef enum {
     DISCORD_MODEL_UNKNOWN,
+    DISCORD_MODEL_HEARTBEAT,
     DISCORD_MODEL_GATEWAY_IDENTIFY
 } discord_model_type_t;
 
@@ -16,6 +17,8 @@ typedef struct {
     discord_model_type_t type;
     void* d;
 } discord_payload_t;
+
+typedef int discord_heartbeat_t;
 
 typedef struct {
     char* $os;

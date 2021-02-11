@@ -17,10 +17,22 @@ discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void
 }
 
 cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
+    int tmp;
     cJSON* root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "op", payload->op);
 
     switch (payload->type) {
+        case DISCORD_MODEL_HEARTBEAT:
+            tmp = *((int*) (payload->d));
+
+            if(tmp <= 0) {
+                cJSON_AddNullToObject(root, "d");
+            } else {
+                cJSON_AddNumberToObject(root, "d", tmp);
+            }
+
+            break;
+
         case DISCORD_MODEL_GATEWAY_IDENTIFY:
             cJSON_AddItemToObject(root, "d", discord_model_gateway_identify_to_cjson((discord_gateway_identify_t*) payload->d));
             break;
@@ -36,14 +48,25 @@ cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
 }
 
 void discord_model_payload_free(discord_payload_t* payload) {
+    bool recognized = true;
+
     switch (payload->type) {
+        case DISCORD_MODEL_HEARTBEAT:
+            // Ignore
+            break;
+
         case DISCORD_MODEL_GATEWAY_IDENTIFY:
             discord_model_gateway_identify_free((discord_gateway_identify_t*) payload->d);
             break;
         
         default:
+            recognized = false;
             ESP_LOGE(TAG, "%s:%d %s", __FILE__, __LINE__, "Function discord_model_payload_free cannot recognize payload type");
             break;
+    }
+
+    if(recognized) {
+        payload->d = NULL;
     }
 
     free(payload);

@@ -25,16 +25,6 @@ struct discord_gateway {
 };
 
 /**
- * @brief Send raw data to gateway
- */
-static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload);
-
-/**
- * @brief Serialize json and send it to gateway. cJSON object will be freed and set to NULL by reference
- */
-static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_ref);
-
-/**
  * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
  */
 static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_payload_t* payload);
@@ -256,29 +246,19 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     return ESP_OK;
 }
 
-// ========== Pushers
-
-static esp_err_t gw_push(discord_gateway_handle_t gateway, const char* payload) {
-    ESP_LOGD(TAG, "Sending:\n%s", payload);
-    esp_websocket_client_send_text(gateway->ws, payload, strlen(payload), portMAX_DELAY);
-
-    return ESP_OK;
-}
-
-static esp_err_t gw_push_cjson(discord_gateway_handle_t gateway, cJSON** cjson_ref) {
-    char* payload_raw = cJSON_PrintUnformatted(*cjson_ref);
-    cJSON_Delete(*cjson_ref);
-    *cjson_ref = NULL;
-    gw_push(gateway, payload_raw);
-    free(payload_raw);
-
-    return ESP_OK;
-}
+// ========== Push
 
 static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_payload_t* payload) {
     cJSON* cjson = discord_model_payload_to_cjson(payload);
     discord_model_payload_free(payload);
-    gw_push_cjson(gateway, &cjson);
+
+    char* payload_raw = cJSON_PrintUnformatted(cjson);
+    cJSON_Delete(cjson);
+
+    ESP_LOGD(TAG, "Sending payload:\n%s", payload_raw);
+    
+    esp_websocket_client_send_text(gateway->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+    free(payload_raw);
 
     return ESP_OK;
 }
@@ -289,17 +269,13 @@ static void heartbeat_timer_callback(void* arg) {
     ESP_LOGD(TAG, "Sending heartbeat...");
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
+    int s = gateway->last_sequence_number;
 
-    cJSON* payload = cJSON_CreateObject();
-    cJSON_AddNumberToObject(payload, "op", DISCORD_OP_HEARTBEAT);
-
-    if(gateway->last_sequence_number <= 0) {
-        cJSON_AddNullToObject(payload, "d");
-    } else {
-        cJSON_AddNumberToObject(payload, "d", gateway->last_sequence_number);
-    }
-
-    gw_push_cjson(gateway, &payload);
+    gw_push_payload(gateway, discord_model_payload(
+        DISCORD_OP_HEARTBEAT,
+        DISCORD_MODEL_HEARTBEAT,
+        &s
+    ));
 }
 
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
