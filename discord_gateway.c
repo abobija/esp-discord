@@ -59,6 +59,11 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
     return ESP_OK;
 }
 
+/**
+ * @brief Check event name in payload and invoke appropriate functions.
+ *        If MESSAGE_CREATE event occurs, payload will be freed,
+ *        and payload_ref will be set to NULL.
+ */
 static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload_ref) {
     cJSON* payload = *payload_ref;
     cJSON* t = cJSON_GetObjectItem(payload, "t");
@@ -67,6 +72,8 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
         ESP_LOGW(TAG, "Missing event name");
         return ESP_FAIL;
     }
+
+    cJSON* d = cJSON_GetObjectItem(payload, "d");
 
     char* event_name = t->valuestring;
 
@@ -77,7 +84,7 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
             discord_model_gateway_session_free(gateway->session);
         }
 
-        gateway->session = discord_model_gateway_session(cJSON_GetObjectItem(payload, "d"));
+        gateway->session = discord_model_gateway_session(d);
         gateway->state = DISCORD_GATEWAY_STATE_READY;
         
         ESP_LOGW(TAG, "Welcome %s#%s [%s], (session: %s)", 
@@ -88,6 +95,18 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
         );
     } else if(strcmp("MESSAGE_CREATE", event_name) == 0) {
         ESP_LOGI(TAG, "Received discord message");
+        discord_message_t* msg = discord_model_message(d);
+
+        cJSON_Delete(payload);
+        *payload_ref = NULL;
+
+        ESP_LOGW(TAG, "%s#%s: %s",
+            msg->author->username,
+            msg->author->discriminator,
+            msg->content
+        );
+
+        discord_model_message_free(msg);
     } else {
         ESP_LOGW(TAG, "Unprocessed event \"%s\"", event_name);
     }
@@ -216,7 +235,7 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     return ESP_OK;
 }
 
-// Heartbeat
+// ========== Heartbeat
 
 static void heartbeat_timer_callback(void* arg) {
     ESP_LOGI(TAG, "Heartbeating...");

@@ -54,3 +54,22 @@ void discord_model_user_free(discord_user_t* user) {
     free(user->discriminator);
     free(user);
 }
+
+discord_message_t* discord_model_message(cJSON* root) {
+    discord_message_t* message = calloc(1, sizeof(discord_message_t));
+
+    message->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
+    message->content = strdup(cJSON_GetObjectItem(root, "content")->valuestring);
+    message->channel_id = strdup(cJSON_GetObjectItem(root, "channel_id")->valuestring);
+    message->author = discord_model_user(cJSON_GetObjectItem(root, "author"));
+
+    return message;
+}
+
+void discord_model_message_free(discord_message_t* message) {
+    free(message->id);
+    free(message->content);
+    free(message->channel_id);
+    discord_model_user_free(message->author);
+    free(message);
+}
