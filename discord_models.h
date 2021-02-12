@@ -16,7 +16,7 @@ typedef struct {
     int op;
     discord_model_type_t type;
     void* d;
-} discord_payload_t;
+} discord_gateway_payload_t;
 
 typedef int discord_gateway_heartbeat_t;
 
@@ -57,9 +57,9 @@ typedef struct {
     discord_user_t* author;
 } discord_message_t;
 
-discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void* d);
-cJSON* discord_model_payload_to_cjson(discord_payload_t* payload);
-void discord_model_payload_free(discord_payload_t* payload);
+discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_model_type_t type, void* d);
+cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload);
+void discord_model_gateway_payload_free(discord_gateway_payload_t* payload);
 
 cJSON* discord_model_gateway_heartbeat_to_cjson(discord_gateway_heartbeat_t* heartbeat);
 

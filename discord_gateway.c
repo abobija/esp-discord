@@ -27,7 +27,7 @@ struct discord_gateway {
 /**
  * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
  */
-static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_payload_t* payload);
+static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload);
 
 static void heartbeat_timer_callback(void* arg);
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway);
@@ -35,7 +35,7 @@ static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval)
 static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 
 static esp_err_t identify(discord_gateway_handle_t gateway) {
-    return gw_push_payload(gateway, discord_model_payload(
+    return gw_push_payload(gateway, discord_model_gateway_payload(
         DISCORD_OP_IDENTIFY,
         DISCORD_MODEL_GATEWAY_IDENTIFY,
         discord_model_gateway_identify(
@@ -248,9 +248,9 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
 
 // ========== Push
 
-static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_payload_t* payload) {
-    cJSON* cjson = discord_model_payload_to_cjson(payload);
-    discord_model_payload_free(payload);
+static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
+    cJSON* cjson = discord_model_gateway_payload_to_cjson(payload);
+    discord_model_gateway_payload_free(payload);
 
     char* payload_raw = cJSON_PrintUnformatted(cjson);
     cJSON_Delete(cjson);
@@ -271,7 +271,7 @@ static void heartbeat_timer_callback(void* arg) {
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
     int s = gateway->last_sequence_number;
 
-    gw_push_payload(gateway, discord_model_payload(
+    gw_push_payload(gateway, discord_model_gateway_payload(
         DISCORD_OP_HEARTBEAT,
         DISCORD_MODEL_HEARTBEAT,
         (discord_gateway_heartbeat_t*) &s

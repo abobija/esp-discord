@@ -6,8 +6,8 @@
 
 static const char* TAG = "discord_models";
 
-discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void* d) {
-    discord_payload_t* pl = calloc(1, sizeof(discord_payload_t));
+discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_model_type_t type, void* d) {
+    discord_gateway_payload_t* pl = calloc(1, sizeof(discord_gateway_payload_t));
 
     pl->op = op;
     pl->type = type;
@@ -16,7 +16,7 @@ discord_payload_t* discord_model_payload(int op, discord_model_type_t type, void
     return pl;
 }
 
-cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
+cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload) {
     cJSON* root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "op", payload->op);
 
@@ -41,7 +41,7 @@ cJSON* discord_model_payload_to_cjson(discord_payload_t* payload) {
     return root;
 }
 
-void discord_model_payload_free(discord_payload_t* payload) {
+void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
     bool recognized = true;
 
     switch (payload->type) {
