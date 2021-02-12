@@ -6,15 +6,8 @@
 extern "C" {
 #endif
 
-typedef enum {
-    DISCORD_MODEL_UNKNOWN,
-    DISCORD_MODEL_HEARTBEAT,
-    DISCORD_MODEL_GATEWAY_IDENTIFY
-} discord_model_type_t;
-
 typedef struct {
     int op;
-    discord_model_type_t type;
     void* d;
 } discord_gateway_payload_t;
 
@@ -57,7 +50,7 @@ typedef struct {
     discord_user_t* author;
 } discord_message_t;
 
-discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_model_type_t type, void* d);
+discord_gateway_payload_t* discord_model_gateway_payload(int op, void* d);
 cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload);
 void discord_model_gateway_payload_free(discord_gateway_payload_t* payload);
 

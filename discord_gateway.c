@@ -37,7 +37,6 @@ static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 static esp_err_t identify(discord_gateway_handle_t gateway) {
     return gw_push_payload(gateway, discord_model_gateway_payload(
         DISCORD_OP_IDENTIFY,
-        DISCORD_MODEL_GATEWAY_IDENTIFY,
         discord_model_gateway_identify(
             gateway->bot.token,
             gateway->bot.intents,
@@ -270,10 +269,9 @@ static void heartbeat_timer_callback(void* arg) {
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
     int s = gateway->last_sequence_number;
-
+    
     gw_push_payload(gateway, discord_model_gateway_payload(
         DISCORD_OP_HEARTBEAT,
-        DISCORD_MODEL_HEARTBEAT,
         (discord_gateway_heartbeat_t*) &s
     ));
 }

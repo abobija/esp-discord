@@ -2,15 +2,15 @@
 #include "esp_heap_caps.h"
 #include "cJSON.h"
 #include "esp_log.h"
+#include "discord.h"
 #include "discord_models.h"
 
 static const char* TAG = "discord_models";
 
-discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_model_type_t type, void* d) {
+discord_gateway_payload_t* discord_model_gateway_payload(int op, void* d) {
     discord_gateway_payload_t* pl = calloc(1, sizeof(discord_gateway_payload_t));
 
     pl->op = op;
-    pl->type = type;
     pl->d = d;
 
     return pl;
@@ -22,12 +22,12 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
 
     const char* d = "d";
 
-    switch (payload->type) {
-        case DISCORD_MODEL_HEARTBEAT:
+    switch (payload->op) {
+        case DISCORD_OP_HEARTBEAT:
             cJSON_AddItemToObject(root, d, discord_model_gateway_heartbeat_to_cjson((discord_gateway_heartbeat_t*) payload->d));
             break;
 
-        case DISCORD_MODEL_GATEWAY_IDENTIFY:
+        case DISCORD_OP_IDENTIFY:
             cJSON_AddItemToObject(root, d, discord_model_gateway_identify_to_cjson((discord_gateway_identify_t*) payload->d));
             break;
         
@@ -44,12 +44,12 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
 void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
     bool recognized = true;
 
-    switch (payload->type) {
-        case DISCORD_MODEL_HEARTBEAT:
+    switch (payload->op) {
+        case DISCORD_OP_HEARTBEAT:
             // Ignore
             break;
 
-        case DISCORD_MODEL_GATEWAY_IDENTIFY:
+        case DISCORD_OP_IDENTIFY:
             discord_model_gateway_identify_free((discord_gateway_identify_t*) payload->d);
             break;
         
