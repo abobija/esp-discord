@@ -13,6 +13,7 @@ discord_gateway_payload_t* discord_model_gateway_payload(int op, void* d) {
     pl->op = op;
     pl->d = d;
     pl->s = DISCORD_NULL_SEQUENCE_NUMBER;
+    pl->t = DISCORD_GATEWAY_EVENT_NONE;
 
     return pl;
 }
@@ -133,20 +134,20 @@ char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload
 
 discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char* name) {
     if(streq("READY", name)) {
-        return DISCORD_EVENT_READY;
+        return DISCORD_GATEWAY_EVENT_READY;
     } else if(streq("MESSAGE_CREATE", name)) {
-        return DISCORD_EVENT_MESSAGE_CREATE;
+        return DISCORD_GATEWAY_EVENT_MESSAGE_CREATE;
     }
 
-    return DISCORD_EVENT_UNKNOWN;
+    return DISCORD_GATEWAY_EVENT_UNKNOWN;
 }
 
 void* discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson) {
     switch (e) {
-        case DISCORD_EVENT_READY:
+        case DISCORD_GATEWAY_EVENT_READY:
             return discord_model_gateway_session_from_cjson(cjson);
         
-        case DISCORD_EVENT_MESSAGE_CREATE:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
             return discord_model_message_from_cjson(cjson);
         
         default:
@@ -160,10 +161,10 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
         return;
 
     switch (payload->t) {
-        case DISCORD_EVENT_READY:
+        case DISCORD_GATEWAY_EVENT_READY:
             return discord_model_gateway_session_free((discord_gateway_session_t*) payload->d);
         
-        case DISCORD_EVENT_MESSAGE_CREATE:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
             return discord_model_message_free((discord_message_t*) payload->d);
         
         default:
