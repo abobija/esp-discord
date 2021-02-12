@@ -1,7 +1,6 @@
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "cJSON.h"
 #include "esp_timer.h"
 #include "esp_websocket_client.h"
 #include "discord_gateway.h"
@@ -31,7 +30,7 @@ static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gatew
 
 static void heartbeat_timer_callback(void* arg);
 static esp_err_t heartbeat_init(discord_gateway_handle_t gateway);
-static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval);
+static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello);
 static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
 
 static esp_err_t identify(discord_gateway_handle_t gateway) {
@@ -50,29 +49,19 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
 }
 
 /**
- * @brief Check event name in payload and invoke appropriate functions.
- *        In case of some events, this function will free the payload with cJSON_Delete,
- *        and payload_ref will be set to NULL.
+ * @brief Check event name in payload and invoke appropriate functions
  */
-static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload_ref) {
-    cJSON* payload = *payload_ref;
-    cJSON* t = cJSON_GetObjectItem(payload, "t");
-    
-    if(cJSON_IsNull(t)) {
-        ESP_LOGW(TAG, "Missing event name");
-        return ESP_FAIL;
-    }
-
-    cJSON* d = cJSON_GetObjectItem(payload, "d");
-
-    char* event_name = t->valuestring;
-
-    if(streq("READY", event_name)) {
+static esp_err_t dispatch(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
+    if(DISCORD_DISPATCH_READY == payload->t) {
         if(gateway->session != NULL) {
             discord_model_gateway_session_free(gateway->session);
         }
 
-        gateway->session = discord_model_gateway_session_from_cjson(d);
+        gateway->session = (discord_gateway_session_t*) payload->d;
+
+        // Detach pointer in order to prevent session deallocation by payload free function
+        payload->d = NULL;
+
         gateway->state = DISCORD_GATEWAY_STATE_READY;
         
         ESP_LOGD(TAG, "Identified [%s#%s (%s), session: %s]", 
@@ -81,43 +70,34 @@ static esp_err_t process_event(discord_gateway_handle_t gateway, cJSON** payload
             gateway->session->user->id,
             gateway->session->session_id
         );
-    } else if(streq("MESSAGE_CREATE", event_name)) {
-        discord_message_t* msg = discord_model_message_from_cjson(d);
-
-        cJSON_Delete(payload);
-        *payload_ref = NULL;
+    } else if(DISCORD_DISPATCH_MESSAGE_CREATE == payload->t) {
+        discord_message_t* msg = (discord_message_t*) payload->d;
 
         ESP_LOGD(TAG, "New message from %s#%s: %s",
             msg->author->username,
             msg->author->discriminator,
             msg->content
         );
-
-        discord_model_message_free(msg);
     } else {
-        ESP_LOGW(TAG, "Ignored event \"%s\"", event_name);
+        ESP_LOGW(TAG, "Ignored dispatch event");
     }
 
     return ESP_OK;
 }
 
-static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
-    cJSON* payload = cJSON_Parse(data->data_ptr);
-    cJSON* d = cJSON_GetObjectItem(payload, "d");
-    cJSON* s = cJSON_GetObjectItem(payload, "s");
+static esp_err_t handle_websocket_data(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
+    discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(data->data_ptr);
 
-    if(cJSON_IsNumber(s)) {
-        gateway->last_sequence_number = s->valueint;
+    if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
+        gateway->last_sequence_number = payload->s;
     }
-    
-    int op = cJSON_GetObjectItem(payload, "op")->valueint;
 
-    ESP_LOGD(TAG, "Payload OP code: %d", op);
+    ESP_LOGD(TAG, "Payload OP code: %d", payload->op);
 
-    switch (op) {
+    switch (payload->op) {
         case DISCORD_OP_HELLO:
-            heartbeat_start(gateway, cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
-            cJSON_Delete(payload);
+            heartbeat_start(gateway, (discord_gateway_hello_t*) payload->d);
+            discord_model_gateway_payload_free(payload);
             payload = NULL;
             identify(gateway);
             break;
@@ -131,16 +111,16 @@ static esp_err_t parse_payload(discord_gateway_handle_t gateway, esp_websocket_e
         //    break;
 
         case DISCORD_OP_DISPATCH:
-            process_event(gateway, &payload);
+            dispatch(gateway, payload);
             break;
         
         default:
-            ESP_LOGW(TAG, "Unhandled payload with OP code %d", op);
+            ESP_LOGW(TAG, "Unhandled payload with OP code %d", payload->op);
             break;
     }
 
     if(payload != NULL) {
-        cJSON_Delete(payload);
+        discord_model_gateway_payload_free(payload);
     }
 
     return ESP_OK;
@@ -176,7 +156,7 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
                     break;
                 }
 
-                parse_payload(gateway, data);
+                handle_websocket_data(gateway, data);
             }
             break;
 
@@ -200,6 +180,8 @@ discord_gateway_handle_t discord_gw_init(const discord_gateway_config_t* config)
     discord_gateway_handle_t gateway = calloc(1, sizeof(struct discord_gateway));
 
     gateway->bot = config->bot;
+    gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
+    gateway->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
 
     return gateway;
 }
@@ -240,6 +222,9 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     discord_model_gateway_session_free(gateway->session);
     gateway->session = NULL;
 
+    gateway->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+    gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
+
     free(gateway);
 
     return ESP_OK;
@@ -248,11 +233,7 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
 // ========== Push
 
 static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
-    cJSON* cjson = discord_model_gateway_payload_to_cjson(payload);
-    discord_model_gateway_payload_free(payload);
-
-    char* payload_raw = cJSON_PrintUnformatted(cjson);
-    cJSON_Delete(cjson);
+    char* payload_raw = discord_model_gateway_payload_serialize(payload);
 
     ESP_LOGD(TAG, "Sending payload:\n%s", payload_raw);
 
@@ -269,7 +250,7 @@ static void heartbeat_timer_callback(void* arg) {
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
     int s = gateway->last_sequence_number;
-    
+
     gw_push_payload(gateway, discord_model_gateway_payload(
         DISCORD_OP_HEARTBEAT,
         (discord_gateway_heartbeat_t*) &s
@@ -285,8 +266,8 @@ static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
     return esp_timer_create(&timer_args, &(gateway->heartbeat_timer));
 }
 
-static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, int interval) {
-    return esp_timer_start_periodic(gateway->heartbeat_timer, interval * 1000);
+static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello) {
+    return esp_timer_start_periodic(gateway->heartbeat_timer, hello->heartbeat_interval * 1000);
 }
 
 static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway) {
