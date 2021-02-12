@@ -52,7 +52,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
  * @brief Check event name in payload and invoke appropriate functions
  */
 static esp_err_t dispatch(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
-    if(DISCORD_DISPATCH_READY == payload->t) {
+    if(DISCORD_EVENT_READY == payload->t) {
         if(gateway->session != NULL) {
             discord_model_gateway_session_free(gateway->session);
         }
@@ -70,7 +70,7 @@ static esp_err_t dispatch(discord_gateway_handle_t gateway, discord_gateway_payl
             gateway->session->user->id,
             gateway->session->session_id
         );
-    } else if(DISCORD_DISPATCH_MESSAGE_CREATE == payload->t) {
+    } else if(DISCORD_EVENT_MESSAGE_CREATE == payload->t) {
         discord_message_t* msg = (discord_message_t*) payload->d;
 
         ESP_LOGD(TAG, "New message from %s#%s: %s",
