@@ -47,8 +47,6 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
     if(payload == NULL)
         return;
 
-    bool recognized = true;
-
     switch (payload->op) {
         case DISCORD_OP_HELLO:
             discord_model_gateway_hello_free((discord_gateway_hello_t*) payload->d);
@@ -68,13 +66,8 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
             break;
         
         default:
-            recognized = false;
-            ESP_LOGW(TAG, "Function discord_model_payload_free cannot recognize payload type");
+            ESP_LOGW(TAG, "Function discord_model_payload_free cannot recognize payload type. Possible memory leak.");
             break;
-    }
-
-    if(recognized) {
-        payload->d = NULL;
     }
 
     free(payload);
@@ -113,7 +106,7 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
             break;
         
         default:
-            ESP_LOGW(TAG, "Function discord_model_gateway_payload_parse cannot recognize payload type");
+            ESP_LOGW(TAG, "Function discord_model_gateway_payload_parse cannot recognize payload type. Cannot set payload data.");
             break;
     }
 
