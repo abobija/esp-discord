@@ -23,18 +23,20 @@ struct discord_gateway {
     int last_sequence_number;
 };
 
+static esp_err_t gw_reset(discord_gateway_handle_t gateway);
+
 /**
  * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
  */
-static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload);
+static esp_err_t gw_send(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload);
 
-static void heartbeat_timer_callback(void* arg);
-static esp_err_t heartbeat_init(discord_gateway_handle_t gateway);
-static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello);
-static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway);
+static void gw_heartbeat_timer_callback(void* arg);
+static esp_err_t gw_heartbeat_init(discord_gateway_handle_t gateway);
+static esp_err_t gw_heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello);
+static esp_err_t gw_heartbeat_stop(discord_gateway_handle_t gateway);
 
-static esp_err_t identify(discord_gateway_handle_t gateway) {
-    return gw_push_payload(gateway, discord_model_gateway_payload(
+static esp_err_t gw_identify(discord_gateway_handle_t gateway) {
+    return gw_send(gateway, discord_model_gateway_payload(
         DISCORD_OP_IDENTIFY,
         discord_model_gateway_identify(
             gateway->bot.token,
@@ -51,7 +53,7 @@ static esp_err_t identify(discord_gateway_handle_t gateway) {
 /**
  * @brief Check event name in payload and invoke appropriate functions
  */
-static esp_err_t dispatch(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
+static esp_err_t gw_dispatch(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
     if(DISCORD_GATEWAY_EVENT_READY == payload->t) {
         if(gateway->session != NULL) {
             discord_model_gateway_session_free(gateway->session);
@@ -85,21 +87,21 @@ static esp_err_t dispatch(discord_gateway_handle_t gateway, discord_gateway_payl
     return ESP_OK;
 }
 
-static esp_err_t handle_websocket_data(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
+static esp_err_t gw_handle_websocket_data(discord_gateway_handle_t gateway, esp_websocket_event_data_t* data) {
     discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(data->data_ptr);
 
     if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
         gateway->last_sequence_number = payload->s;
     }
 
-    ESP_LOGD(TAG, "Payload OP code: %d", payload->op);
+    ESP_LOGD(TAG, "Received payload (op: %d)", payload->op);
 
     switch (payload->op) {
         case DISCORD_OP_HELLO:
-            heartbeat_start(gateway, (discord_gateway_hello_t*) payload->d);
+            gw_heartbeat_start(gateway, (discord_gateway_hello_t*) payload->d);
             discord_model_gateway_payload_free(payload);
             payload = NULL;
-            identify(gateway);
+            gw_identify(gateway);
             break;
         
         // TODO:
@@ -111,7 +113,7 @@ static esp_err_t handle_websocket_data(discord_gateway_handle_t gateway, esp_web
         //    break;
 
         case DISCORD_OP_DISPATCH:
-            dispatch(gateway, payload);
+            gw_dispatch(gateway, payload);
             break;
         
         default:
@@ -126,7 +128,7 @@ static esp_err_t handle_websocket_data(discord_gateway_handle_t gateway, esp_web
     return ESP_OK;
 }
 
-static void websocket_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
+static void gw_websocket_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) handler_args;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
@@ -138,7 +140,7 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
 
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_DISCONNECTED");
-            gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
+            gw_reset(gateway);
             break;
 
         case WEBSOCKET_EVENT_DATA:
@@ -156,18 +158,19 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
                     break;
                 }
 
-                handle_websocket_data(gateway, data);
+                gw_handle_websocket_data(gateway, data);
             }
             break;
 
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_ERROR");
+            gw_reset(gateway);
             gateway->state = DISCORD_GATEWAY_STATE_ERROR;
             break;
 
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGD(TAG, "WEBSOCKET_EVENT_CLOSED");
-            gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
+            gw_reset(gateway);
             break;
             
         default:
@@ -177,16 +180,20 @@ static void websocket_event_handler(void* handler_args, esp_event_base_t base, i
 }
 
 discord_gateway_handle_t discord_gw_init(const discord_gateway_config_t* config) {
+    ESP_LOGD(TAG, "Init");
+
     discord_gateway_handle_t gateway = calloc(1, sizeof(struct discord_gateway));
 
     gateway->bot = config->bot;
-    gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
-    gateway->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+    ESP_ERROR_CHECK(gw_heartbeat_init(gateway));
+    gw_reset(gateway);
 
     return gateway;
 }
 
 esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
+    ESP_LOGD(TAG, "Open");
+
     if(gateway == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -196,23 +203,22 @@ esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
         return ESP_FAIL;
     }
 
-    gateway->last_sequence_number = -1;
-
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json"
     };
 
     gateway->ws = esp_websocket_client_init(&ws_cfg);
 
-    ESP_ERROR_CHECK(heartbeat_init(gateway));
-    ESP_ERROR_CHECK(esp_websocket_register_events(gateway->ws, WEBSOCKET_EVENT_ANY, websocket_event_handler, (void*) gateway));
+    ESP_ERROR_CHECK(esp_websocket_register_events(gateway->ws, WEBSOCKET_EVENT_ANY, gw_websocket_event_handler, (void*) gateway));
     ESP_ERROR_CHECK(esp_websocket_client_start(gateway->ws));
 
     return ESP_OK;
 }
 
 esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
-    heartbeat_stop(gateway);
+    ESP_LOGD(TAG, "Destroy");
+
+    gw_heartbeat_stop(gateway);
     esp_timer_delete(gateway->heartbeat_timer);
     gateway->heartbeat_timer = NULL;
 
@@ -222,17 +228,24 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     discord_model_gateway_session_free(gateway->session);
     gateway->session = NULL;
 
-    gateway->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
+    gw_reset(gateway);
 
     free(gateway);
 
     return ESP_OK;
 }
 
-// ========== Push
+static esp_err_t gw_reset(discord_gateway_handle_t gateway) {
+    ESP_LOGD(TAG, "Reset");
 
-static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
+    gw_heartbeat_stop(gateway);
+    gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
+    gateway->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+
+    return ESP_OK;
+}
+
+static esp_err_t gw_send(discord_gateway_handle_t gateway, discord_gateway_payload_t* payload) {
     char* payload_raw = discord_model_gateway_payload_serialize(payload);
 
     ESP_LOGD(TAG, "Sending payload:\n%s", payload_raw);
@@ -245,31 +258,31 @@ static esp_err_t gw_push_payload(discord_gateway_handle_t gateway, discord_gatew
 
 // ========== Heartbeat
 
-static void heartbeat_timer_callback(void* arg) {
-    ESP_LOGD(TAG, "Sending heartbeat...");
+static void gw_heartbeat_timer_callback(void* arg) {
+    ESP_LOGD(TAG, "Heartbeat");
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
     int s = gateway->last_sequence_number;
 
-    gw_push_payload(gateway, discord_model_gateway_payload(
+    gw_send(gateway, discord_model_gateway_payload(
         DISCORD_OP_HEARTBEAT,
         (discord_gateway_heartbeat_t*) &s
     ));
 }
 
-static esp_err_t heartbeat_init(discord_gateway_handle_t gateway) {
+static esp_err_t gw_heartbeat_init(discord_gateway_handle_t gateway) {
     const esp_timer_create_args_t timer_args = {
-        .callback = &heartbeat_timer_callback,
+        .callback = &gw_heartbeat_timer_callback,
         .arg = (void*) gateway
     };
 
     return esp_timer_create(&timer_args, &(gateway->heartbeat_timer));
 }
 
-static esp_err_t heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello) {
+static esp_err_t gw_heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello) {
     return esp_timer_start_periodic(gateway->heartbeat_timer, hello->heartbeat_interval * 1000);
 }
 
-static esp_err_t heartbeat_stop(discord_gateway_handle_t gateway) {
+static esp_err_t gw_heartbeat_stop(discord_gateway_handle_t gateway) {
     return esp_timer_stop(gateway->heartbeat_timer);
 }
