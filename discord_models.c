@@ -32,7 +32,7 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
             break;
         
         default:
-            ESP_LOGE(TAG, "%s:%d %s", __FILE__, __LINE__, "Function discord_model_payload_to_cjson cannot recognize payload type");
+            DISCORD_LOGE_FL(TAG, "Function discord_model_payload_to_cjson cannot recognize payload type");
             cJSON_Delete(root);
             root = NULL;
             break;
@@ -55,7 +55,7 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
         
         default:
             recognized = false;
-            ESP_LOGE(TAG, "%s:%d %s", __FILE__, __LINE__, "Function discord_model_payload_free cannot recognize payload type");
+            DISCORD_LOGE_FL(TAG, "Function discord_model_payload_free cannot recognize payload type");
             break;
     }
 
