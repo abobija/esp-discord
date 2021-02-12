@@ -18,7 +18,9 @@ struct discord_gateway {
     discord_gateway_state_t state;
     discord_bot_config_t bot;
     esp_websocket_client_handle_t ws;
+    bool heartbeat_timer_running;
     esp_timer_handle_t heartbeat_timer;
+    bool heartbeat_ack_received;
     discord_gateway_session_t* session;
     int last_sequence_number;
 };
@@ -104,20 +106,16 @@ static esp_err_t gw_handle_websocket_data(discord_gateway_handle_t gateway, esp_
             gw_identify(gateway);
             break;
         
-        // TODO:
-        // After heartbeat is sent, server need to response with OP 11 (heartbeat ACK)
-        // If a client does not receive a heartbeat ack between its attempts at sending heartbeats, 
-        // it should immediately terminate the connection with a non-1000 close code,
-        // reconnect, and attempt to resume.
-        //case DISCORD_OP_HEARTBEAT_ACK:
-        //    break;
+        case DISCORD_OP_HEARTBEAT_ACK:
+            gateway->heartbeat_ack_received = true;
+            break;
 
         case DISCORD_OP_DISPATCH:
             gw_dispatch(gateway, payload);
             break;
         
         default:
-            ESP_LOGW(TAG, "Unhandled payload with OP code %d", payload->op);
+            ESP_LOGW(TAG, "Unhandled payload (op: %d)", payload->op);
             break;
     }
 
@@ -218,7 +216,8 @@ esp_err_t discord_gw_open(discord_gateway_handle_t gateway) {
 esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     ESP_LOGD(TAG, "Destroy");
 
-    gw_heartbeat_stop(gateway);
+    gw_reset(gateway);
+
     esp_timer_delete(gateway->heartbeat_timer);
     gateway->heartbeat_timer = NULL;
 
@@ -228,9 +227,21 @@ esp_err_t discord_gw_destroy(discord_gateway_handle_t gateway) {
     discord_model_gateway_session_free(gateway->session);
     gateway->session = NULL;
 
+    free(gateway);
+
+    return ESP_OK;
+}
+
+static esp_err_t gw_reconnect(discord_gateway_handle_t gateway) {
+    ESP_LOGD(TAG, "Reconnect");
+
+    if(esp_websocket_client_is_connected(gateway->ws)) {
+        esp_websocket_client_close(gateway->ws, portMAX_DELAY);
+    }
+
     gw_reset(gateway);
 
-    free(gateway);
+    ESP_ERROR_CHECK(esp_websocket_client_start(gateway->ws));
 
     return ESP_OK;
 }
@@ -241,6 +252,7 @@ static esp_err_t gw_reset(discord_gateway_handle_t gateway) {
     gw_heartbeat_stop(gateway);
     gateway->state = DISCORD_GATEWAY_STATE_UNKNOWN;
     gateway->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+    gateway->heartbeat_ack_received = false;
 
     return ESP_OK;
 }
@@ -262,6 +274,15 @@ static void gw_heartbeat_timer_callback(void* arg) {
     ESP_LOGD(TAG, "Heartbeat");
 
     discord_gateway_handle_t gateway = (discord_gateway_handle_t) arg;
+
+    if(! gateway->heartbeat_ack_received) {
+        ESP_LOGW(TAG, "ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
+        gateway->state = DISCORD_GATEWAY_STATE_ERROR;
+        gw_reconnect(gateway);
+        return;
+    }
+
+    gateway->heartbeat_ack_received = false;
     int s = gateway->last_sequence_number;
 
     gw_send(gateway, discord_model_gateway_payload(
@@ -276,13 +297,30 @@ static esp_err_t gw_heartbeat_init(discord_gateway_handle_t gateway) {
         .arg = (void*) gateway
     };
 
+    gateway->heartbeat_ack_received = false;
+    gateway->heartbeat_timer_running = false;
+
     return esp_timer_create(&timer_args, &(gateway->heartbeat_timer));
 }
 
 static esp_err_t gw_heartbeat_start(discord_gateway_handle_t gateway, discord_gateway_hello_t* hello) {
+    if(gateway->heartbeat_timer_running)
+        return ESP_OK;
+
+    gateway->heartbeat_timer_running = true;
+
+    // Set to true to prevent first ack checking in callback
+    gateway->heartbeat_ack_received = true;
+
     return esp_timer_start_periodic(gateway->heartbeat_timer, hello->heartbeat_interval * 1000);
 }
 
 static esp_err_t gw_heartbeat_stop(discord_gateway_handle_t gateway) {
+    if(! gateway->heartbeat_timer_running)
+        return ESP_OK;
+
+    gateway->heartbeat_timer_running = false;
+    gateway->heartbeat_ack_received = false;
+
     return esp_timer_stop(gateway->heartbeat_timer);
 }
