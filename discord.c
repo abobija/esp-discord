@@ -2,6 +2,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
+#include "discord_models.h"
 #include "discord.h"
 
 static const char* TAG = "discord";

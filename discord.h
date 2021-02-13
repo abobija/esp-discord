@@ -1,7 +1,6 @@
 #pragma once
 
-#include "esp_system.h"
-#include "discord_models.h"
+#include "esp_err.h"
 
 #ifdef __cplusplus
 extern "C" {
