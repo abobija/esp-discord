@@ -2,10 +2,11 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
+#include "discord_models_private.h"
 #include "discord_models.h"
 #include "discord.h"
 
-static const char* TAG = "discord";
+static const char* TAG = DISCORD_LOG_TAG;
 
 typedef enum {
     DISCORD_GATEWAY_STATE_ERROR = -1,
@@ -28,7 +29,7 @@ struct discord_client {
 
 ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
 
-static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event);
+static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event, discord_event_data_ptr_t data_ptr);
 
 static esp_err_t gw_reset(discord_client_handle_t client);
 
@@ -65,17 +66,17 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
             client->session->session_id
         );
 
-        dc_dispatch_event(client, DISCORD_EVENT_READY);
+        dc_dispatch_event(client, DISCORD_EVENT_READY, NULL);
     } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
         discord_message_t* msg = (discord_message_t*) payload->d;
 
-        ESP_LOGD(TAG, "GW: New message from %s#%s: %s",
+        ESP_LOGD(TAG, "GW: New message (from %s#%s): %s",
             msg->author->username,
             msg->author->discriminator,
             msg->content
         );
 
-        dc_dispatch_event(client, DISCORD_EVENT_MESSAGE_RECEIVED);
+        dc_dispatch_event(client, DISCORD_EVENT_MESSAGE_RECEIVED, msg);
     } else {
         ESP_LOGW(TAG, "GW: Ignored dispatch event");
     }
@@ -250,13 +251,14 @@ static esp_err_t gw_init(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event) {
-    ESP_LOGD(TAG, "Dispatch event");
+static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event, discord_event_data_ptr_t data_ptr) {
+    ESP_LOGD(TAG, "Dispatch esp_event");
 
     esp_err_t err;
 
     discord_event_data_t event_data;
     event_data.client = client;
+    event_data.ptr = data_ptr;
 
     if ((err = esp_event_post_to(client->event_handle, DISCORD_EVENTS, event, &event_data, sizeof(discord_event_data_t), portMAX_DELAY)) != ESP_OK) {
         return err;

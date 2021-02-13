@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+#define DISCORD_LOG_TAG "discord"
+
 #define streq(s1, s2) strcmp(s1, s2) == 0
 
 #define DISCORD_INTENT_GUILDS                    (1 << 0)
@@ -54,8 +56,11 @@ typedef enum {
     DISCORD_EVENT_MESSAGE_RECEIVED
 } discord_event_id_t;
 
+typedef void* discord_event_data_ptr_t;
+
 typedef struct {
     discord_client_handle_t client;
+    discord_event_data_ptr_t ptr;
 } discord_event_data_t;
 
 discord_client_handle_t discord_init(const discord_client_config_t* config);
