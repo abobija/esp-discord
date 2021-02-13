@@ -7,7 +7,7 @@
 
 static const char* TAG = "discord_models";
 
-discord_gateway_payload_t* discord_model_gateway_payload(int op, void* d) {
+discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway_payload_data_t d) {
     discord_gateway_payload_t* pl = calloc(1, sizeof(discord_gateway_payload_t));
 
     pl->op = op;
@@ -135,7 +135,7 @@ discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char
     return DISCORD_GATEWAY_EVENT_UNKNOWN;
 }
 
-void* discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson) {
+discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson) {
     switch (e) {
         case DISCORD_GATEWAY_EVENT_READY:
             return discord_model_gateway_session_from_cjson(cjson);

@@ -15,9 +15,11 @@ typedef enum {
     DISCORD_GATEWAY_EVENT_MESSAGE_CREATE
 } discord_gateway_event_t;
 
+typedef void* discord_gateway_payload_data_t;
+
 typedef struct {
     int op;
-    void* d;
+    discord_gateway_payload_data_t d;
     int s;
     discord_gateway_event_t t;
 } discord_gateway_payload_t;
@@ -65,7 +67,7 @@ typedef struct {
     discord_user_t* author;
 } discord_message_t;
 
-discord_gateway_payload_t* discord_model_gateway_payload(int op, void* d);
+discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway_payload_data_t d);
 cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload);
 void discord_model_gateway_payload_free(discord_gateway_payload_t* payload);
 discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json);
@@ -75,7 +77,7 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
 char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload);
 
 discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char* name);
-void* discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson);
+discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson);
 void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* payload);
 
 discord_gateway_hello_t* discord_model_gateway_hello(int heartbeat_interval);

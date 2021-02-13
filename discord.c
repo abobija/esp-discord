@@ -15,6 +15,7 @@ typedef enum {
 } discord_gateway_state_t;
 
 struct discord_client {
+    esp_event_loop_handle_t event_handle;
     discord_gateway_state_t state;
     discord_client_config_t* config;
     esp_websocket_client_handle_t ws;
@@ -24,6 +25,10 @@ struct discord_client {
     discord_gateway_session_t* session;
     int last_sequence_number;
 };
+
+ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
+
+static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event);
 
 static esp_err_t gw_reset(discord_client_handle_t client);
 
@@ -59,6 +64,8 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
             client->session->user->id,
             client->session->session_id
         );
+
+        dc_dispatch_event(client, DISCORD_EVENT_READY);
     } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
         discord_message_t* msg = (discord_message_t*) payload->d;
 
@@ -67,6 +74,8 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
             msg->author->discriminator,
             msg->content
         );
+
+        dc_dispatch_event(client, DISCORD_EVENT_MESSAGE_RECEIVED);
     } else {
         ESP_LOGW(TAG, "GW: Ignored dispatch event");
     }
@@ -126,8 +135,8 @@ static esp_err_t gw_handle_websocket_data(discord_client_handle_t client, esp_we
     return ESP_OK;
 }
 
-static void gw_websocket_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
-    discord_client_handle_t client = (discord_client_handle_t) handler_args;
+static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base, int32_t event_id, void* event_data) {
+    discord_client_handle_t client = (discord_client_handle_t) handler_arg;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
     switch (event_id) {
@@ -241,11 +250,37 @@ static esp_err_t gw_init(discord_client_handle_t client) {
     return ESP_OK;
 }
 
+static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event) {
+    ESP_LOGD(TAG, "Dispatch event");
+
+    esp_err_t err;
+
+    discord_event_data_t event_data;
+    event_data.client = client;
+
+    if ((err = esp_event_post_to(client->event_handle, DISCORD_EVENTS, event, &event_data, sizeof(discord_event_data_t), portMAX_DELAY)) != ESP_OK) {
+        return err;
+    }
+
+    return esp_event_loop_run(client->event_handle, 0);
+}
+
 discord_client_handle_t discord_init(const discord_client_config_t* config) {
     ESP_LOGD(TAG, "Init");
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
     
+    esp_event_loop_args_t event_args = {
+        .queue_size = 1,
+        .task_name = NULL // no task will be created
+    };
+
+    if (esp_event_loop_create(&event_args, &client->event_handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Error create event handler for discord client");
+        free(client);
+        return NULL;
+    }
+
     client->config = dc_config_copy(config);
 
     gw_init(client);
@@ -259,6 +294,12 @@ esp_err_t discord_login(discord_client_handle_t client) {
     return gw_open(client);
 }
 
+esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
+    ESP_LOGD(TAG, "Register events");
+    
+    return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
+}
+
 esp_err_t discord_destroy(discord_client_handle_t client) {
     ESP_LOGD(TAG, "Destroy");
 
@@ -269,6 +310,10 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
 
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
+
+    if(client->event_handle) {
+        esp_event_loop_delete(client->event_handle);
+    }
 
     discord_model_gateway_session_free(client->session);
     client->session = NULL;

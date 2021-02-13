@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esp_err.h"
+#include "esp_event.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,15 +39,28 @@ enum {
     DISCORD_OP_HEARTBEAT_ACK,          /*!< [Receive] Sent in response to receiving a heartbeat to acknowledge that it has been received */
 };
 
-typedef struct discord_client* discord_client_handle_t;
-
 typedef struct {
     char* token;
     int intents;
 } discord_client_config_t;
 
+typedef struct discord_client* discord_client_handle_t;
+
+ESP_EVENT_DECLARE_BASE(DISCORD_EVENTS);
+
+typedef enum {
+    DISCORD_EVENT_ANY = ESP_EVENT_ANY_ID,
+    DISCORD_EVENT_READY,
+    DISCORD_EVENT_MESSAGE_RECEIVED
+} discord_event_id_t;
+
+typedef struct {
+    discord_client_handle_t client;
+} discord_event_data_t;
+
 discord_client_handle_t discord_init(const discord_client_config_t* config);
 esp_err_t discord_login(discord_client_handle_t client);
+esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg);
 esp_err_t discord_destroy(discord_client_handle_t client);
 
 #ifdef __cplusplus
