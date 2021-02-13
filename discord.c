@@ -291,18 +291,27 @@ discord_client_handle_t discord_init(const discord_client_config_t* config) {
 }
 
 esp_err_t discord_login(discord_client_handle_t client) {
+    if(client == NULL)
+        return ESP_ERR_INVALID_ARG;
+    
     ESP_LOGD(TAG, "Login");
 
     return gw_open(client);
 }
 
 esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
+    if(client == NULL)
+        return ESP_ERR_INVALID_ARG;
+    
     ESP_LOGD(TAG, "Register events");
     
     return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
 }
 
 esp_err_t discord_destroy(discord_client_handle_t client) {
+    if(client == NULL)
+        return ESP_ERR_INVALID_ARG;
+    
     ESP_LOGD(TAG, "Destroy");
 
     gw_reset(client);
