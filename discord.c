@@ -12,7 +12,7 @@ typedef enum {
     DISCORD_GATEWAY_STATE_ERROR = -1,
     DISCORD_GATEWAY_STATE_UNKNOWN = 0,
     DISCORD_GATEWAY_STATE_INIT,
-    DISCORD_GATEWAY_STATE_READY
+    DISCORD_GATEWAY_STATE_CONNECTED
 } discord_gateway_state_t;
 
 struct discord_client {
@@ -57,7 +57,7 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
         // Detach pointer in order to prevent session deallocation by payload free function
         payload->d = NULL;
 
-        client->state = DISCORD_GATEWAY_STATE_READY;
+        client->state = DISCORD_GATEWAY_STATE_CONNECTED;
         
         ESP_LOGD(TAG, "GW: Identified [%s#%s (%s), session: %s]", 
             client->session->user->username,
@@ -66,7 +66,7 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
             client->session->session_id
         );
 
-        dc_dispatch_event(client, DISCORD_EVENT_READY, NULL);
+        dc_dispatch_event(client, DISCORD_EVENT_CONNECTED, NULL);
     } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
         discord_message_t* msg = (discord_message_t*) payload->d;
 
