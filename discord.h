@@ -63,7 +63,7 @@ typedef struct {
     discord_event_data_ptr_t ptr;
 } discord_event_data_t;
 
-discord_client_handle_t discord_init(const discord_client_config_t* config);
+discord_client_handle_t discord_create(const discord_client_config_t* config);
 esp_err_t discord_login(discord_client_handle_t client);
 esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg);
 esp_err_t discord_destroy(discord_client_handle_t client);

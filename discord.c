@@ -267,7 +267,7 @@ static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event
     return esp_event_loop_run(client->event_handle, 0);
 }
 
-discord_client_handle_t discord_init(const discord_client_config_t* config) {
+discord_client_handle_t discord_create(const discord_client_config_t* config) {
     ESP_LOGD(TAG, "Init");
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
