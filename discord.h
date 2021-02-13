@@ -39,13 +39,16 @@ enum {
     DISCORD_OP_HEARTBEAT_ACK,          /*!< [Receive] Sent in response to receiving a heartbeat to acknowledge that it has been received */
 };
 
+typedef struct discord_client* discord_client_handle_t;
+
 typedef struct {
     char* token;
     int intents;
-} discord_bot_config_t;
+} discord_client_config_t;
 
-esp_err_t discord_init(const discord_bot_config_t config);
-esp_err_t discord_login();
+discord_client_handle_t discord_init(const discord_client_config_t* config);
+esp_err_t discord_login(discord_client_handle_t client);
+esp_err_t discord_destroy(discord_client_handle_t client);
 
 #ifdef __cplusplus
 }
