@@ -8,16 +8,8 @@
 
 static const char* TAG = DISCORD_LOG_TAG;
 
-typedef enum {
-    DISCORD_GATEWAY_STATE_ERROR = -1,
-    DISCORD_GATEWAY_STATE_UNKNOWN = 0,
-    DISCORD_GATEWAY_STATE_INIT,
-    DISCORD_GATEWAY_STATE_CONNECTED
-} discord_gateway_state_t;
-
 struct discord_client {
     esp_event_loop_handle_t event_handle;
-    discord_gateway_state_t state;
     discord_client_config_t* config;
     esp_websocket_client_handle_t ws;
     bool heartbeat_timer_running;
@@ -25,6 +17,7 @@ struct discord_client {
     bool heartbeat_ack_received;
     discord_gateway_session_t* session;
     int last_sequence_number;
+    bool close_requested;
 };
 
 ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
@@ -56,8 +49,6 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
 
         // Detach pointer in order to prevent session deallocation by payload free function
         payload->d = NULL;
-
-        client->state = DISCORD_GATEWAY_STATE_CONNECTED;
         
         ESP_LOGD(TAG, "GW: Identified [%s#%s (%s), session: %s]", 
             client->session->user->username,
@@ -140,10 +131,16 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
     discord_client_handle_t client = (discord_client_handle_t) handler_arg;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
+    ESP_LOGD(TAG, "GW: Received WebSocket frame (op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
+        data->op_code,
+        data->payload_len, 
+        data->data_len, 
+        data->payload_offset
+    );
+
     switch (event_id) {
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_CONNECTED");
-            client->state = DISCORD_GATEWAY_STATE_INIT;
             break;
 
         case WEBSOCKET_EVENT_DISCONNECTED:
@@ -153,13 +150,7 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
 
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == 1) {
-                ESP_LOGD(TAG, "GW: Received (payload_len=%d, data_len=%d, payload_offset=%d):\n%.*s", 
-                    data->payload_len, 
-                    data->data_len, 
-                    data->payload_offset,
-                    data->data_len,
-                    data->data_ptr
-                );
+                ESP_LOGD(TAG, "GW: Received data:\n%.*s", data->data_len, data->data_ptr);
 
                 if(data->payload_offset > 0 || data->payload_len > 1024) {
                     ESP_LOGW(TAG, "GW: Payload too big. Buffering not implemented. Parsing skipped.");
@@ -173,12 +164,23 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_ERROR");
             gw_reset(client);
-            client->state = DISCORD_GATEWAY_STATE_ERROR;
             break;
 
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_CLOSED");
-            gw_reset(client);
+
+            if(! client->close_requested) {
+                // This event will be invoked when token is invalid as well
+                // correct reason of closing the connection can be found in frame data
+                // (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
+                //
+                // In this moment websocket client does not emit data in this event
+                // (issue reported: https://github.com/espressif/esp-idf/issues/6535)
+
+                ESP_LOGE(TAG, "Connection closed unexpectedly. Reason cannot be identified in this moment. Maybe your token is invalid?");
+                gw_reset(client);
+            }
+            
             break;
             
         default:
@@ -187,17 +189,17 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
     }
 }
 
+static esp_err_t gw_start(discord_client_handle_t client) {
+    ESP_LOGD(TAG, "GW: Start");
+
+    return esp_websocket_client_start(client->ws);
+}
+
 static esp_err_t gw_open(discord_client_handle_t client) {
-    ESP_LOGD(TAG, "GW: Open");
-
-    if(client == NULL) {
+    if(client == NULL)
         return ESP_ERR_INVALID_ARG;
-    }
 
-    if(client->state >= DISCORD_GATEWAY_STATE_INIT) {
-        ESP_LOGE(TAG, "GW: Gateway is already open");
-        return ESP_FAIL;
-    }
+    ESP_LOGD(TAG, "GW: Open");
 
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json"
@@ -206,7 +208,21 @@ static esp_err_t gw_open(discord_client_handle_t client) {
     client->ws = esp_websocket_client_init(&ws_cfg);
 
     ESP_ERROR_CHECK(esp_websocket_register_events(client->ws, WEBSOCKET_EVENT_ANY, gw_websocket_event_handler, (void*) client));
-    ESP_ERROR_CHECK(esp_websocket_client_start(client->ws));
+    ESP_ERROR_CHECK(gw_start(client));
+
+    return ESP_OK;
+}
+
+static esp_err_t gw_close(discord_client_handle_t client) {
+    ESP_LOGD(TAG, "GW: Close");
+
+    client->close_requested = true;
+
+    if(esp_websocket_client_is_connected(client->ws)) {
+        esp_websocket_client_close(client->ws, portMAX_DELAY);
+    }
+    
+    gw_reset(client);
 
     return ESP_OK;
 }
@@ -214,13 +230,8 @@ static esp_err_t gw_open(discord_client_handle_t client) {
 static esp_err_t gw_reconnect(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Reconnect");
 
-    if(esp_websocket_client_is_connected(client->ws)) {
-        esp_websocket_client_close(client->ws, portMAX_DELAY);
-    }
-
-    gw_reset(client);
-
-    ESP_ERROR_CHECK(esp_websocket_client_start(client->ws));
+    gw_close(client);
+    ESP_ERROR_CHECK(gw_start(client));
 
     return ESP_OK;
 }
@@ -339,9 +350,9 @@ static esp_err_t gw_reset(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Reset");
 
     gw_heartbeat_stop(client);
-    client->state = DISCORD_GATEWAY_STATE_UNKNOWN;
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->heartbeat_ack_received = false;
+    client->close_requested = false;
 
     return ESP_OK;
 }
@@ -366,7 +377,6 @@ static void gw_heartbeat_timer_callback(void* arg) {
 
     if(! client->heartbeat_ack_received) {
         ESP_LOGW(TAG, "GW: ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
-        client->state = DISCORD_GATEWAY_STATE_ERROR;
         gw_reconnect(client);
         return;
     }
