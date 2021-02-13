@@ -36,21 +36,6 @@ static esp_err_t gw_heartbeat_init(discord_client_handle_t client);
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello);
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client);
 
-static esp_err_t gw_identify(discord_client_handle_t client) {
-    return gw_send(client, discord_model_gateway_payload(
-        DISCORD_OP_IDENTIFY,
-        discord_model_gateway_identify(
-            client->config->token,
-            client->config->intents,
-            discord_model_gateway_identify_properties(
-                "freertos",
-                "esp-idf",
-                "esp32"
-            )
-        )
-    ));
-}
-
 /**
  * @brief Check event name in payload and invoke appropriate functions
  */
@@ -86,6 +71,21 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
     }
 
     return ESP_OK;
+}
+
+static esp_err_t gw_identify(discord_client_handle_t client) {
+    return gw_send(client, discord_model_gateway_payload(
+        DISCORD_OP_IDENTIFY,
+        discord_model_gateway_identify(
+            client->config->token,
+            client->config->intents,
+            discord_model_gateway_identify_properties(
+                "freertos",
+                "esp-idf",
+                "esp32"
+            )
+        )
+    ));
 }
 
 static esp_err_t gw_handle_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
