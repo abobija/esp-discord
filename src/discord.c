@@ -70,7 +70,6 @@ static esp_err_t gw_reset(discord_client_handle_t client);
  */
 static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload);
 
-static esp_err_t gw_heartbeat_send(discord_client_handle_t client);
 static esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client);
 #define gw_heartbeat_init(client) gw_heartbeat_stop(client)
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello);
@@ -506,29 +505,24 @@ static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload
 
 // ========== Heartbeat
 
-static esp_err_t gw_heartbeat_send(discord_client_handle_t client) {
-    ESP_LOGD(TAG, "GW: Heartbeat");
-
-    if(! client->heartbeater.received_ack) {
-        ESP_LOGW(TAG, "GW: ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
-        return gw_reconnect(client);
-    }
-
-    client->heartbeater.received_ack = false;
-    int s = client->last_sequence_number;
-
-    gw_send(client, discord_model_gateway_payload(
-        DISCORD_OP_HEARTBEAT,
-        (discord_gateway_heartbeat_t*) &s
-    ));
-
-    return ESP_OK;
-}
-
 static esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client) {
     if(client->heartbeater.running && dc_tick_ms() - client->heartbeater.tick_ms > client->heartbeater.interval) {
+        ESP_LOGD(TAG, "GW: Heartbeat");
+
         client->heartbeater.tick_ms = dc_tick_ms();
-        return gw_heartbeat_send(client);
+
+        if(! client->heartbeater.received_ack) {
+            ESP_LOGW(TAG, "GW: ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
+            return gw_reconnect(client);
+        }
+
+        client->heartbeater.received_ack = false;
+        int s = client->last_sequence_number;
+
+        return gw_send(client, discord_model_gateway_payload(
+            DISCORD_OP_HEARTBEAT,
+            (discord_gateway_heartbeat_t*) &s
+        ));
     }
 
     return ESP_OK;
