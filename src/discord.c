@@ -2,6 +2,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
+#include "esp_transport_ws.h"
 #include "private/discord_models_private.h"
 #include "discord_models.h"
 #include "discord.h"
@@ -137,7 +138,7 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
     discord_client_handle_t client = (discord_client_handle_t) handler_arg;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
-    if(data->op_code == 10) { // ignore PONG frame
+    if(data->op_code == WS_TRANSPORT_OPCODES_PONG) { // ignore PONG frame
         return;
     }
 
@@ -159,7 +160,7 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
             break;
 
         case WEBSOCKET_EVENT_DATA:
-            if(data->op_code == 1) {
+            if(data->op_code == WS_TRANSPORT_OPCODES_TEXT) {
                 ESP_LOGD(TAG, "GW: Received data:\n%.*s", data->data_len, data->data_ptr);
 
                 if(data->payload_offset > 0 || data->payload_len > 1024) {
