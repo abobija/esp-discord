@@ -68,7 +68,7 @@ struct discord_client {
     int last_sequence_number;
     discord_close_reason_t close_reason;
     char* buffer;
-    int buffer_data_len;
+    int buffer_len;
 };
 
 static uint64_t dc_tick_ms(void) {
@@ -101,7 +101,7 @@ static esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_we
         ESP_LOGD(TAG, "GW: Buffering...");
         memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
 
-        if((client->buffer_data_len = data->data_len + data->payload_offset) >= data->payload_len) {
+        if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
             ESP_LOGD(TAG, "GW: Buffering done.");
             xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
         }
@@ -320,8 +320,8 @@ static esp_err_t gw_handle_buffered_data(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Handle buffered data");
 
     discord_gateway_payload_t* payload;
-    
-    DC_LOCK(payload = discord_model_gateway_payload_deserialize(client->buffer));
+
+    DC_LOCK(payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len));
 
     if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
         client->last_sequence_number = payload->s;
@@ -538,7 +538,7 @@ static esp_err_t gw_reset(discord_client_handle_t client) {
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
     xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
-    client->buffer_data_len = 0;
+    client->buffer_len = 0;
 
     return ESP_OK;
 }

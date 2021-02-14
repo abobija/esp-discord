@@ -56,7 +56,7 @@ typedef struct {
 discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway_payload_data_t d);
 cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload);
 void discord_model_gateway_payload_free(discord_gateway_payload_t* payload);
-discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json);
+discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json, size_t length);
 /**
  * @brief Serialize payload to JSON string. WARNING: Payload will be automatically freed.
  */

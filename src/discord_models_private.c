@@ -74,9 +74,9 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
     free(payload);
 }
 
-discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json) {
-    cJSON* cjson = cJSON_Parse(json);
-
+discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json, size_t length) {
+    cJSON* cjson = cJSON_ParseWithLength(json, length);
+    
     discord_gateway_payload_t* pl = discord_model_gateway_payload(
         cJSON_GetObjectItem(cjson, "op")->valueint,
         NULL
