@@ -9,7 +9,18 @@
 #include "discord_models.h"
 #include "discord.h"
 
+#define DC_LOCK(CODE) {\
+    if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {\
+        ESP_LOGE(TAG, "Could not lock");\
+        return ESP_FAIL;\
+    }\
+    CODE\
+    xSemaphoreGiveRecursive(client->lock);\
+}
+
 static const char* TAG = DISCORD_LOG_TAG;
+
+ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
 
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED = -1,
@@ -33,15 +44,18 @@ struct discord_client {
     discord_client_config_t* config;
     bool running;
     esp_websocket_client_handle_t ws;
-    bool heartbeat_timer_running;
-    esp_timer_handle_t heartbeat_timer;
+    bool heartbeat_running;
+    int heartbeat_interval;
+    uint64_t heartbeat_tick_ms;
     bool heartbeat_ack_received;
     discord_gateway_session_t* session;
     int last_sequence_number;
     discord_close_reason_t close_reason;
 };
 
-ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
+static uint64_t dc_tick_ms(void) {
+    return esp_timer_get_time() / 1000;
+}
 
 static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event, discord_event_data_ptr_t data_ptr);
 
@@ -52,8 +66,8 @@ static esp_err_t gw_reset(discord_client_handle_t client);
  */
 static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload);
 
-static void gw_heartbeat_timer_callback(void* arg);
-static esp_err_t gw_heartbeat_init(discord_client_handle_t client);
+static esp_err_t gw_heartbeat_send(discord_client_handle_t client);
+#define gw_heartbeat_init(client) gw_heartbeat_stop(client)
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello);
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client);
 
@@ -207,9 +221,14 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
 static esp_err_t gw_start(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Start");
 
-    client->state = DISCORD_CLIENT_STATE_INIT;
+    esp_err_t err;
 
-    return esp_websocket_client_start(client->ws);
+    DC_LOCK(
+        client->state = DISCORD_CLIENT_STATE_INIT;
+        err = esp_websocket_client_start(client->ws);
+    );
+
+    return err;
 }
 
 static esp_err_t gw_open(discord_client_handle_t client) {
@@ -233,15 +252,17 @@ static esp_err_t gw_open(discord_client_handle_t client) {
 static esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason) {
     ESP_LOGD(TAG, "GW: Close");
 
-    client->close_reason = reason;
+    DC_LOCK(
+        client->close_reason = reason;
 
-    if(esp_websocket_client_is_connected(client->ws)) {
-        esp_websocket_client_close(client->ws, portMAX_DELAY);
-    }
-    
-    gw_reset(client);
+        if(esp_websocket_client_is_connected(client->ws)) {
+            esp_websocket_client_close(client->ws, portMAX_DELAY);
+        }
+        
+        gw_reset(client);
 
-    client->state = DISCORD_CLIENT_STATE_INIT;
+        client->state = DISCORD_CLIENT_STATE_INIT;
+    );
 
     return ESP_OK;
 }
@@ -318,10 +339,11 @@ static void dc_task(void* pv) {
                 break;
 
             case DISCORD_CLIENT_STATE_CONNECTED:
-                // heartbeating
+                if(client->heartbeat_running && dc_tick_ms() - client->heartbeat_tick_ms > client->heartbeat_interval) {
+                    client->heartbeat_tick_ms = dc_tick_ms();
+                    gw_heartbeat_send(client);
+                }
 
-                ESP_LOGW(TAG, "CONNECTED IN TASK");
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
                 break;
 
             case DISCORD_CLIENT_STATE_DISCONNECTED:
@@ -343,8 +365,11 @@ static void dc_task(void* pv) {
         }
 
         xSemaphoreGiveRecursive(client->lock);
+
+        vTaskDelay(125 / portTICK_PERIOD_MS);
     }
 
+    client->state = DISCORD_CLIENT_STATE_INIT;
     vTaskDelete(NULL);
 }
 
@@ -411,17 +436,9 @@ esp_err_t discord_logout(discord_client_handle_t client) {
 
     ESP_LOGD(TAG, "Logout");
 
-    if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {
-        ESP_LOGE(TAG, "Could not lock");
-        return ESP_FAIL;
-    }
-
     client->running = false;
 
     gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
-
-    esp_timer_delete(client->heartbeat_timer);
-    client->heartbeat_timer = NULL;
 
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
@@ -435,8 +452,6 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     client->session = NULL;
 
     client->state = DISCORD_CLIENT_STATE_UNKNOWN;
-
-    xSemaphoreGiveRecursive(client->lock);
 
     return ESP_OK;
 }
@@ -470,27 +485,28 @@ static esp_err_t gw_reset(discord_client_handle_t client) {
 }
 
 static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload) {
-    char* payload_raw = discord_model_gateway_payload_serialize(payload);
+    ESP_LOGD(TAG, "GW: Sending payload:");
 
-    ESP_LOGD(TAG, "GW: Sending payload:\n%s", payload_raw);
+    DC_LOCK(
+        char* payload_raw = discord_model_gateway_payload_serialize(payload);
 
-    esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
-    free(payload_raw);
+        ESP_LOGD(TAG, "GW: %s", payload_raw);
+
+        esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+        free(payload_raw);
+    );
 
     return ESP_OK;
 }
 
 // ========== Heartbeat
 
-static void gw_heartbeat_timer_callback(void* arg) {
+static esp_err_t gw_heartbeat_send(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Heartbeat");
-
-    discord_client_handle_t client = (discord_client_handle_t) arg;
 
     if(! client->heartbeat_ack_received) {
         ESP_LOGW(TAG, "GW: ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
-        gw_reconnect(client);
-        return;
+        return gw_reconnect(client);
     }
 
     client->heartbeat_ack_received = false;
@@ -500,38 +516,29 @@ static void gw_heartbeat_timer_callback(void* arg) {
         DISCORD_OP_HEARTBEAT,
         (discord_gateway_heartbeat_t*) &s
     ));
-}
 
-static esp_err_t gw_heartbeat_init(discord_client_handle_t client) {
-    const esp_timer_create_args_t timer_args = {
-        .callback = &gw_heartbeat_timer_callback,
-        .arg = (void*) client
-    };
-
-    client->heartbeat_ack_received = false;
-    client->heartbeat_timer_running = false;
-
-    return esp_timer_create(&timer_args, &client->heartbeat_timer);
+    return ESP_OK;
 }
 
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello) {
-    if(client->heartbeat_timer_running)
+    if(client->heartbeat_running)
         return ESP_OK;
-
-    client->heartbeat_timer_running = true;
-
+    
     // Set to true to prevent first ack checking in callback
     client->heartbeat_ack_received = true;
 
-    return esp_timer_start_periodic(client->heartbeat_timer, hello->heartbeat_interval * 1000);
+    client->heartbeat_interval = hello->heartbeat_interval;
+    client->heartbeat_tick_ms = dc_tick_ms();
+    client->heartbeat_running = true;
+
+    return ESP_OK;
 }
 
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client) {
-    if(! client->heartbeat_timer_running)
-        return ESP_OK;
-
-    client->heartbeat_timer_running = false;
+    client->heartbeat_running = false;
+    client->heartbeat_interval = 0;
+    client->heartbeat_tick_ms = 0;
     client->heartbeat_ack_received = false;
 
-    return esp_timer_stop(client->heartbeat_timer);
+    return ESP_OK;
 }
