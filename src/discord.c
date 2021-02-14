@@ -1,3 +1,5 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -15,9 +17,21 @@ typedef enum {
     DISCORD_CLOSE_REASON_LOGOUT
 } discord_close_reason_t;
 
+typedef enum {
+    //DISCORD_CLIENT_STATE_ERROR = -1,
+    DISCORD_CLIENT_STATE_DISCONNECTED = -1,
+    DISCORD_CLIENT_STATE_UNKNOWN,
+    DISCORD_CLIENT_STATE_INIT,
+    DISCORD_CLIENT_STATE_CONNECTED
+} discord_client_state_t;
+
 struct discord_client {
+    discord_client_state_t state;
+    TaskHandle_t task_handle;
+    SemaphoreHandle_t lock;
     esp_event_loop_handle_t event_handle;
     discord_client_config_t* config;
+    bool running;
     esp_websocket_client_handle_t ws;
     bool heartbeat_timer_running;
     esp_timer_handle_t heartbeat_timer;
@@ -56,6 +70,8 @@ static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_pay
 
         // Detach pointer in order to prevent session deallocation by payload free function
         payload->d = NULL;
+
+        client->state = DISCORD_CLIENT_STATE_CONNECTED;
         
         ESP_LOGD(TAG, "GW: Identified [%s#%s (%s), session: %s]", 
             client->session->user->username,
@@ -179,19 +195,7 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
 
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_CLOSED");
-
-            if(client->close_reason == DISCORD_CLOSE_REASON_NOT_REQUESTED) {
-                // This event will be invoked when token is invalid as well
-                // correct reason of closing the connection can be found in frame data
-                // (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
-                //
-                // In this moment websocket client does not emit data in this event
-                // (issue reported: https://github.com/espressif/esp-idf/issues/6535)
-
-                ESP_LOGE(TAG, "Connection closed unexpectedly. Reason cannot be identified in this moment. Maybe your token is invalid?");
-                gw_reset(client);
-            }
-            
+            client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
             break;
             
         default:
@@ -202,6 +206,8 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
 
 static esp_err_t gw_start(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Start");
+
+    client->state = DISCORD_CLIENT_STATE_INIT;
 
     return esp_websocket_client_start(client->ws);
 }
@@ -234,6 +240,8 @@ static esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t
     }
     
     gw_reset(client);
+
+    client->state = DISCORD_CLIENT_STATE_INIT;
 
     return ESP_OK;
 }
@@ -289,11 +297,66 @@ static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event
     return esp_event_loop_run(client->event_handle, 0);
 }
 
+static void dc_task(void* pv) {
+    discord_client_handle_t client = (discord_client_handle_t) pv;
+
+    client->running = true;
+
+    while(client->running) {
+        if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {
+            ESP_LOGE(TAG, "Failed to lock discord tasks, exiting the task...");
+            break;
+        }
+
+        switch(client->state) {
+            case DISCORD_CLIENT_STATE_UNKNOWN:
+                // state shouldn't be unknown in this task
+                break;
+
+            case DISCORD_CLIENT_STATE_INIT:
+                // client trying to connect...
+                break;
+
+            case DISCORD_CLIENT_STATE_CONNECTED:
+                // heartbeating
+
+                ESP_LOGW(TAG, "CONNECTED IN TASK");
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
+                break;
+
+            case DISCORD_CLIENT_STATE_DISCONNECTED:
+                if(client->close_reason == DISCORD_CLOSE_REASON_NOT_REQUESTED) {
+                    // This event will be invoked when token is invalid as well
+                    // correct reason of closing the connection can be found in frame data
+                    // (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
+                    //
+                    // In this moment websocket client does not emit data in this event
+                    // (issue reported: https://github.com/espressif/esp-idf/issues/6535)
+
+                    ESP_LOGE(TAG, "Connection closed unexpectedly. Reason cannot be identified in this moment. Maybe your token is invalid?");
+                    discord_logout(client);
+                } else {
+                    gw_reset(client);
+                    client->state = DISCORD_CLIENT_STATE_INIT;
+                }
+                break;
+        }
+
+        xSemaphoreGiveRecursive(client->lock);
+    }
+
+    vTaskDelete(NULL);
+}
+
 discord_client_handle_t discord_create(const discord_client_config_t* config) {
     ESP_LOGD(TAG, "Init");
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
     
+    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
+
+    client->lock = xSemaphoreCreateRecursiveMutex();
+
     esp_event_loop_args_t event_args = {
         .queue_size = 1,
         .task_name = NULL // no task will be created
@@ -318,6 +381,18 @@ esp_err_t discord_login(discord_client_handle_t client) {
     
     ESP_LOGD(TAG, "Login");
 
+    if(client->state >= DISCORD_CLIENT_STATE_INIT) {
+        ESP_LOGE(TAG, "Client is above (or equal to) init state");
+        return ESP_FAIL;
+    }
+
+    client->state = DISCORD_CLIENT_STATE_INIT;
+
+    if (xTaskCreate(dc_task, "discord_task", 4 * 1024, client, 5, &client->task_handle) != pdTRUE) {
+        ESP_LOGE(TAG, "Error create discord task");
+        return ESP_FAIL;
+    }
+
     return gw_open(client);
 }
 
@@ -336,6 +411,13 @@ esp_err_t discord_logout(discord_client_handle_t client) {
 
     ESP_LOGD(TAG, "Logout");
 
+    if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {
+        ESP_LOGE(TAG, "Could not lock");
+        return ESP_FAIL;
+    }
+
+    client->running = false;
+
     gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
 
     esp_timer_delete(client->heartbeat_timer);
@@ -352,6 +434,10 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     discord_model_gateway_session_free(client->session);
     client->session = NULL;
 
+    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
+
+    xSemaphoreGiveRecursive(client->lock);
+
     return ESP_OK;
 }
 
@@ -361,8 +447,11 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
     
     ESP_LOGD(TAG, "Destroy");
 
-    discord_logout(client);
+    if(client->state >= DISCORD_CLIENT_STATE_INIT) {
+        discord_logout(client);
+    }
 
+    vSemaphoreDelete(client->lock);
     dc_config_free(client->config);
     free(client);
 
@@ -422,7 +511,7 @@ static esp_err_t gw_heartbeat_init(discord_client_handle_t client) {
     client->heartbeat_ack_received = false;
     client->heartbeat_timer_running = false;
 
-    return esp_timer_create(&timer_args, &(client->heartbeat_timer));
+    return esp_timer_create(&timer_args, &client->heartbeat_timer);
 }
 
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello) {
