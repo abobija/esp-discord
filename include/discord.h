@@ -44,6 +44,7 @@ enum {
 typedef struct {
     char* token;
     int intents;
+    int buffer_size;
 } discord_client_config_t;
 
 typedef struct discord_client* discord_client_handle_t;

@@ -1,5 +1,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -9,12 +10,17 @@
 #include "discord_models.h"
 #include "discord.h"
 
+#define DISCORD_WS_BUFFER_SIZE (512)
+#define DISCORD_MIN_BUFFER_SIZE (1024)
+#define DISCORD_TASK_STACK_SIZE (4 * 1024)
+#define DISCORD_TASK_PRIORITY (3)
+
 #define DC_LOCK(CODE) {\
     if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {\
         ESP_LOGE(TAG, "Could not lock");\
         return ESP_FAIL;\
     }\
-    CODE\
+    CODE;\
     xSemaphoreGiveRecursive(client->lock);\
 }
 
@@ -33,8 +39,13 @@ typedef enum {
     DISCORD_CLIENT_STATE_DISCONNECTED = -1,
     DISCORD_CLIENT_STATE_UNKNOWN,
     DISCORD_CLIENT_STATE_INIT,
+    DISCORD_CLIENT_STATE_CONNECTING,
     DISCORD_CLIENT_STATE_CONNECTED
 } discord_client_state_t;
+
+enum {
+    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0)
+};
 
 typedef struct {
     bool running;
@@ -47,6 +58,7 @@ struct discord_client {
     discord_client_state_t state;
     TaskHandle_t task_handle;
     SemaphoreHandle_t lock;
+    EventGroupHandle_t status_bits;
     esp_event_loop_handle_t event_handle;
     discord_client_config_t* config;
     bool running;
@@ -55,6 +67,8 @@ struct discord_client {
     discord_gateway_session_t* session;
     int last_sequence_number;
     discord_close_reason_t close_reason;
+    char* buffer;
+    int buffer_data_len;
 };
 
 static uint64_t dc_tick_ms(void) {
@@ -75,102 +89,23 @@ static esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client);
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello);
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client);
 
-/**
- * @brief Check event name in payload and invoke appropriate functions
- */
-static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t* payload) {
-    if(DISCORD_GATEWAY_EVENT_READY == payload->t) {
-        if(client->session != NULL) {
-            discord_model_gateway_session_free(client->session);
+static esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
+    DC_LOCK(
+        if(data->payload_len > client->config->buffer_size) {
+            ESP_LOGW(TAG, "GW: Payload too big. Wider buffer required.");
+            return ESP_FAIL;
         }
-
-        client->session = (discord_gateway_session_t*) payload->d;
-
-        // Detach pointer in order to prevent session deallocation by payload free function
-        payload->d = NULL;
-
-        client->state = DISCORD_CLIENT_STATE_CONNECTED;
         
-        ESP_LOGD(TAG, "GW: Identified [%s#%s (%s), session: %s]", 
-            client->session->user->username,
-            client->session->user->discriminator,
-            client->session->user->id,
-            client->session->session_id
-        );
+        ESP_LOGD(TAG, "GW: Received data:\n%.*s", data->data_len, data->data_ptr);
 
-        dc_dispatch_event(client, DISCORD_EVENT_CONNECTED, NULL);
-    } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
-        discord_message_t* msg = (discord_message_t*) payload->d;
+        ESP_LOGD(TAG, "GW: Buffering...");
+        memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
 
-        ESP_LOGD(TAG, "GW: New message (from %s#%s): %s",
-            msg->author->username,
-            msg->author->discriminator,
-            msg->content
-        );
-
-        dc_dispatch_event(client, DISCORD_EVENT_MESSAGE_RECEIVED, msg);
-    } else {
-        ESP_LOGW(TAG, "GW: Ignored dispatch event");
-    }
-
-    return ESP_OK;
-}
-
-static esp_err_t gw_identify(discord_client_handle_t client) {
-    return gw_send(client, discord_model_gateway_payload(
-        DISCORD_OP_IDENTIFY,
-        discord_model_gateway_identify(
-            client->config->token,
-            client->config->intents,
-            discord_model_gateway_identify_properties(
-                "freertos",
-                "esp-idf",
-                "esp32"
-            )
-        )
-    ));
-}
-
-static esp_err_t gw_handle_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
-    if(data->payload_offset > 0 || data->payload_len > 1024) {
-        ESP_LOGW(TAG, "GW: Payload too big. Buffering not implemented. Parsing skipped.");
-        return ESP_FAIL;
-    }
-    
-    ESP_LOGD(TAG, "GW: Received data:\n%.*s", data->data_len, data->data_ptr);
-
-    discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(data->data_ptr);
-
-    if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
-        client->last_sequence_number = payload->s;
-    }
-
-    ESP_LOGD(TAG, "GW: Received payload (op: %d)", payload->op);
-
-    switch (payload->op) {
-        case DISCORD_OP_HELLO:
-            gw_heartbeat_start(client, (discord_gateway_hello_t*) payload->d);
-            discord_model_gateway_payload_free(payload);
-            payload = NULL;
-            gw_identify(client);
-            break;
-        
-        case DISCORD_OP_HEARTBEAT_ACK:
-            client->heartbeater.received_ack = true;
-            break;
-
-        case DISCORD_OP_DISPATCH:
-            gw_dispatch(client, payload);
-            break;
-        
-        default:
-            ESP_LOGW(TAG, "GW: Unhandled payload (op: %d)", payload->op);
-            break;
-    }
-
-    if(payload != NULL) {
-        discord_model_gateway_payload_free(payload);
-    }
+        if((client->buffer_data_len = data->data_len + data->payload_offset) >= data->payload_len) {
+            ESP_LOGD(TAG, "GW: Buffering done.");
+            xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
+        }
+    );
 
     return ESP_OK;
 }
@@ -193,11 +128,12 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
     switch (event_id) {
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_CONNECTED");
+            client->state = DISCORD_CLIENT_STATE_CONNECTING;
             break;
 
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == WS_TRANSPORT_OPCODES_TEXT) {
-                gw_handle_websocket_data(client, data);
+                gw_buffer_websocket_data(client, data);
             }
             break;
         
@@ -242,7 +178,8 @@ static esp_err_t gw_open(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Open");
 
     esp_websocket_client_config_t ws_cfg = {
-        .uri = "wss://gateway.discord.gg/?v=8&encoding=json"
+        .uri = "wss://gateway.discord.gg/?v=8&encoding=json",
+        .buffer_size = DISCORD_WS_BUFFER_SIZE
     };
 
     client->ws = esp_websocket_client_init(&ws_cfg);
@@ -285,6 +222,7 @@ static discord_client_config_t* dc_config_copy(const discord_client_config_t* co
 
     clone->token = strdup(config->token);
     clone->intents = config->intents;
+    clone->buffer_size = config->buffer_size > DISCORD_MIN_BUFFER_SIZE ? config->buffer_size : DISCORD_MIN_BUFFER_SIZE;
 
     return clone;
 }
@@ -322,10 +260,106 @@ static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event
     return esp_event_loop_run(client->event_handle, 0);
 }
 
-static void dc_task(void* pv) {
-    discord_client_handle_t client = (discord_client_handle_t) pv;
+static esp_err_t gw_identify(discord_client_handle_t client) {
+    return gw_send(client, discord_model_gateway_payload(
+        DISCORD_OP_IDENTIFY,
+        discord_model_gateway_identify(
+            client->config->token,
+            client->config->intents,
+            discord_model_gateway_identify_properties(
+                "freertos",
+                "esp-idf",
+                "esp32"
+            )
+        )
+    ));
+}
 
-    client->running = true;
+/**
+ * @brief Check event name in payload and invoke appropriate functions
+ */
+static esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+    if(DISCORD_GATEWAY_EVENT_READY == payload->t) {
+        if(client->session != NULL) {
+            discord_model_gateway_session_free(client->session);
+        }
+
+        client->session = (discord_gateway_session_t*) payload->d;
+
+        // Detach pointer in order to prevent session deallocation by payload free function
+        payload->d = NULL;
+
+        client->state = DISCORD_CLIENT_STATE_CONNECTED;
+        
+        ESP_LOGD(TAG, "GW: Identified [%s#%s (%s), session: %s]", 
+            client->session->user->username,
+            client->session->user->discriminator,
+            client->session->user->id,
+            client->session->session_id
+        );
+
+        dc_dispatch_event(client, DISCORD_EVENT_CONNECTED, NULL);
+    } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
+        discord_message_t* msg = (discord_message_t*) payload->d;
+
+        ESP_LOGD(TAG, "GW: New message (from %s#%s): %s",
+            msg->author->username,
+            msg->author->discriminator,
+            msg->content
+        );
+
+        dc_dispatch_event(client, DISCORD_EVENT_MESSAGE_RECEIVED, msg);
+    } else {
+        ESP_LOGW(TAG, "GW: Ignored dispatch event");
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t gw_handle_buffered_data(discord_client_handle_t client) {
+    ESP_LOGD(TAG, "GW: Handle buffered data");
+
+    discord_gateway_payload_t* payload;
+    
+    DC_LOCK(payload = discord_model_gateway_payload_deserialize(client->buffer));
+
+    if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
+        client->last_sequence_number = payload->s;
+    }
+
+    ESP_LOGD(TAG, "GW: Received payload (op: %d)", payload->op);
+
+    switch (payload->op) {
+        case DISCORD_OP_HELLO:
+            gw_heartbeat_start(client, (discord_gateway_hello_t*) payload->d);
+            discord_model_gateway_payload_free(payload);
+            payload = NULL;
+            gw_identify(client);
+            break;
+        
+        case DISCORD_OP_HEARTBEAT_ACK:
+            ESP_LOGD(TAG, "GW: Heartbeat ack received");
+            client->heartbeater.received_ack = true;
+            break;
+
+        case DISCORD_OP_DISPATCH:
+            gw_dispatch(client, payload);
+            break;
+        
+        default:
+            ESP_LOGW(TAG, "GW: Unhandled payload (op: %d)", payload->op);
+            break;
+    }
+
+    if(payload != NULL) {
+        discord_model_gateway_payload_free(payload);
+    }
+
+    return ESP_OK;
+}
+
+static void dc_task(void* arg) {
+    discord_client_handle_t client = (discord_client_handle_t) arg;
 
     while(client->running) {
         if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {
@@ -340,6 +374,10 @@ static void dc_task(void* pv) {
 
             case DISCORD_CLIENT_STATE_INIT:
                 // client trying to connect...
+                break;
+
+            case DISCORD_CLIENT_STATE_CONNECTING:
+                // ws connected, but gateway not identified yet
                 break;
 
             case DISCORD_CLIENT_STATE_CONNECTED:
@@ -371,7 +409,15 @@ static void dc_task(void* pv) {
 
         xSemaphoreGiveRecursive(client->lock);
 
-        vTaskDelay(125 / portTICK_PERIOD_MS);
+        if(client->state >= DISCORD_CLIENT_STATE_CONNECTING) {
+            EventBits_t bits = xEventGroupWaitBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY, pdTRUE, pdTRUE, 1000 / portTICK_PERIOD_MS); // poll every 1000ms
+
+            if((DISCORD_CLIENT_STATUS_BIT_BUFFER_READY & bits) != 0) {
+                gw_handle_buffered_data(client);
+            }
+        } else {
+            vTaskDelay(125 / portTICK_PERIOD_MS);
+        }
     }
 
     client->state = DISCORD_CLIENT_STATE_INIT;
@@ -386,6 +432,7 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     client->state = DISCORD_CLIENT_STATE_UNKNOWN;
 
     client->lock = xSemaphoreCreateRecursiveMutex();
+    client->status_bits = xEventGroupCreate();
 
     esp_event_loop_args_t event_args = {
         .queue_size = 1,
@@ -399,6 +446,7 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     }
 
     client->config = dc_config_copy(config);
+    client->buffer = malloc(client->config->buffer_size);
 
     gw_init(client);
     
@@ -417,9 +465,10 @@ esp_err_t discord_login(discord_client_handle_t client) {
     }
 
     client->state = DISCORD_CLIENT_STATE_INIT;
+    client->running = true;
 
-    if (xTaskCreate(dc_task, "discord_task", 4 * 1024, client, 5, &client->task_handle) != pdTRUE) {
-        ESP_LOGE(TAG, "Error create discord task");
+    if (xTaskCreate(dc_task, "discord_task", DISCORD_TASK_STACK_SIZE, client, DISCORD_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
+        ESP_LOGE(TAG, "Cannot create discord task");
         return ESP_FAIL;
     }
 
@@ -472,6 +521,10 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
     }
 
     vSemaphoreDelete(client->lock);
+    if(client->status_bits) {
+        vEventGroupDelete(client->status_bits);
+    }
+    free(client->buffer);
     dc_config_free(client->config);
     free(client);
 
@@ -484,6 +537,8 @@ static esp_err_t gw_reset(discord_client_handle_t client) {
     gw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
+    xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
+    client->buffer_data_len = 0;
 
     return ESP_OK;
 }
