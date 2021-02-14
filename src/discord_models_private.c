@@ -4,7 +4,7 @@
 #include "esp_log.h"
 #include "discord.h"
 #include "discord_models.h"
-#include "discord_models_private.h"
+#include "private/discord_models_private.h"
 
 static const char* TAG = DISCORD_LOG_TAG;
 
