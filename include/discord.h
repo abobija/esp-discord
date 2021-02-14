@@ -9,6 +9,14 @@ extern "C" {
 
 #define DISCORD_LOG_TAG "discord"
 
+#define DISCORD_LOG(esp_log_foo, format, ...) esp_log_foo(TAG, "%s: " format, __func__, ##__VA_ARGS__)
+#define DISCORD_LOGE(format, ...) DISCORD_LOG(ESP_LOGE, format, ##__VA_ARGS__)
+#define DISCORD_LOGW(format, ...) DISCORD_LOG(ESP_LOGW, format, ##__VA_ARGS__)
+#define DISCORD_LOGI(format, ...) DISCORD_LOG(ESP_LOGI, format, ##__VA_ARGS__)
+#define DISCORD_LOGD(format, ...) DISCORD_LOG(ESP_LOGD, format, ##__VA_ARGS__)
+#define DISCORD_LOGV(format, ...) DISCORD_LOG(ESP_LOGV, format, ##__VA_ARGS__)
+#define DISCORD_LOG_FOO() DISCORD_LOGD("...")
+
 #define streq(s1, s2) strcmp(s1, s2) == 0
 
 #define DISCORD_INTENT_GUILDS                    (1 << 0)

@@ -5,8 +5,6 @@
 #include "discord.h"
 #include "discord_models.h"
 
-//static const char* TAG = DISCORD_LOG_TAG;
-
 discord_user_t* discord_model_user_from_cjson(cJSON* root) {
     discord_user_t* user = calloc(1, sizeof(discord_user_t));
 

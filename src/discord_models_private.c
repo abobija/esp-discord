@@ -35,7 +35,7 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
             break;
         
         default:
-            ESP_LOGW(TAG, "Function discord_model_gateway_payload_to_cjson cannot recognize payload type");
+            DISCORD_LOGW("Cannot recognize payload type");
             cJSON_Delete(root);
             root = NULL;
             break;
@@ -67,7 +67,7 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
             break;
         
         default:
-            ESP_LOGW(TAG, "Function discord_model_gateway_payload_free cannot recognize payload type. Possible memory leak.");
+            DISCORD_LOGW("Cannot recognize payload type. Possible memory leak.");
             break;
     }
 
@@ -77,6 +77,11 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
 discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json, size_t length) {
     cJSON* cjson = cJSON_ParseWithLength(json, length);
     
+    if(cjson == NULL) {
+        DISCORD_LOGW("JSON parsing (syntax?) error");
+        return NULL;
+    }
+
     discord_gateway_payload_t* pl = discord_model_gateway_payload(
         cJSON_GetObjectItem(cjson, "op")->valueint,
         NULL
@@ -107,7 +112,7 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
             break;
         
         default:
-            ESP_LOGW(TAG, "Function discord_model_gateway_payload_deserialize cannot recognize payload type. Unable to set payload data.");
+            DISCORD_LOGW("Cannot recognize payload type. Unable to set payload data.");
             break;
     }
 
@@ -145,7 +150,7 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
             return discord_model_message_from_cjson(cjson);
         
         default:
-            ESP_LOGW(TAG, "Function discord_model_gateway_dispatch_event_data_from_cjson cannot recognize event type");
+            DISCORD_LOGW("Cannot recognize event type");
             return NULL;
     }
 }
@@ -162,7 +167,7 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
             return discord_model_message_free((discord_message_t*) payload->d);
         
         default:
-            ESP_LOGW(TAG, "Function discord_model_gateway_dispatch_event_data_free cannot recognize event type");
+            DISCORD_LOGW("Cannot recognize event type");
             return;
     }
 }
