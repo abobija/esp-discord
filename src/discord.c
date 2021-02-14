@@ -8,6 +8,12 @@
 
 static const char* TAG = DISCORD_LOG_TAG;
 
+typedef enum {
+    DISCORD_CLOSE_REASON_NOT_REQUESTED = -1,
+    DISCORD_CLOSE_REASON_RECONNECT,
+    DISCORD_CLOSE_REASON_LOGOUT
+} discord_close_reason_t;
+
 struct discord_client {
     esp_event_loop_handle_t event_handle;
     discord_client_config_t* config;
@@ -17,7 +23,7 @@ struct discord_client {
     bool heartbeat_ack_received;
     discord_gateway_session_t* session;
     int last_sequence_number;
-    bool close_requested;
+    discord_close_reason_t close_reason;
 };
 
 ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
@@ -131,6 +137,10 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
     discord_client_handle_t client = (discord_client_handle_t) handler_arg;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
+    if(data->op_code == 10) { // ignore PONG frame
+        return;
+    }
+
     ESP_LOGD(TAG, "GW: Received WebSocket frame (op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
         data->op_code,
         data->payload_len, 
@@ -169,7 +179,7 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_CLOSED");
 
-            if(! client->close_requested) {
+            if(client->close_reason == DISCORD_CLOSE_REASON_NOT_REQUESTED) {
                 // This event will be invoked when token is invalid as well
                 // correct reason of closing the connection can be found in frame data
                 // (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
@@ -213,10 +223,10 @@ static esp_err_t gw_open(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-static esp_err_t gw_close(discord_client_handle_t client) {
+static esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason) {
     ESP_LOGD(TAG, "GW: Close");
 
-    client->close_requested = true;
+    client->close_reason = reason;
 
     if(esp_websocket_client_is_connected(client->ws)) {
         esp_websocket_client_close(client->ws, portMAX_DELAY);
@@ -230,7 +240,7 @@ static esp_err_t gw_close(discord_client_handle_t client) {
 static esp_err_t gw_reconnect(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Reconnect");
 
-    gw_close(client);
+    gw_close(client, DISCORD_CLOSE_REASON_RECONNECT);
     ESP_ERROR_CHECK(gw_start(client));
 
     return ESP_OK;
@@ -319,13 +329,13 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
     return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
 }
 
-esp_err_t discord_destroy(discord_client_handle_t client) {
+esp_err_t discord_logout(discord_client_handle_t client) {
     if(client == NULL)
         return ESP_ERR_INVALID_ARG;
-    
-    ESP_LOGD(TAG, "Destroy");
 
-    gw_reset(client);
+    ESP_LOGD(TAG, "Logout");
+
+    gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
 
     esp_timer_delete(client->heartbeat_timer);
     client->heartbeat_timer = NULL;
@@ -335,10 +345,22 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
 
     if(client->event_handle) {
         esp_event_loop_delete(client->event_handle);
+        client->event_handle = NULL;
     }
 
     discord_model_gateway_session_free(client->session);
     client->session = NULL;
+
+    return ESP_OK;
+}
+
+esp_err_t discord_destroy(discord_client_handle_t client) {
+    if(client == NULL)
+        return ESP_ERR_INVALID_ARG;
+    
+    ESP_LOGD(TAG, "Destroy");
+
+    discord_logout(client);
 
     dc_config_free(client->config);
     free(client);
@@ -352,7 +374,7 @@ static esp_err_t gw_reset(discord_client_handle_t client) {
     gw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->heartbeat_ack_received = false;
-    client->close_requested = false;
+    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
 
     return ESP_OK;
 }
