@@ -29,7 +29,7 @@ typedef enum {
 } discord_close_reason_t;
 
 typedef enum {
-    //DISCORD_CLIENT_STATE_ERROR = -1,
+    DISCORD_CLIENT_STATE_ERROR = -2,
     DISCORD_CLIENT_STATE_DISCONNECTED = -1,
     DISCORD_CLIENT_STATE_UNKNOWN,
     DISCORD_CLIENT_STATE_INIT,
@@ -133,6 +133,13 @@ static esp_err_t gw_identify(discord_client_handle_t client) {
 }
 
 static esp_err_t gw_handle_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
+    if(data->payload_offset > 0 || data->payload_len > 1024) {
+        ESP_LOGW(TAG, "GW: Payload too big. Buffering not implemented. Parsing skipped.");
+        return ESP_FAIL;
+    }
+    
+    ESP_LOGD(TAG, "GW: Received data:\n%.*s", data->data_len, data->data_ptr);
+
     discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(data->data_ptr);
 
     if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
@@ -189,27 +196,20 @@ static void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base,
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_CONNECTED");
             break;
 
-        case WEBSOCKET_EVENT_DISCONNECTED:
-            ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_DISCONNECTED");
-            gw_reset(client);
-            break;
-
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == WS_TRANSPORT_OPCODES_TEXT) {
-                ESP_LOGD(TAG, "GW: Received data:\n%.*s", data->data_len, data->data_ptr);
-
-                if(data->payload_offset > 0 || data->payload_len > 1024) {
-                    ESP_LOGW(TAG, "GW: Payload too big. Buffering not implemented. Parsing skipped.");
-                    break;
-                }
-
                 gw_handle_websocket_data(client, data);
             }
             break;
-
+        
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_ERROR");
-            gw_reset(client);
+            client->state = DISCORD_CLIENT_STATE_ERROR;
+            break;
+
+        case WEBSOCKET_EVENT_DISCONNECTED:
+            ESP_LOGD(TAG, "GW: WEBSOCKET_EVENT_DISCONNECTED");
+            client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
             break;
 
         case WEBSOCKET_EVENT_CLOSED:
@@ -362,6 +362,11 @@ static void dc_task(void* pv) {
                     gw_reset(client);
                     client->state = DISCORD_CLIENT_STATE_INIT;
                 }
+                break;
+            
+            case DISCORD_CLIENT_STATE_ERROR:
+                ESP_LOGE(TAG, "Unhandled error occurred. Disconnecting...");
+                discord_logout(client);
                 break;
         }
 
