@@ -36,6 +36,13 @@ typedef enum {
     DISCORD_CLIENT_STATE_CONNECTED
 } discord_client_state_t;
 
+typedef struct {
+    bool running;
+    int interval;
+    uint64_t tick_ms;
+    bool received_ack;
+} discord_heartbeater_t;
+
 struct discord_client {
     discord_client_state_t state;
     TaskHandle_t task_handle;
@@ -44,10 +51,7 @@ struct discord_client {
     discord_client_config_t* config;
     bool running;
     esp_websocket_client_handle_t ws;
-    bool heartbeat_running;
-    int heartbeat_interval;
-    uint64_t heartbeat_tick_ms;
-    bool heartbeat_ack_received;
+    discord_heartbeater_t heartbeater;
     discord_gateway_session_t* session;
     int last_sequence_number;
     discord_close_reason_t close_reason;
@@ -67,6 +71,7 @@ static esp_err_t gw_reset(discord_client_handle_t client);
 static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload);
 
 static esp_err_t gw_heartbeat_send(discord_client_handle_t client);
+static esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client);
 #define gw_heartbeat_init(client) gw_heartbeat_stop(client)
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello);
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client);
@@ -145,7 +150,7 @@ static esp_err_t gw_handle_websocket_data(discord_client_handle_t client, esp_we
             break;
         
         case DISCORD_OP_HEARTBEAT_ACK:
-            client->heartbeat_ack_received = true;
+            client->heartbeater.received_ack = true;
             break;
 
         case DISCORD_OP_DISPATCH:
@@ -339,11 +344,7 @@ static void dc_task(void* pv) {
                 break;
 
             case DISCORD_CLIENT_STATE_CONNECTED:
-                if(client->heartbeat_running && dc_tick_ms() - client->heartbeat_tick_ms > client->heartbeat_interval) {
-                    client->heartbeat_tick_ms = dc_tick_ms();
-                    gw_heartbeat_send(client);
-                }
-
+                gw_heartbeat_send_if_expired(client);
                 break;
 
             case DISCORD_CLIENT_STATE_DISCONNECTED:
@@ -478,7 +479,6 @@ static esp_err_t gw_reset(discord_client_handle_t client) {
 
     gw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    client->heartbeat_ack_received = false;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
 
     return ESP_OK;
@@ -504,12 +504,12 @@ static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload
 static esp_err_t gw_heartbeat_send(discord_client_handle_t client) {
     ESP_LOGD(TAG, "GW: Heartbeat");
 
-    if(! client->heartbeat_ack_received) {
+    if(! client->heartbeater.received_ack) {
         ESP_LOGW(TAG, "GW: ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
         return gw_reconnect(client);
     }
 
-    client->heartbeat_ack_received = false;
+    client->heartbeater.received_ack = false;
     int s = client->last_sequence_number;
 
     gw_send(client, discord_model_gateway_payload(
@@ -520,25 +520,33 @@ static esp_err_t gw_heartbeat_send(discord_client_handle_t client) {
     return ESP_OK;
 }
 
+static esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client) {
+    if(client->heartbeater.running && dc_tick_ms() - client->heartbeater.tick_ms > client->heartbeater.interval) {
+        client->heartbeater.tick_ms = dc_tick_ms();
+        return gw_heartbeat_send(client);
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello) {
-    if(client->heartbeat_running)
+    if(client->heartbeater.running)
         return ESP_OK;
     
-    // Set to true to prevent first ack checking in callback
-    client->heartbeat_ack_received = true;
-
-    client->heartbeat_interval = hello->heartbeat_interval;
-    client->heartbeat_tick_ms = dc_tick_ms();
-    client->heartbeat_running = true;
+    // Set ack to true to prevent first ack checking
+    client->heartbeater.received_ack = true;
+    client->heartbeater.interval = hello->heartbeat_interval;
+    client->heartbeater.tick_ms = dc_tick_ms();
+    client->heartbeater.running = true;
 
     return ESP_OK;
 }
 
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client) {
-    client->heartbeat_running = false;
-    client->heartbeat_interval = 0;
-    client->heartbeat_tick_ms = 0;
-    client->heartbeat_ack_received = false;
+    client->heartbeater.running = false;
+    client->heartbeater.interval = 0;
+    client->heartbeater.tick_ms = 0;
+    client->heartbeater.received_ack = false;
 
     return ESP_OK;
 }
