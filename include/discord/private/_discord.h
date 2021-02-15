@@ -30,7 +30,7 @@ extern "C" {
 #define DISCORD_LOGV(format, ...) DISCORD_LOG(ESP_LOGV, format, ##__VA_ARGS__)
 #define DISCORD_LOG_FOO() DISCORD_LOGD("...")
 
-#define DISCORD_EVENT(event, data) client->event_handler(client, event, data)
+#define DISCORD_EVENT_EMIT(event, data) client->event_handler(client, event, data)
 
 #define DC_LOCK(CODE) {\
     if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {\

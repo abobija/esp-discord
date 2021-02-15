@@ -309,8 +309,8 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
             client->session->user->id,
             client->session->session_id
         );
-        
-        DISCORD_EVENT(DISCORD_EVENT_CONNECTED, NULL);
+
+        DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, NULL);
     } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
         discord_message_t* msg = (discord_message_t*) payload->d;
 
@@ -320,7 +320,7 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
             msg->content
         );
 
-        DISCORD_EVENT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
+        DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
     } else {
         DISCORD_LOGW("Ignored dispatch event");
     }
