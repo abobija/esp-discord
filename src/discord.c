@@ -62,11 +62,14 @@ static void dc_task(void* arg) {
 
         switch(client->state) {
             case DISCORD_CLIENT_STATE_UNKNOWN:
-                // state shouldn't be unknown in this task
+                // gateway not started yet
+                // this state will be active just a few ticks,
+                // because gateway will be started imidiatelly after task is created
+                // shortly, this state can be ignored
                 break;
 
             case DISCORD_CLIENT_STATE_INIT:
-                // ws_client trying to connect to...
+                // ws_client trying to connect...
                 break;
 
             case DISCORD_CLIENT_STATE_CONNECTING:
@@ -196,7 +199,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     }
 
     client->running = false;
-    
+
     gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
 
     esp_websocket_client_destroy(client->ws);
