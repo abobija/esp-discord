@@ -10,6 +10,7 @@ esp_err_t gw_init(discord_client_handle_t client) {
 
     ESP_ERROR_CHECK(gw_heartbeat_init(client));
     gw_reset(client);
+    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
 
     return ESP_OK;
 }
@@ -19,7 +20,6 @@ esp_err_t gw_reset(discord_client_handle_t client) {
     
     gw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
     xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
     client->buffer_len = 0;
 
@@ -63,6 +63,10 @@ esp_err_t gw_open(discord_client_handle_t client) {
     return ESP_OK;
 }
 
+bool gw_is_open(discord_client_handle_t client) {
+    return client->running && client->state >= DISCORD_CLIENT_STATE_CONNECTING;
+}
+
 esp_err_t gw_start(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
@@ -79,26 +83,22 @@ esp_err_t gw_start(discord_client_handle_t client) {
 esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason) {
     DISCORD_LOG_FOO();
 
+    if(! gw_is_open(client)) {
+        DISCORD_LOGD("Already closed");
+        return ESP_OK;
+    }
+    
     DC_LOCK(
         client->close_reason = reason;
 
         if(esp_websocket_client_is_connected(client->ws)) {
             esp_websocket_client_close(client->ws, portMAX_DELAY);
         }
-        
+
         gw_reset(client);
 
-        client->state = DISCORD_CLIENT_STATE_INIT;
+        client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
     );
-
-    return ESP_OK;
-}
-
-esp_err_t gw_reconnect(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-
-    gw_close(client, DISCORD_CLOSE_REASON_RECONNECT);
-    ESP_ERROR_CHECK(gw_start(client));
 
     return ESP_OK;
 }
@@ -126,7 +126,7 @@ esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client) {
 
         if(! client->heartbeater.received_ack) {
             DISCORD_LOGW("ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
-            return gw_reconnect(client);
+            return gw_close(client, DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED);
         }
 
         client->heartbeater.received_ack = false;

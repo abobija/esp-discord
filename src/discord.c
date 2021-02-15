@@ -52,6 +52,7 @@ static void dc_task(void* arg) {
     DISCORD_LOG_FOO();
 
     discord_client_handle_t client = (discord_client_handle_t) arg;
+    bool restart_gw = false;
 
     while(client->running) {
         if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {
@@ -65,11 +66,11 @@ static void dc_task(void* arg) {
                 break;
 
             case DISCORD_CLIENT_STATE_INIT:
-                // client trying to connect...
+                // ws_client trying to connect to...
                 break;
 
             case DISCORD_CLIENT_STATE_CONNECTING:
-                // ws connected, but gateway not identified yet
+                // ws_client connected, but gateway not identified yet
                 break;
 
             case DISCORD_CLIENT_STATE_CONNECTED:
@@ -77,7 +78,7 @@ static void dc_task(void* arg) {
                 break;
 
             case DISCORD_CLIENT_STATE_DISCONNECTED:
-                if(client->close_reason == DISCORD_CLOSE_REASON_NOT_REQUESTED) {
+                if(DISCORD_CLOSE_REASON_NOT_REQUESTED == client->close_reason) {
                     // This event will be invoked when token is invalid as well
                     // correct reason of closing the connection can be found in frame data
                     // (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
@@ -87,10 +88,13 @@ static void dc_task(void* arg) {
 
                     DISCORD_LOGE("Connection closed unexpectedly. Reason cannot be identified in this moment. Maybe your token is invalid?");
                     discord_logout(client);
+                } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
+                    restart_gw = true;
                 } else {
-                    gw_reset(client);
-                    client->state = DISCORD_CLIENT_STATE_INIT;
+                    DISCORD_LOGW("Close requested but not handled");
+                    discord_logout(client);
                 }
+
                 break;
             
             case DISCORD_CLIENT_STATE_ERROR:
@@ -107,10 +111,16 @@ static void dc_task(void* arg) {
             if((DISCORD_CLIENT_STATUS_BIT_BUFFER_READY & bits) != 0) {
                 gw_handle_buffered_data(client);
             }
+        } else if(DISCORD_CLIENT_STATE_DISCONNECTED == client->state && restart_gw) {
+            restart_gw = false;
+            DISCORD_LOGD("Restarting gateway...");
+            gw_start(client);
         } else {
             vTaskDelay(125 / portTICK_PERIOD_MS);
         }
     }
+
+    DISCORD_LOGD("Task exit...");
 
     client->state = DISCORD_CLIENT_STATE_INIT;
     vTaskDelete(NULL);
@@ -183,6 +193,11 @@ esp_err_t discord_logout(discord_client_handle_t client) {
 
     DISCORD_LOG_FOO();
 
+    if(! client->running) {
+        DISCORD_LOGW("Client has been already disconnected");
+        return ESP_OK;
+    }
+
     client->running = false;
 
     gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
@@ -190,15 +205,8 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
 
-    if(client->event_handle) {
-        esp_event_loop_delete(client->event_handle);
-        client->event_handle = NULL;
-    }
-
     discord_model_gateway_session_free(client->session);
     client->session = NULL;
-
-    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
 
     return ESP_OK;
 }
@@ -213,6 +221,11 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
 
     if(client->state >= DISCORD_CLIENT_STATE_INIT) {
         discord_logout(client);
+    }
+
+    if(client->event_handle) {
+        esp_event_loop_delete(client->event_handle);
+        client->event_handle = NULL;
     }
 
     vSemaphoreDelete(client->lock);
