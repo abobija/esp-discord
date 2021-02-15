@@ -2,11 +2,11 @@
 #include "esp_heap_caps.h"
 #include "cJSON.h"
 #include "esp_log.h"
+#include "discord/private/_discord.h"
 #include "discord.h"
 #include "discord/models.h"
-#include "discord/private/models.h"
 
-static const char* TAG = DISCORD_LOG_TAG;
+DISCORD_LOG_DEFINE_BASE();
 
 discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway_payload_data_t d) {
     discord_gateway_payload_t* pl = calloc(1, sizeof(discord_gateway_payload_t));
