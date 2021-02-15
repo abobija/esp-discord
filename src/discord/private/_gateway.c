@@ -22,6 +22,7 @@ esp_err_t gw_reset(discord_client_handle_t client) {
     gw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
+    xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ);
     client->buffer_len = 0;
 
     return ESP_OK;
@@ -33,14 +34,12 @@ esp_err_t gw_reset(discord_client_handle_t client) {
 esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload) {
     DISCORD_LOG_FOO();
 
-    DC_LOCK(
-        char* payload_raw = discord_model_gateway_payload_serialize(payload);
+    char* payload_raw = discord_model_gateway_payload_serialize(payload);
 
-        DISCORD_LOGD("%s", payload_raw);
+    DISCORD_LOGD("%s", payload_raw);
 
-        esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
-        free(payload_raw);
-    );
+    esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+    free(payload_raw);
 
     return ESP_OK;
 }
@@ -80,15 +79,10 @@ esp_err_t gw_start(discord_client_handle_t client) {
         DISCORD_LOGD("Already started");
         return ESP_OK;
     }
+    
+    client->state = DISCORD_CLIENT_STATE_INIT;
 
-    esp_err_t err;
-
-    DC_LOCK(
-        client->state = DISCORD_CLIENT_STATE_INIT;
-        err = esp_websocket_client_start(client->ws);
-    );
-
-    return err;
+    return esp_websocket_client_start(client->ws);
 }
 
 esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason) {
@@ -102,15 +96,13 @@ esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason
     // do not set client status in this function
     // it will be automatically set in discord task
     
-    DC_LOCK(
-        client->close_reason = reason;
+    client->close_reason = reason;
 
-        if(esp_websocket_client_is_connected(client->ws)) {
-            esp_websocket_client_close(client->ws, portMAX_DELAY);
-        }
+    if(esp_websocket_client_is_connected(client->ws)) {
+        esp_websocket_client_close(client->ws, portMAX_DELAY);
+    }
 
-        gw_reset(client);
-    );
+    gw_reset(client);
 
     return ESP_OK;
 }
@@ -165,20 +157,25 @@ esp_err_t gw_heartbeat_stop(discord_client_handle_t client) {
 }
 
 esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
-    DC_LOCK(
-        if(data->payload_len > client->config->buffer_size) {
-            DISCORD_LOGW("Payload too big. Wider buffer required.");
-            return ESP_FAIL;
-        }
-        
-        DISCORD_LOGD("Received data:\n%.*s", data->data_len, data->data_ptr);
+    DISCORD_LOG_FOO();
 
-        DISCORD_LOGD("Buffering...");
+    if(data->payload_len > client->config->buffer_size) {
+        DISCORD_LOGW("Payload too big. Wider buffer required.");
+        return ESP_FAIL;
+    }
+
+    xEventGroupWaitBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ, pdFALSE, pdTRUE, portMAX_DELAY);
+    
+    DISCORD_LOGD("Buffering received data:\n%.*s", data->data_len, data->data_ptr);
+    
+    DC_LOCK(
         memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
 
         if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
             DISCORD_LOGD("Buffering done.");
             xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
+            xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ);
+
         }
     );
 
@@ -191,6 +188,8 @@ esp_err_t gw_handle_buffered_data(discord_client_handle_t client) {
     discord_gateway_payload_t* payload;
 
     DC_LOCK(payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len));
+
+    xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ);
 
     if(payload == NULL) {
         DISCORD_LOGE("Cannot deserialize payload");

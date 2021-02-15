@@ -57,7 +57,8 @@ typedef enum {
 } discord_client_state_t;
 
 enum {
-    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0)
+    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0),
+    DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ = (1 << 1)
 };
 
 typedef struct {

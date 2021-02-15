@@ -197,10 +197,11 @@ esp_err_t discord_logout(discord_client_handle_t client) {
         DISCORD_LOGW("Client has been already disconnected");
         return ESP_OK;
     }
-
-    client->running = false;
-
-    gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
+    
+    DC_LOCK(
+        client->running = false;
+        gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
+    );
 
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
