@@ -6,8 +6,8 @@
 #include "esp_log.h"
 #include "esp_websocket_client.h"
 #include "esp_transport_ws.h"
-#include "private/discord_models_private.h"
-#include "discord_models.h"
+#include "discord/models.h"
+#include "discord/private/models.h"
 #include "discord.h"
 
 #define DISCORD_WS_BUFFER_SIZE (512)

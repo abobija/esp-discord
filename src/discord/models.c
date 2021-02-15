@@ -3,7 +3,7 @@
 #include "cJSON.h"
 #include "esp_log.h"
 #include "discord.h"
-#include "discord_models.h"
+#include "discord/models.h"
 
 discord_user_t* discord_model_user_from_cjson(cJSON* root) {
     discord_user_t* user = calloc(1, sizeof(discord_user_t));

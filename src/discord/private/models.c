@@ -3,8 +3,8 @@
 #include "cJSON.h"
 #include "esp_log.h"
 #include "discord.h"
-#include "discord_models.h"
-#include "private/discord_models_private.h"
+#include "discord/models.h"
+#include "discord/private/models.h"
 
 static const char* TAG = DISCORD_LOG_TAG;
 
