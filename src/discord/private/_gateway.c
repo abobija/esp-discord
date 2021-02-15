@@ -10,6 +10,7 @@ esp_err_t gw_init(discord_client_handle_t client) {
 
     ESP_ERROR_CHECK(gw_heartbeat_init(client));
     gw_reset(client);
+    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
 
     return ESP_OK;
@@ -50,6 +51,11 @@ esp_err_t gw_open(discord_client_handle_t client) {
     
     DISCORD_LOG_FOO();
 
+    if(gw_is_open(client)) {
+        DISCORD_LOGD("Already open");
+        return ESP_OK;
+    }
+
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json",
         .buffer_size = DISCORD_WS_BUFFER_SIZE
@@ -64,11 +70,16 @@ esp_err_t gw_open(discord_client_handle_t client) {
 }
 
 bool gw_is_open(discord_client_handle_t client) {
-    return client->running && client->state >= DISCORD_CLIENT_STATE_CONNECTING;
+    return client->running && client->state >= DISCORD_CLIENT_STATE_INIT;
 }
 
 esp_err_t gw_start(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
+
+    if(gw_is_open(client)) {
+        DISCORD_LOGD("Already started");
+        return ESP_OK;
+    }
 
     esp_err_t err;
 
@@ -87,6 +98,9 @@ esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason
         DISCORD_LOGD("Already closed");
         return ESP_OK;
     }
+
+    // do not set client status in this function
+    // it will be automatically set in discord task
     
     DC_LOCK(
         client->close_reason = reason;
@@ -96,8 +110,6 @@ esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason
         }
 
         gw_reset(client);
-
-        client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
     );
 
     return ESP_OK;

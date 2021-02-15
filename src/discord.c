@@ -122,7 +122,7 @@ static void dc_task(void* arg) {
 
     DISCORD_LOGD("Task exit...");
 
-    client->state = DISCORD_CLIENT_STATE_INIT;
+    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
     vTaskDelete(NULL);
 }
 
@@ -131,8 +131,6 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
     
-    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
-
     client->lock = xSemaphoreCreateRecursiveMutex();
     client->status_bits = xEventGroupCreate();
 
@@ -167,7 +165,6 @@ esp_err_t discord_login(discord_client_handle_t client) {
         return ESP_FAIL;
     }
 
-    client->state = DISCORD_CLIENT_STATE_INIT;
     client->running = true;
 
     if (xTaskCreate(dc_task, "discord_task", DISCORD_TASK_STACK_SIZE, client, DISCORD_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
@@ -199,7 +196,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     }
 
     client->running = false;
-
+    
     gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
 
     esp_websocket_client_destroy(client->ws);
