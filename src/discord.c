@@ -75,19 +75,40 @@ static uint64_t dc_tick_ms(void) {
     return esp_timer_get_time() / 1000;
 }
 
-static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event, discord_event_data_ptr_t data_ptr);
-
-static esp_err_t gw_reset(discord_client_handle_t client);
-
-/**
- * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
- */
-static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload);
-
 static esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client);
 #define gw_heartbeat_init(client) gw_heartbeat_stop(client)
 static esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello);
 static esp_err_t gw_heartbeat_stop(discord_client_handle_t client);
+
+static esp_err_t gw_reset(discord_client_handle_t client) {
+    DISCORD_LOG_FOO();
+    
+    gw_heartbeat_stop(client);
+    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
+    xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
+    client->buffer_len = 0;
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
+ */
+static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+    DISCORD_LOG_FOO();
+
+    DC_LOCK(
+        char* payload_raw = discord_model_gateway_payload_serialize(payload);
+
+        DISCORD_LOGD("%s", payload_raw);
+
+        esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+        free(payload_raw);
+    );
+
+    return ESP_OK;
+}
 
 static esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
     DC_LOCK(
@@ -538,33 +559,6 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
     free(client->buffer);
     dc_config_free(client->config);
     free(client);
-
-    return ESP_OK;
-}
-
-static esp_err_t gw_reset(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-    
-    gw_heartbeat_stop(client);
-    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
-    xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
-    client->buffer_len = 0;
-
-    return ESP_OK;
-}
-
-static esp_err_t gw_send(discord_client_handle_t client, discord_gateway_payload_t* payload) {
-    DISCORD_LOG_FOO();
-
-    DC_LOCK(
-        char* payload_raw = discord_model_gateway_payload_serialize(payload);
-
-        DISCORD_LOGD("%s", payload_raw);
-
-        esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
-        free(payload_raw);
-    );
 
     return ESP_OK;
 }
