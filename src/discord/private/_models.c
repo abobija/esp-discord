@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_models.h"
+#include "discord/private/_gateway.h"
 #include "discord.h"
 #include "discord/models.h"
 

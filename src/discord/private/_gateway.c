@@ -11,6 +11,7 @@ esp_err_t gw_init(discord_client_handle_t client) {
     gw_reset(client);
     client->state = DISCORD_CLIENT_STATE_UNKNOWN;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
+    client->close_code = DISCORD_CLOSEOP_NO_CODE;
 
     return ESP_OK;
 }
@@ -105,6 +106,19 @@ esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason
     return ESP_OK;
 }
 
+discord_gateway_close_code_t gw_close_opcode(discord_client_handle_t client) {
+    if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING && client->buffer_len >= 2) {
+        int code = (256 * client->buffer[0] + client->buffer[1]);
+        return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
+    }
+
+    return DISCORD_CLOSEOP_NO_CODE;
+}
+
+char* gw_close_desc(discord_client_handle_t client) {
+    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
+}
+
 esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello) {
     if(client->heartbeater.running)
         return ESP_OK;
@@ -169,6 +183,14 @@ esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_websocket
 
         if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
             DISCORD_LOGD("Buffering done.");
+
+            if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
+                client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
+            }
+            
+            // append null terminator
+            client->buffer[client->buffer_len] = '\0';
+
             xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
         }
     );
@@ -178,6 +200,21 @@ esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_websocket
 
 esp_err_t gw_handle_buffered_data(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
+
+    if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING) {
+        discord_gateway_close_code_t close_code = gw_close_opcode(client);
+
+        if(close_code == DISCORD_CLOSEOP_NO_CODE) {
+            DISCORD_LOGE("Cannot read or invalid close op code");
+            return ESP_OK;
+        }
+
+        DISCORD_LOGD("Closing with code %d", close_code);
+
+        client->close_code = close_code;
+
+        return ESP_OK;
+    }
 
     discord_gateway_payload_t* payload;
 
@@ -231,7 +268,8 @@ void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base, int32_
         return;
     }
 
-    DISCORD_LOGD("Received WebSocket frame (op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
+    DISCORD_LOGD("Received WebSocket frame (event=%d, op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
+        event_id,
         data->op_code,
         data->payload_len, 
         data->data_len, 
@@ -245,7 +283,7 @@ void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base, int32_
             break;
 
         case WEBSOCKET_EVENT_DATA:
-            if(data->op_code == WS_TRANSPORT_OPCODES_TEXT) {
+            if(data->op_code == WS_TRANSPORT_OPCODES_TEXT || data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
                 DC_LOCK_NO_ERR(gw_buffer_websocket_data(client, data));
             }
             break;

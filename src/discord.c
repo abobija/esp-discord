@@ -75,21 +75,24 @@ static void dc_task(void* arg) {
                 gw_heartbeat_send_if_expired(client);
                 break;
 
+            case DISCORD_CLIENT_STATE_DISCONNECTING:
+                // clean disconnection in process...
+                break;
+
             case DISCORD_CLIENT_STATE_DISCONNECTED:
                 if(DISCORD_CLOSE_REASON_NOT_REQUESTED == client->close_reason) {
-                    // This event will be invoked when token is invalid as well
-                    // correct reason of closing the connection can be found in frame data
-                    // (https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes)
-                    //
-                    // In this moment websocket client does not emit data in this event
-                    // (issue reported: https://github.com/espressif/esp-idf/issues/6535)
+                    if(client->close_code == DISCORD_CLOSEOP_NO_CODE) {
+                        DISCORD_LOGE("Connection closed with unknown reason");
+                    } else {
+                        DISCORD_LOGE("Connection closed with code %d: %s", client->close_code, gw_close_desc(client));
+                        client->close_code = DISCORD_CLOSEOP_NO_CODE;
+                    }
 
-                    DISCORD_LOGE("Connection closed unexpectedly. Reason cannot be identified in this moment. Maybe your token is invalid?");
                     discord_logout(client);
                 } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
                     restart_gw = true;
                 } else {
-                    DISCORD_LOGW("Close requested but not handled");
+                    DISCORD_LOGW("Disconnection requested but not handled");
                     discord_logout(client);
                 }
 
@@ -142,7 +145,7 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     }
 
     client->config = dc_config_copy(config);
-    client->buffer = malloc(client->config->buffer_size);
+    client->buffer = malloc(client->config->buffer_size + 1);
     client->event_handler = &dc_dispatch_event;
 
     gw_init(client);

@@ -50,23 +50,42 @@ extern "C" {
 #define STRCAT(...) _dc_strcat(__VA_ARGS__, NULL)
 
 typedef enum {
+    DISCORD_CLIENT_STATE_ERROR = -2,
+    DISCORD_CLIENT_STATE_DISCONNECTED = -1,
+    DISCORD_CLIENT_STATE_UNKNOWN,
+    DISCORD_CLIENT_STATE_INIT,
+    DISCORD_CLIENT_STATE_CONNECTING,
+    DISCORD_CLIENT_STATE_CONNECTED,
+    DISCORD_CLIENT_STATE_DISCONNECTING
+} discord_client_state_t;
+
+enum {
+    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0)
+};
+
+typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
     DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED,
     DISCORD_CLOSE_REASON_LOGOUT
 } discord_close_reason_t;
 
 typedef enum {
-    DISCORD_CLIENT_STATE_ERROR = -2,
-    DISCORD_CLIENT_STATE_DISCONNECTED = -1,
-    DISCORD_CLIENT_STATE_UNKNOWN,
-    DISCORD_CLIENT_STATE_INIT,
-    DISCORD_CLIENT_STATE_CONNECTING,
-    DISCORD_CLIENT_STATE_CONNECTED
-} discord_client_state_t;
-
-enum {
-    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0)
-};
+    DISCORD_CLOSEOP_NO_CODE,
+    DISCORD_CLOSEOP_UNKNOWN_ERROR = 4000,   /*!< We're not sure what went wrong. Try reconnecting? */
+    DISCORD_CLOSEOP_UNKNOWN_OPCODE,         /*!< You sent an invalid Gateway opcode or an invalid payload for an opcode. Don't do that! */
+    DISCORD_CLOSEOP_DECODE_ERROR,           /*!< You sent an invalid payload to us. Don't do that! */
+    DISCORD_CLOSEOP_NOT_AUTHENTICATED,      /*!< You sent us a payload prior to identifying. */
+    DISCORD_CLOSEOP_AUTHENTICATION_FAILED,  /*!< The account token sent with your identify payload is incorrect. */
+    DISCORD_CLOSEOP_ALREADY_AUTHENTICATED,  /*!< You sent more than one identify payload. Don't do that! */
+    DISCORD_CLOSEOP_INVALID_SEQ = 4007,     /*!< The sequence sent when resuming the session was invalid. Reconnect and start a new session. */
+    DISCORD_CLOSEOP_RATE_LIMITED,           /*!< Woah nelly! You're sending payloads to us too quickly. Slow it down! You will be disconnected on receiving this. */
+    DISCORD_CLOSEOP_SESSION_TIMED_OUT,      /*!< Your session timed out. Reconnect and start a new one. */
+    DISCORD_CLOSEOP_INVALID_SHARD,          /*!< You sent us an invalid shard when identifying. */
+    DISCORD_CLOSEOP_SHARDING_REQUIRED,      /*!< The session would have handled too many guilds - you are required to shard your connection in order to connect. */
+    DISCORD_CLOSEOP_INVALID_API_VERSION,    /*!< You sent an invalid version for the gateway. */
+    DISCORD_CLOSEOP_INVALID_INTENTS,        /*!< You sent an invalid intent for a Gateway Intent. You may have incorrectly calculated the bitwise value. */
+    DISCORD_CLOSEOP_DISALLOWED_INTENTS      /*!< You sent a disallowed intent for a Gateway Intent. You may have tried to specify an intent that you have not enabled or are not whitelisted for. */
+} discord_gateway_close_code_t;
 
 typedef struct {
     bool running;
@@ -93,11 +112,11 @@ struct discord_client {
     discord_close_reason_t close_reason;
     char* buffer;
     int buffer_len;
+    discord_gateway_close_code_t close_code;
 };
 
 uint64_t dc_tick_ms();
 char* _dc_strcat(const char* str, ...);
-
 
 #ifdef __cplusplus
 }
