@@ -22,7 +22,6 @@ esp_err_t gw_reset(discord_client_handle_t client) {
     gw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
-    xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ);
     client->buffer_len = 0;
 
     return ESP_OK;
@@ -163,19 +162,15 @@ esp_err_t gw_buffer_websocket_data(discord_client_handle_t client, esp_websocket
         DISCORD_LOGW("Payload too big. Wider buffer required.");
         return ESP_FAIL;
     }
-
-    xEventGroupWaitBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ, pdFALSE, pdTRUE, portMAX_DELAY);
     
     DISCORD_LOGD("Buffering received data:\n%.*s", data->data_len, data->data_ptr);
     
-    DC_LOCK(
+    DC_LOCK_ESP_ERR(
         memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
 
         if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
             DISCORD_LOGD("Buffering done.");
             xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
-            xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ);
-
         }
     );
 
@@ -187,10 +182,8 @@ esp_err_t gw_handle_buffered_data(discord_client_handle_t client) {
 
     discord_gateway_payload_t* payload;
 
-    DC_LOCK(payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len));
-
-    xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ);
-
+    DC_LOCK_ESP_ERR(payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len));
+    
     if(payload == NULL) {
         DISCORD_LOGE("Cannot deserialize payload");
         return ESP_FAIL;
@@ -254,7 +247,7 @@ void gw_websocket_event_handler(void* handler_arg, esp_event_base_t base, int32_
 
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == WS_TRANSPORT_OPCODES_TEXT) {
-                gw_buffer_websocket_data(client, data);
+                DC_LOCK_NO_ERR(gw_buffer_websocket_data(client, data));
             }
             break;
         

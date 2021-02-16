@@ -55,12 +55,7 @@ static void dc_task(void* arg) {
     bool restart_gw = false;
 
     while(client->running) {
-        if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {
-            DISCORD_LOGE("Failed to lock discord tasks, exiting the task...");
-            break;
-        }
-
-        switch(client->state) {
+        DC_LOCK_BREAK(switch(client->state) {
             case DISCORD_CLIENT_STATE_UNKNOWN:
                 // gateway not started yet
                 // this state will be active just a few ticks,
@@ -75,7 +70,7 @@ static void dc_task(void* arg) {
             case DISCORD_CLIENT_STATE_CONNECTING:
                 // ws_client connected, but gateway not identified yet
                 break;
-
+                
             case DISCORD_CLIENT_STATE_CONNECTED:
                 gw_heartbeat_send_if_expired(client);
                 break;
@@ -104,15 +99,13 @@ static void dc_task(void* arg) {
                 DISCORD_LOGE("Unhandled error occurred. Disconnecting...");
                 discord_logout(client);
                 break;
-        }
-
-        xSemaphoreGiveRecursive(client->lock);
+        });
 
         if(client->state >= DISCORD_CLIENT_STATE_CONNECTING) {
             EventBits_t bits = xEventGroupWaitBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY, pdTRUE, pdTRUE, 1000 / portTICK_PERIOD_MS); // poll every 1000ms
 
             if((DISCORD_CLIENT_STATUS_BIT_BUFFER_READY & bits) != 0) {
-                gw_handle_buffered_data(client);
+                DC_LOCK_NO_ERR(gw_handle_buffered_data(client));
             }
         } else if(DISCORD_CLIENT_STATE_DISCONNECTED == client->state && restart_gw) {
             restart_gw = false;
@@ -198,7 +191,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
         return ESP_OK;
     }
     
-    DC_LOCK(
+    DC_LOCK_ESP_ERR(
         client->running = false;
         gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
     );

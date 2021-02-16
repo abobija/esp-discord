@@ -32,14 +32,18 @@ extern "C" {
 
 #define DISCORD_EVENT_EMIT(event, data) client->event_handler(client, event, data)
 
-#define DC_LOCK(CODE) {\
+#define DC_LOCK(code, fail_to_lock_code) {\
     if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {\
         DISCORD_LOGE("Could not lock");\
-        return ESP_FAIL;\
+        fail_to_lock_code;\
     }\
-    CODE;\
+    code;\
     xSemaphoreGiveRecursive(client->lock);\
 }
+
+#define DC_LOCK_NO_ERR(code) DC_LOCK(code, ({;}))
+#define DC_LOCK_BREAK(code) DC_LOCK(code, break)
+#define DC_LOCK_ESP_ERR(code) DC_LOCK(code, return ESP_FAIL)
 
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
@@ -57,8 +61,7 @@ typedef enum {
 } discord_client_state_t;
 
 enum {
-    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0),
-    DISCORD_CLIENT_STATUS_BIT_BUFFER_WAS_READ = (1 << 1)
+    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0)
 };
 
 typedef struct {
