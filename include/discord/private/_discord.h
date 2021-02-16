@@ -45,9 +45,9 @@ extern "C" {
 #define DC_LOCK_BREAK(code) DC_LOCK(code, break)
 #define DC_LOCK_ESP_ERR(code) DC_LOCK(code, return ESP_FAIL)
 
-
 #define STREQ(s1, s2) (strcmp(s1, s2) == 0)
 #define STRDUP(str) (str ? strdup(str) : NULL)
+#define STRCAT(...) _dc_strcat(__VA_ARGS__, NULL)
 
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
@@ -96,7 +96,8 @@ struct discord_client {
 };
 
 uint64_t dc_tick_ms();
-char* dc_strcat(const char* str1, const char* str2);
+char* _dc_strcat(const char* str, ...);
+
 
 #ifdef __cplusplus
 }

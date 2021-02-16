@@ -18,9 +18,7 @@ esp_err_t dcapi_destroy(discord_client_handle_t client) {
 esp_err_t dcapi_send_message(discord_client_handle_t client, discord_message_t* msg) {
     DISCORD_LOG_FOO();
 
-    char* url_tmp = dc_strcat("https://discord.com/api/v8/channels/", msg->channel_id);
-    char* url = dc_strcat(url_tmp, "/messages");
-    free(url_tmp);
+    char* url = STRCAT("https://discord.com/api/v8/channels/", msg->channel_id, "/messages");
 
     esp_http_client_config_t config = {
         .url = url,
@@ -31,7 +29,7 @@ esp_err_t dcapi_send_message(discord_client_handle_t client, discord_message_t* 
     esp_http_client_handle_t http = esp_http_client_init(&config);
     free(url);
 
-    char* auth = dc_strcat("Bot ", client->config->token);
+    char* auth = STRCAT("Bot ", client->config->token);
     esp_http_client_set_header(http, "Authorization", auth);
     free(auth);
 
