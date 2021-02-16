@@ -106,7 +106,7 @@ esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason
     return ESP_OK;
 }
 
-discord_gateway_close_code_t gw_close_opcode(discord_client_handle_t client) {
+discord_close_code_t gw_close_opcode(discord_client_handle_t client) {
     if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING && client->buffer_len >= 2) {
         int code = (256 * client->buffer[0] + client->buffer[1]);
         return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
@@ -202,7 +202,7 @@ esp_err_t gw_handle_buffered_data(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING) {
-        discord_gateway_close_code_t close_code = gw_close_opcode(client);
+        discord_close_code_t close_code = gw_close_opcode(client);
 
         if(close_code == DISCORD_CLOSEOP_NO_CODE) {
             DISCORD_LOGE("Cannot read or invalid close op code");

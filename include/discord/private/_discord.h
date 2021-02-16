@@ -69,6 +69,23 @@ typedef enum {
     DISCORD_CLOSE_REASON_LOGOUT
 } discord_close_reason_t;
 
+enum {
+    DISCORD_OP_DISPATCH,                    /*!< [Receive] An event was dispatched */
+    DISCORD_OP_HEARTBEAT,                   /*!< [Send/Receive] An event was dispatched */
+    DISCORD_OP_IDENTIFY,                    /*!< [Send] Starts a new session during the initial handshake */
+    DISCORD_OP_PRESENCE_UPDATE,             /*!< [Send] Update the client's presence */
+    DISCORD_OP_VOICE_STATE_UPDATE,          /*!< [Send] Used to join/leave or move between voice channels */
+    DISCORD_OP_RESUME = 6,                  /*!< [Send] Resume a previous session that was disconnected */
+    DISCORD_OP_RECONNECT,                   /*!< [Receive] You should attempt to reconnect and resume immediately */
+    DISCORD_OP_REQUEST_GUILD_MEMBERS,       /*!< [Send] Request information about offline guild members in a large guild */
+    DISCORD_OP_INVALID_SESSION,             /*!< [Receive] The session has been invalidated. You should reconnect and identify/resume accordingly */
+    DISCORD_OP_HELLO,                       /*!< [Receive] Sent immediately after connecting, contains the heartbeat_interval to use */
+    DISCORD_OP_HEARTBEAT_ACK,               /*!< [Receive] Sent in response to receiving a heartbeat to acknowledge that it has been received */
+};
+
+#define _DISCORD_CLOSEOP_MIN DISCORD_CLOSEOP_UNKNOWN_ERROR
+#define _DISCORD_CLOSEOP_MAX DISCORD_CLOSEOP_DISALLOWED_INTENTS
+
 typedef enum {
     DISCORD_CLOSEOP_NO_CODE,
     DISCORD_CLOSEOP_UNKNOWN_ERROR = 4000,   /*!< We're not sure what went wrong. Try reconnecting? */
@@ -85,7 +102,7 @@ typedef enum {
     DISCORD_CLOSEOP_INVALID_API_VERSION,    /*!< You sent an invalid version for the gateway. */
     DISCORD_CLOSEOP_INVALID_INTENTS,        /*!< You sent an invalid intent for a Gateway Intent. You may have incorrectly calculated the bitwise value. */
     DISCORD_CLOSEOP_DISALLOWED_INTENTS      /*!< You sent a disallowed intent for a Gateway Intent. You may have tried to specify an intent that you have not enabled or are not whitelisted for. */
-} discord_gateway_close_code_t;
+} discord_close_code_t;
 
 typedef struct {
     bool running;
@@ -109,10 +126,10 @@ struct discord_client {
     discord_heartbeater_t heartbeater;
     discord_gateway_session_t* session;
     int last_sequence_number;
-    discord_close_reason_t close_reason;
     char* buffer;
     int buffer_len;
-    discord_gateway_close_code_t close_code;
+    discord_close_reason_t close_reason;
+    discord_close_code_t close_code;
 };
 
 uint64_t dc_tick_ms();
