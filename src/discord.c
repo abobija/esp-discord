@@ -146,6 +146,7 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     client->event_handler = &dc_dispatch_event;
 
     gw_init(client);
+    dcapi_init(client);
     
     return client;
 }
@@ -217,6 +218,8 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
         discord_logout(client);
     }
 
+    dcapi_destroy(client);
+
     if(client->event_handle) {
         esp_event_loop_delete(client->event_handle);
         client->event_handle = NULL;
@@ -231,4 +234,10 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
     free(client);
 
     return ESP_OK;
+}
+
+esp_err_t discord_send_message(discord_client_handle_t client, discord_message_t* msg) {
+    DISCORD_LOG_FOO();
+    
+    return dcapi_send_message(client, msg);
 }

@@ -92,7 +92,7 @@ esp_err_t gw_close(discord_client_handle_t client, discord_close_reason_t reason
     }
 
     // do not set client status in this function
-    // it will be automatically set in discord task
+    // it will be automatically set in ws task
     
     client->close_reason = reason;
 
@@ -323,7 +323,10 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
             msg->content
         );
 
-        DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
+        // emit event only if message is not from us
+        if(! STREQ(msg->author->id, client->session->user->id)) {
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
+        }
     } else {
         DISCORD_LOGW("Ignored dispatch event");
     }

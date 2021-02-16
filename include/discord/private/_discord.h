@@ -16,7 +16,7 @@ extern "C" {
 
 #define DISCORD_WS_BUFFER_SIZE (512)
 #define DISCORD_MIN_BUFFER_SIZE (1024)
-#define DISCORD_TASK_STACK_SIZE (4 * 1024)
+#define DISCORD_TASK_STACK_SIZE (6 * 1024)
 #define DISCORD_TASK_PRIORITY (3)
 
 #define DISCORD_LOG_TAG "discord"
@@ -44,6 +44,10 @@ extern "C" {
 #define DC_LOCK_NO_ERR(code) DC_LOCK(code, ({;}))
 #define DC_LOCK_BREAK(code) DC_LOCK(code, break)
 #define DC_LOCK_ESP_ERR(code) DC_LOCK(code, return ESP_FAIL)
+
+
+#define STREQ(s1, s2) (strcmp(s1, s2) == 0)
+#define STRDUP(str) (str ? strdup(str) : NULL)
 
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
@@ -92,6 +96,7 @@ struct discord_client {
 };
 
 uint64_t dc_tick_ms();
+char* dc_strcat(const char* str1, const char* str2);
 
 #ifdef __cplusplus
 }

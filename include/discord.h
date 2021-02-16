@@ -2,12 +2,11 @@
 
 #include "esp_err.h"
 #include "esp_event.h"
+#include "discord/models.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define streq(s1, s2) strcmp(s1, s2) == 0
 
 #define DISCORD_INTENT_GUILDS                    (1 << 0)
 #define DISCORD_INTENT_GUILD_MEMBERS             (1 << 1)
@@ -67,6 +66,8 @@ esp_err_t discord_login(discord_client_handle_t client);
 esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg);
 esp_err_t discord_logout(discord_client_handle_t client);
 esp_err_t discord_destroy(discord_client_handle_t client);
+
+esp_err_t discord_send_message(discord_client_handle_t client, discord_message_t* msg);
 
 #ifdef __cplusplus
 }

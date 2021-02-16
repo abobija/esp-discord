@@ -1,4 +1,3 @@
-#include "string.h"
 #include "esp_heap_caps.h"
 #include "cJSON.h"
 #include "esp_log.h"
@@ -132,9 +131,9 @@ char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload
 }
 
 discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char* name) {
-    if(streq("READY", name)) {
+    if(STREQ("READY", name)) {
         return DISCORD_GATEWAY_EVENT_READY;
-    } else if(streq("MESSAGE_CREATE", name)) {
+    } else if(STREQ("MESSAGE_CREATE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_CREATE;
     }
 
