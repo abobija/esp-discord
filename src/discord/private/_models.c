@@ -2,6 +2,7 @@
 #include "cJSON.h"
 #include "esp_log.h"
 #include "discord/private/_discord.h"
+#include "discord/private/_models.h"
 #include "discord.h"
 #include "discord/models.h"
 
@@ -287,4 +288,57 @@ void discord_model_gateway_session_free(discord_gateway_session_t* id) {
     discord_model_gateway_session_user_free(id->user);
     free(id->session_id);
     free(id);
+}
+
+discord_user_t* discord_model_user_from_cjson(cJSON* root) {
+    discord_user_t* user = calloc(1, sizeof(discord_user_t));
+
+    user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
+    user->username = strdup(cJSON_GetObjectItem(root, "username")->valuestring);
+    user->discriminator = strdup(cJSON_GetObjectItem(root, "discriminator")->valuestring);
+
+    cJSON* bot = cJSON_GetObjectItem(root, "bot");
+    user->bot = bot && bot->valueint;
+
+    return user;
+}
+
+cJSON* discord_model_user_to_cjson(discord_user_t* user) {
+    cJSON* root = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(root, "id", user->id);
+    cJSON_AddStringToObject(root, "username", user->username);
+    cJSON_AddStringToObject(root, "discriminator", user->discriminator);
+    cJSON_AddBoolToObject(root, "bot", user->bot);
+
+    return root;
+}
+
+discord_message_t* discord_model_message_from_cjson(cJSON* root) {
+    return discord_model_message(
+        cJSON_GetObjectItem(root, "id")->valuestring,
+        cJSON_GetObjectItem(root, "content")->valuestring,
+        cJSON_GetObjectItem(root, "channel_id")->valuestring,
+        discord_model_user_from_cjson(cJSON_GetObjectItem(root, "author"))
+    );
+}
+
+cJSON* discord_model_message_to_cjson(discord_message_t* msg) {
+    cJSON* root = cJSON_CreateObject();
+
+    if(msg->id) cJSON_AddStringToObject(root, "id", msg->id);
+    cJSON_AddStringToObject(root, "content", msg->content);
+    cJSON_AddStringToObject(root, "channel_id", msg->channel_id);
+    if(msg->author) cJSON_AddItemToObject(root, "author", discord_model_user_to_cjson(msg->author));
+
+    return root;
+}
+
+
+char* discord_model_message_serialize(discord_message_t* msg) {
+    cJSON* cjson = discord_model_message_to_cjson(msg);
+    char* payload_raw = cJSON_PrintUnformatted(cjson);
+    cJSON_Delete(cjson);
+
+    return payload_raw;
 }

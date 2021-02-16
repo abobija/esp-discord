@@ -38,13 +38,15 @@ esp_err_t dcapi_send_message(discord_client_handle_t client, discord_message_t* 
     esp_http_client_set_header(http, "User-Agent", "DiscordBot (ESP-IDF, 1.0.0.0)");
     esp_http_client_set_header(http, "Content-Type", "application/json");
 
-    char* buff = "{ \"content\": \"hi\" }";
-    int len = strlen(buff);
+    char* json = discord_model_message_serialize(msg);
+    int len = strlen(json);
 
     esp_http_client_open(http, len);
-    esp_http_client_write(http, buff, len);
-    esp_http_client_close(http);
+    esp_http_client_write(http, json, len);
 
+    free(json);
+
+    esp_http_client_close(http);
     esp_http_client_cleanup(http);
 
     return ESP_OK;
