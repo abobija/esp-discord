@@ -5,8 +5,8 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
-#include "discord/private/_discord.h"
 #include "discord/private/_gateway.h"
+#include "discord/private/_api.h"
 #include "discord/models.h"
 #include "discord.h"
 
@@ -70,7 +70,7 @@ static void dc_task(void* arg) {
             case DISCORD_CLIENT_STATE_CONNECTING:
                 // ws_client connected, but gateway not identified yet
                 break;
-                
+
             case DISCORD_CLIENT_STATE_CONNECTED:
                 gw_heartbeat_send_if_expired(client);
                 break;

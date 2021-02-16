@@ -4,6 +4,7 @@ idf_component_register(
          src/discord/private/_discord.c
          src/discord/private/_models.c
          src/discord/private/_gateway.c
+         src/discord/private/_api.c
     INCLUDE_DIRS include
     REQUIRES esp_websocket_client json
 )

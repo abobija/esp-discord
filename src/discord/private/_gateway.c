@@ -1,4 +1,3 @@
-#include "discord/private/_discord.h"
 #include "discord/private/_gateway.h"
 #include "discord/models.h"
 #include "esp_transport_ws.h"
