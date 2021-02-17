@@ -134,6 +134,8 @@ discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char
         return DISCORD_GATEWAY_EVENT_READY;
     } else if(STREQ("MESSAGE_CREATE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_CREATE;
+    } else if(STREQ("MESSAGE_DELETE", name)) {
+        return DISCORD_GATEWAY_EVENT_MESSAGE_DELETE;
     }
 
     return DISCORD_GATEWAY_EVENT_UNKNOWN;
@@ -145,6 +147,7 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
             return discord_model_gateway_session_from_cjson(cjson);
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             return discord_model_message_from_cjson(cjson);
         
         default:
@@ -162,6 +165,7 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
             return discord_model_gateway_session_free((discord_gateway_session_t*) payload->d);
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             return discord_model_message_free((discord_message_t*) payload->d);
         
         default:
@@ -251,6 +255,9 @@ void discord_model_gateway_identify_free(discord_gateway_identify_t* identify) {
 }
 
 discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJSON* root) {
+    if(root == NULL)
+        return NULL;
+    
     discord_gateway_session_user_t* user = calloc(1, sizeof(discord_gateway_session_user_t));
 
     user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
@@ -271,6 +278,9 @@ void discord_model_gateway_session_user_free(discord_gateway_session_user_t* use
 }
 
 discord_gateway_session_t* discord_model_gateway_session_from_cjson(cJSON* root) {
+    if(root == NULL)
+        return NULL;
+    
     discord_gateway_session_t* id = calloc(1, sizeof(discord_gateway_session_t));
 
     id->session_id = strdup(cJSON_GetObjectItem(root, "session_id")->valuestring);
@@ -289,6 +299,9 @@ void discord_model_gateway_session_free(discord_gateway_session_t* id) {
 }
 
 discord_user_t* discord_model_user_from_cjson(cJSON* root) {
+    if(root == NULL)
+        return NULL;
+    
     discord_user_t* user = calloc(1, sizeof(discord_user_t));
 
     user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
@@ -334,9 +347,14 @@ discord_message_t* discord_model_message(const char* id, const char* content, co
 }
 
 discord_message_t* discord_model_message_from_cjson(cJSON* root) {
+    if(root == NULL)
+        return NULL;
+
+    cJSON* _content = cJSON_GetObjectItem(root, "content");
+
     return discord_model_message(
         cJSON_GetObjectItem(root, "id")->valuestring,
-        cJSON_GetObjectItem(root, "content")->valuestring,
+        _content ? _content->valuestring : NULL,
         cJSON_GetObjectItem(root, "channel_id")->valuestring,
         discord_model_user_from_cjson(cJSON_GetObjectItem(root, "author"))
     );
