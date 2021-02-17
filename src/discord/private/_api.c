@@ -4,6 +4,21 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+bool dcapi_response_is_success(discord_api_response_t* res) {
+    if(res == NULL)
+        return false;
+    
+    return res->code >= 200 && res->code <= 299;
+}
+
+void dcapi_response_free(discord_api_response_t* res) {
+    if(res == NULL)
+        return;
+    
+    free(res->data);
+    free(res);
+}
+
 static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     if(client->http != NULL)
         return ESP_OK;
@@ -26,12 +41,22 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     return client->http ? ESP_OK : ESP_FAIL;
 }
 
-static esp_err_t dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data) {
+static discord_api_response_t* dcapi_request_fail(discord_client_handle_t client) {
+    DISCORD_LOG_FOO();
+
+    if(! DISCORD_API_KEEPALIVE) {
+        esp_http_client_close(client->http);
+    }
+
+    return NULL;
+}
+
+static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data) {
     DISCORD_LOG_FOO();
 
     if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already inited
         DISCORD_LOGW("Cannot initialize API");
-        return ESP_FAIL;
+        return NULL;
     }
 
     esp_http_client_handle_t http = client->http;
@@ -51,20 +76,41 @@ static esp_err_t dcapi_request(discord_client_handle_t client, esp_http_client_m
 
     int len = strlen(data);
 
-    if(esp_http_client_open(http, len) == ESP_OK) {
-        esp_http_client_write(http, data, len);
-
-        if(! DISCORD_API_KEEPALIVE) {
-            esp_http_client_close(http);
-        }
-    } else {
+    if(esp_http_client_open(http, len) != ESP_OK) {
         DISCORD_LOGW("Failed to open connection with API");
+        return NULL;
     }
 
-    return ESP_OK;
+    DISCORD_LOGD("Sending request to API:\n%.*s", len, data);
+
+    if(esp_http_client_write(http, data, len) == ESP_FAIL) {
+        DISCORD_LOGW("Failed to send data to API");
+        return dcapi_request_fail(client);
+    }
+
+    DISCORD_LOGD("Fetching API response headers...");
+
+    if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
+        DISCORD_LOGW("Fail to fetch API response");
+        return dcapi_request_fail(client);
+    }
+
+    esp_http_client_flush_response(http, NULL);
+
+    discord_api_response_t* res = calloc(1, sizeof(discord_api_response_t));
+
+    res->code = esp_http_client_get_status_code(http);
+
+    DISCORD_LOGD("Received response from API with res_code %d", res->code);
+
+    if(! DISCORD_API_KEEPALIVE) {
+        esp_http_client_close(http);
+    }
+
+    return res;
 }
 
-esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
+discord_api_response_t* dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
     return dcapi_request(client, HTTP_METHOD_POST, uri, data);
 }
 

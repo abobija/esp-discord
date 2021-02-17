@@ -16,14 +16,18 @@ esp_err_t discord_message_send(discord_client_handle_t client, discord_message_t
     }
 
     if(message->channel_id == NULL) {
-        DISCORD_LOGE("Missing channel id");
+        DISCORD_LOGE("Missing channel_id");
         return ESP_ERR_INVALID_ARG;
     }
 
-    DCAPI_POST(
+    discord_api_response_t* res = DCAPI_POST(
         STRCAT("/channels/", message->channel_id, "/messages"),
         discord_model_message_serialize(message)
     );
 
-    return ESP_OK;
+    esp_err_t err = res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
+
+    dcapi_response_free(res);
+
+    return err;
 }

@@ -7,15 +7,23 @@ extern "C" {
 
 #include "discord.h"
 
-#define DCAPI_POST(strcater, serializer) { \
-    char* uri = strcater; \
-    char* json = serializer; \
-    dcapi_post(client, uri, json); \
-    free(json); \
-    free(uri); \
-}
+#define DCAPI_POST(strcater, serializer) ({ \
+    char* _uri = strcater; \
+    char* _json = serializer; \
+    discord_api_response_t* _res = dcapi_post(client, _uri, _json); \
+    free(_json); \
+    free(_uri); \
+    _res;\
+})
 
-esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char* data);
+typedef struct {
+    int code;
+    char* data;
+} discord_api_response_t;
+
+bool dcapi_response_is_success(discord_api_response_t* res);
+void dcapi_response_free(discord_api_response_t* res);
+discord_api_response_t* dcapi_post(discord_client_handle_t client, const char* uri, const char* data);
 esp_err_t dcapi_close(discord_client_handle_t client);
 
 #ifdef __cplusplus
