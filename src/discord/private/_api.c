@@ -10,6 +10,11 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
 
     DISCORD_LOG_FOO();
 
+    if(client->state < DISCORD_CLIENT_STATE_CONNECTED) {
+        DISCORD_LOGW("API can be initialized only if client is in CONNECTED state");
+        return ESP_FAIL;
+    }
+
     esp_http_client_config_t config = {
         .url = DISCORD_API_URL,
         .is_async = false,
@@ -21,31 +26,11 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     return client->http ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t dcapi_init(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-
-    // nothing to do here
-    // api will be automatically initialized on the first request
-
-    return ESP_OK;
-}
-
-esp_err_t dcapi_destroy(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-
-    if(client->http) {
-        esp_http_client_cleanup(client->http);
-        client->http = NULL;
-    }
-
-    return ESP_OK;
-}
-
 static esp_err_t dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data) {
     DISCORD_LOG_FOO();
 
     if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already inited
-        DISCORD_LOGE("Cannot initialize API");
+        DISCORD_LOGW("Cannot initialize API");
         return ESP_FAIL;
     }
 
@@ -81,4 +66,15 @@ static esp_err_t dcapi_request(discord_client_handle_t client, esp_http_client_m
 
 esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
     return dcapi_request(client, HTTP_METHOD_POST, uri, data);
+}
+
+esp_err_t dcapi_close(discord_client_handle_t client) {
+    DISCORD_LOG_FOO();
+
+    if(client->http) {
+        esp_http_client_cleanup(client->http);
+        client->http = NULL;
+    }
+
+    return ESP_OK;
 }

@@ -15,9 +15,8 @@ extern "C" {
     free(uri); \
 }
 
-esp_err_t dcapi_init(discord_client_handle_t client);
-esp_err_t dcapi_destroy(discord_client_handle_t client);
 esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char* data);
+esp_err_t dcapi_close(discord_client_handle_t client);
 
 #ifdef __cplusplus
 }

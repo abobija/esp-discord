@@ -148,7 +148,6 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     client->event_handler = &dc_dispatch_event;
 
     gw_init(client);
-    dcapi_init(client);
     
     return client;
 }
@@ -197,6 +196,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     DC_LOCK_ESP_ERR(
         client->running = false;
         gw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
+        dcapi_close(client);
     );
 
     esp_websocket_client_destroy(client->ws);
@@ -216,11 +216,9 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
 
     client->event_handler = NULL;
 
-    if(client->state >= DISCORD_CLIENT_STATE_INIT) {
+    if(client->running) {
         discord_logout(client);
     }
-
-    dcapi_destroy(client);
 
     if(client->event_handle) {
         esp_event_loop_delete(client->event_handle);
