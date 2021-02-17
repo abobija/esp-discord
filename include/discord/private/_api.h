@@ -19,6 +19,7 @@ extern "C" {
 typedef struct {
     int code;
     char* data;
+    int data_len;
 } discord_api_response_t;
 
 bool dcapi_response_is_success(discord_api_response_t* res);

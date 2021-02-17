@@ -16,6 +16,7 @@ void dcapi_response_free(discord_api_response_t* res) {
         return;
     
     free(res->data);
+    res->data_len = 0;
     free(res);
 }
 
@@ -51,10 +52,121 @@ static discord_api_response_t* dcapi_request_fail(discord_client_handle_t client
     return NULL;
 }
 
-static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data) {
+static char* dcapi_empty_http_data(char* buffer, int** len, int len_val) {
+    if(buffer) {
+        free(buffer);
+    }
+
+    if(len) {
+        **len = len_val;
+    }
+
+    return NULL;
+}
+
+static char* dcapi_read_http_response_static(discord_client_handle_t client, int* len) {
     DISCORD_LOG_FOO();
 
-    if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already inited
+    int content_length = esp_http_client_get_content_length(client->http);
+
+    if(content_length < 0) {
+        return dcapi_empty_http_data(NULL, &len, -1);
+    }
+
+    if(content_length == 0) {
+        return dcapi_empty_http_data(NULL, &len, 0);
+    }
+
+    if(content_length > DISCORD_API_BUFFER_MAX_SIZE) {
+        DISCORD_LOGW("Api response body is bigger than the DISCORD_API_BUFFER_MAX_SIZE");
+        return dcapi_empty_http_data(NULL, &len, -2);
+    }
+
+    char* buffer = malloc(*len = content_length + 1); // (+1 for null terminator)
+
+    if(buffer == NULL) { // malloc error
+        return dcapi_empty_http_data(buffer, &len, -2);
+    }
+
+    if(esp_http_client_read(client->http, buffer, content_length) < 0) {
+        return dcapi_empty_http_data(buffer, &len, -2);
+    }
+
+    buffer[content_length] = '\0';
+
+    return buffer;
+}
+
+static char* dcapi_read_http_response(discord_client_handle_t client, int* len) {
+    DISCORD_LOG_FOO();
+
+    int _len;
+    char* buffer = dcapi_read_http_response_static(client, &_len);
+
+    if(_len >= 0) {
+        *len = _len;
+        return buffer;
+    }
+
+    if(_len == -2) { // memory or http error
+        return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
+    }
+
+    // content-length is < 0
+    // need to dinamically read http stream
+    
+    DISCORD_LOGD("Dinamically read http stream...");
+
+    const int step_expand = 256;
+    int step = 0, read_len = 0, data_read = 0;
+    buffer = calloc(0, sizeof(char));
+    
+    do {
+        if(read_len + step_expand > DISCORD_API_BUFFER_MAX_SIZE) { // response is bigger that the max buffer size
+            DISCORD_LOGW("Api response body is bigger than the DISCORD_API_BUFFER_MAX_SIZE");
+            return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
+        }
+
+        char* _buffer = realloc(buffer, ++step * step_expand); // expand
+
+        if(_buffer == NULL) { // expand error
+            return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
+        }
+
+        buffer = _buffer;
+
+        data_read = esp_http_client_read(client->http, buffer + read_len, step_expand);
+        read_len += data_read;
+
+        if(data_read < 0) { // error http read
+            return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
+        }
+        
+        if(data_read < step_expand) { // last chunk
+            if(read_len == 0) { // no data in stream
+                return dcapi_empty_http_data(buffer, &len, 0);
+            }
+
+            _buffer = realloc(buffer, ++read_len); // shrink (+1 for null terminator)
+
+            if(_buffer == NULL) { // shrink error
+                return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
+            }
+
+            buffer = _buffer;
+            buffer[read_len - 1] = '\0';
+        }
+    } while(data_read >= step_expand);
+
+    *len = read_len;
+
+    return buffer;
+}
+
+static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data, bool return_response_body) {
+    DISCORD_LOG_FOO();
+
+    if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already initialized
         DISCORD_LOGW("Cannot initialize API");
         return NULL;
     }
@@ -88,20 +200,33 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
         return dcapi_request_fail(client);
     }
 
-    DISCORD_LOGD("Fetching API response headers...");
+    DISCORD_LOGD("Fetching API response...");
 
     if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
         DISCORD_LOGW("Fail to fetch API response");
         return dcapi_request_fail(client);
     }
 
-    esp_http_client_flush_response(http, NULL);
-
     discord_api_response_t* res = calloc(1, sizeof(discord_api_response_t));
 
     res->code = esp_http_client_get_status_code(http);
+    res->data = 0;
 
-    DISCORD_LOGD("Received response from API with res_code %d", res->code);
+    if(return_response_body) {
+        res->data = dcapi_read_http_response(client, &res->data_len);
+
+        if(res->data_len < 0) {
+            DISCORD_LOGW("Failed to read http stream");
+        }
+    }
+
+    esp_http_client_flush_response(http, NULL);
+
+    DISCORD_LOGD("Received response from API (res_code=%d, data_len=%d)", res->code, res->data_len);
+
+    if(return_response_body && res->data_len > 0) {
+        DISCORD_LOGD("%.*s", res->data_len, res->data);
+    }
 
     if(! DISCORD_API_KEEPALIVE) {
         esp_http_client_close(http);
@@ -111,7 +236,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 }
 
 discord_api_response_t* dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
-    return dcapi_request(client, HTTP_METHOD_POST, uri, data);
+    return dcapi_request(client, HTTP_METHOD_POST, uri, data, true);
 }
 
 esp_err_t dcapi_close(discord_client_handle_t client) {

@@ -18,6 +18,7 @@ extern "C" {
 
 #define DISCORD_API_URL                  "https://discord.com/api/v8"
 #define DISCORD_API_KEEPALIVE            true
+#define DISCORD_API_BUFFER_MAX_SIZE      (2 * 1024)
 #define DISCORD_GW_WS_BUFFER_SIZE        (512)
 #define DISCORD_DEFAULT_BUFFER_SIZE      (2 * 1024)
 #define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)
