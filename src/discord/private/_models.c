@@ -3,9 +3,6 @@
 #include "esp_log.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_models.h"
-#include "discord/private/_gateway.h"
-#include "discord.h"
-#include "discord/models.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -315,6 +312,27 @@ cJSON* discord_model_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
+void discord_model_user_free(discord_user_t* user) {
+    if(user == NULL)
+        return;
+
+    free(user->id);
+    free(user->username);
+    free(user->discriminator);
+    free(user);
+}
+
+discord_message_t* discord_model_message(const char* id, const char* content, const char* channel_id, discord_user_t* author) {
+    discord_message_t* message = calloc(1, sizeof(discord_message_t));
+
+    message->id = STRDUP(id);
+    message->content = STRDUP(content);
+    message->channel_id = STRDUP(channel_id);
+    message->author = author;
+
+    return message;
+}
+
 discord_message_t* discord_model_message_from_cjson(cJSON* root) {
     return discord_model_message(
         cJSON_GetObjectItem(root, "id")->valuestring,
@@ -342,4 +360,15 @@ char* discord_model_message_serialize(discord_message_t* msg) {
     cJSON_Delete(cjson);
 
     return payload_raw;
+}
+
+void discord_model_message_free(discord_message_t* message) {
+    if(message == NULL)
+        return;
+
+    free(message->id);
+    free(message->content);
+    free(message->channel_id);
+    discord_model_user_free(message->author);
+    free(message);
 }

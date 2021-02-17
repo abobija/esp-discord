@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _DISCORD_PRIVATE_GATEWAY_H_
+#define _DISCORD_PRIVATE_GATEWAY_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,4 +30,6 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

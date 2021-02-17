@@ -1,7 +1,7 @@
 #include "discord/private/_discord.h"
 #include "stdarg.h"
 
-uint64_t dc_tick_ms(void) {
+uint64_t dc_tick_ms() {
     return esp_timer_get_time() / 1000;
 }
 

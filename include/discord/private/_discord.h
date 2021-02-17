@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _DISCORD_PRIVATE_DISCORD_H_
+#define _DISCORD_PRIVATE_DISCORD_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,10 +15,10 @@ extern "C" {
 #include "_models.h"
 #include "discord.h"
 
-#define DISCORD_WS_BUFFER_SIZE (512)
-#define DISCORD_MIN_BUFFER_SIZE (1024)
-#define DISCORD_TASK_STACK_SIZE (6 * 1024)
-#define DISCORD_TASK_PRIORITY (3)
+#define DISCORD_WS_BUFFER_SIZE   (512)
+#define DISCORD_MIN_BUFFER_SIZE  (2 * 1024)
+#define DISCORD_TASK_STACK_SIZE  (6 * 1024)
+#define DISCORD_TASK_PRIORITY    (4)
 
 #define DISCORD_LOG_TAG "discord"
 
@@ -137,4 +138,6 @@ char* _dc_strcat(const char* str, ...);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

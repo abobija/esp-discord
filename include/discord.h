@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _DISCORD_H_
+#define _DISCORD_H_
 
 #include "esp_err.h"
 #include "esp_event.h"
@@ -52,8 +53,8 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
 esp_err_t discord_logout(discord_client_handle_t client);
 esp_err_t discord_destroy(discord_client_handle_t client);
 
-esp_err_t discord_send_message(discord_client_handle_t client, char* content, char* channel_id);
-
 #ifdef __cplusplus
 }
+#endif
+
 #endif

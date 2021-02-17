@@ -1,5 +1,5 @@
 #include "discord/private/_gateway.h"
-#include "discord/models.h"
+#include "discord/models/message.h"
 #include "esp_transport_ws.h"
 
 DISCORD_LOG_DEFINE_BASE();
@@ -331,27 +331,33 @@ esp_err_t gw_identify(discord_client_handle_t client) {
  */
 esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t* payload) {
     DISCORD_LOG_FOO();
-    
-    if(DISCORD_GATEWAY_EVENT_READY == payload->t) {
-        if(client->session != NULL) {
-            discord_model_gateway_session_free(client->session);
+
+    if(client->state < DISCORD_CLIENT_STATE_CONNECTED) {
+        if(DISCORD_GATEWAY_EVENT_READY != payload->t) {
+            // maybe logout or reconnect instead of warning (?), because probably every other payload will be ignored like this one
+            DISCORD_LOGW("Ignoring payload because client is not in CONNECTED state and still not receive READY payload");
+            return ESP_OK;
+        } else {
+            if(client->session != NULL) {
+                discord_model_gateway_session_free(client->session);
+            }
+
+            client->session = (discord_gateway_session_t*) payload->d;
+
+            // Detach pointer in order to prevent session deallocation by payload free function
+            payload->d = NULL;
+
+            client->state = DISCORD_CLIENT_STATE_CONNECTED;
+            
+            DISCORD_LOGD("Identified [%s#%s (%s), session: %s]", 
+                client->session->user->username,
+                client->session->user->discriminator,
+                client->session->user->id,
+                client->session->session_id
+            );
+
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, NULL);
         }
-
-        client->session = (discord_gateway_session_t*) payload->d;
-
-        // Detach pointer in order to prevent session deallocation by payload free function
-        payload->d = NULL;
-
-        client->state = DISCORD_CLIENT_STATE_CONNECTED;
-        
-        DISCORD_LOGD("Identified [%s#%s (%s), session: %s]", 
-            client->session->user->username,
-            client->session->user->discriminator,
-            client->session->user->id,
-            client->session->session_id
-        );
-
-        DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, NULL);
     } else if(DISCORD_GATEWAY_EVENT_MESSAGE_CREATE == payload->t) {
         discord_message_t* msg = (discord_message_t*) payload->d;
 
@@ -363,7 +369,7 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
 
         // emit event only if message is not from us
         if(! STREQ(msg->author->id, client->session->user->id)) {
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, payload->d);
         }
     } else {
         DISCORD_LOGW("Ignored dispatch event");

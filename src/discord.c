@@ -1,3 +1,6 @@
+#include "discord.h"
+#include "discord/private/_gateway.h"
+#include "discord/private/_api.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -5,10 +8,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
-#include "discord/private/_gateway.h"
-#include "discord/private/_api.h"
-#include "discord/models.h"
-#include "discord.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -237,14 +236,4 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
     free(client);
 
     return ESP_OK;
-}
-
-esp_err_t discord_send_message(discord_client_handle_t client, char* content, char* channel_id) {
-    DISCORD_LOG_FOO();
-
-    discord_message_t* msg = discord_model_message(NULL, content, channel_id, NULL);
-    esp_err_t err = dcapi_send_message(client, msg);
-    discord_model_message_free(msg);
-    
-    return err;
 }
