@@ -369,7 +369,7 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
 
         // emit event only if message is not from us
         if(! STREQ(msg->author->id, client->session->user->id)) {
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, payload->d);
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
         }
     } else {
         DISCORD_LOGW("Ignored dispatch event");
