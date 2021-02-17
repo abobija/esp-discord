@@ -4,29 +4,58 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
+    if(client->http != NULL)
+        return ESP_OK;
+
+    DISCORD_LOG_FOO();
+
+    esp_http_client_config_t config = {
+        .url = DISCORD_API_URL,
+        .is_async = false,
+        .keep_alive_enable = DISCORD_API_KEEPALIVE
+    };
+
+    client->http = esp_http_client_init(&config);
+
+    return client->http ? ESP_OK : ESP_FAIL;
+}
+
 esp_err_t dcapi_init(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
+
+    // nothing to do here
+    // api will be automatically initialized on the first request
+
     return ESP_OK;
 }
 
 esp_err_t dcapi_destroy(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
+
+    if(client->http) {
+        esp_http_client_cleanup(client->http);
+        client->http = NULL;
+    }
+
     return ESP_OK;
 }
 
-esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
+static esp_err_t dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data) {
     DISCORD_LOG_FOO();
 
-    char* url = STRCAT("https://discord.com/api/v8", uri);
+    if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already inited
+        DISCORD_LOGE("Cannot initialize API");
+        return ESP_FAIL;
+    }
 
-    esp_http_client_config_t config = {
-        .url = url,
-        .method = HTTP_METHOD_POST,
-        .is_async = false
-    };
+    esp_http_client_handle_t http = client->http;
 
-    esp_http_client_handle_t http = esp_http_client_init(&config);
+    char* url = STRCAT(DISCORD_API_URL, uri);
+    esp_http_client_set_url(http, url);
     free(url);
+
+    esp_http_client_set_method(http, HTTP_METHOD_POST);
 
     char* auth = STRCAT("Bot ", client->config->token);
     esp_http_client_set_header(http, "Authorization", auth);
@@ -37,10 +66,19 @@ esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char
 
     int len = strlen(data);
 
-    esp_http_client_open(http, len);
-    esp_http_client_write(http, data, len);
-    esp_http_client_close(http);
-    esp_http_client_cleanup(http);
+    if(esp_http_client_open(http, len) == ESP_OK) {
+        esp_http_client_write(http, data, len);
+
+        if(! DISCORD_API_KEEPALIVE) {
+            esp_http_client_close(http);
+        }
+    } else {
+        DISCORD_LOGW("Failed to open connection with API");
+    }
 
     return ESP_OK;
+}
+
+esp_err_t dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
+    return dcapi_request(client, HTTP_METHOD_POST, uri, data);
 }

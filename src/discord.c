@@ -18,7 +18,7 @@ static discord_client_config_t* dc_config_copy(const discord_client_config_t* co
 
     clone->token = strdup(config->token);
     clone->intents = config->intents;
-    clone->buffer_size = config->buffer_size > DISCORD_MIN_BUFFER_SIZE ? config->buffer_size : DISCORD_MIN_BUFFER_SIZE;
+    clone->buffer_size = config->buffer_size > DISCORD_DEFAULT_BUFFER_SIZE ? config->buffer_size : DISCORD_DEFAULT_BUFFER_SIZE;
 
     return clone;
 }
@@ -166,7 +166,7 @@ esp_err_t discord_login(discord_client_handle_t client) {
 
     client->running = true;
 
-    if (xTaskCreate(dc_task, "discord_task", DISCORD_TASK_STACK_SIZE, client, DISCORD_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
+    if (xTaskCreate(dc_task, "discord_task", DISCORD_DEFAULT_TASK_STACK_SIZE, client, DISCORD_DEFAULT_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
         DISCORD_LOGE("Cannot create discord task");
         return ESP_FAIL;
     }

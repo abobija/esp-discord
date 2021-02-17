@@ -56,7 +56,7 @@ esp_err_t gw_open(discord_client_handle_t client) {
 
     esp_websocket_client_config_t ws_cfg = {
         .uri = "wss://gateway.discord.gg/?v=8&encoding=json",
-        .buffer_size = DISCORD_WS_BUFFER_SIZE
+        .buffer_size = DISCORD_GW_WS_BUFFER_SIZE
     };
 
     client->ws = esp_websocket_client_init(&ws_cfg);

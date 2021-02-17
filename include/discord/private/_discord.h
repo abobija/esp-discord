@@ -12,13 +12,16 @@ extern "C" {
 #include "esp_log.h"
 #include "esp_event_base.h"
 #include "esp_websocket_client.h"
+#include "esp_http_client.h"
 #include "_models.h"
 #include "discord.h"
 
-#define DISCORD_WS_BUFFER_SIZE   (512)
-#define DISCORD_MIN_BUFFER_SIZE  (2 * 1024)
-#define DISCORD_TASK_STACK_SIZE  (6 * 1024)
-#define DISCORD_TASK_PRIORITY    (4)
+#define DISCORD_API_URL                  "https://discord.com/api/v8"
+#define DISCORD_API_KEEPALIVE            true
+#define DISCORD_GW_WS_BUFFER_SIZE        (512)
+#define DISCORD_DEFAULT_BUFFER_SIZE      (2 * 1024)
+#define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)
+#define DISCORD_DEFAULT_TASK_PRIORITY    (4)
 
 #define DISCORD_LOG_TAG "discord"
 
@@ -124,6 +127,7 @@ struct discord_client {
     discord_client_config_t* config;
     bool running;
     esp_websocket_client_handle_t ws;
+    esp_http_client_handle_t http;
     discord_heartbeater_t heartbeater;
     discord_gateway_session_t* session;
     int last_sequence_number;
