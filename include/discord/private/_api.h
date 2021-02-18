@@ -33,6 +33,15 @@ void dcapi_response_free(discord_api_response_t* res);
  * @param stream Stream and save http response body inside of api response?
  */ 
 discord_api_response_t* dcapi_post(discord_client_handle_t client, char* uri, char* data, bool stream);
+/**
+ * PUT request
+ * 
+ * @param uri Will be automatically freed
+ * @param data Will be automatically freed
+ * @param stream Stream and save http response body inside of api response?
+ */
+discord_api_response_t* dcapi_put(discord_client_handle_t client, char* uri, char* data, bool stream);
+esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data);
 esp_err_t dcapi_close(discord_client_handle_t client);
 
 #ifdef __cplusplus
