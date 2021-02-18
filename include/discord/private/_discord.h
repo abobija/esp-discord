@@ -16,13 +16,13 @@ extern "C" {
 #include "_models.h"
 #include "discord.h"
 
-#define DISCORD_API_URL                  "https://discord.com/api/v8"
-#define DISCORD_API_KEEPALIVE            true
-#define DISCORD_API_BUFFER_MAX_SIZE      (2 * 1024)
 #define DISCORD_GW_WS_BUFFER_SIZE        (512)
-#define DISCORD_DEFAULT_BUFFER_SIZE      (2 * 1024)
+#define DISCORD_DEFAULT_BUFFER_SIZE      (3 * 1024)
 #define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)
 #define DISCORD_DEFAULT_TASK_PRIORITY    (4)
+#define DISCORD_API_URL                  "https://discord.com/api/v8"
+#define DISCORD_API_KEEPALIVE            true
+#define DISCORD_API_BUFFER_MAX_SIZE      DISCORD_DEFAULT_BUFFER_SIZE
 
 #define DISCORD_LOG_TAG "discord"
 
@@ -132,6 +132,7 @@ struct discord_client {
     char* http_buffer;
     int http_buffer_size;
     bool http_buffer_record;
+    esp_err_t http_buffer_record_status;
     discord_heartbeater_t heartbeater;
     discord_gateway_session_t* session;
     int last_sequence_number;

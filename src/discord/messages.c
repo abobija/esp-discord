@@ -34,7 +34,11 @@ static discord_message_t* _discord_message_send_(discord_client_handle_t client,
     discord_message_t* sent_message = NULL;
 
     if(_return && *err == ESP_OK) {
-        sent_message = discord_model_message_deserialize(res->data, res->data_len);
+        if(res->data_len <= 0) {
+            DISCORD_LOGW("Message sent but cannot return");
+        } else {
+            sent_message = discord_model_message_deserialize(res->data, res->data_len);
+        }
     }
     
     dcapi_response_free(res);

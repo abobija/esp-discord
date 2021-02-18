@@ -54,21 +54,25 @@ static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
 static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     discord_client_handle_t client = (discord_client_handle_t) evt->user_data;
 
-    if(evt->event_id == HTTP_EVENT_ON_DATA && client->http_buffer_record && evt->data_len > 0) {
-        DISCORD_LOGD("http chunk received data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
+    if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->http_buffer_record) {
+        DISCORD_LOGD("Buffering received chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
 
         int old_size = client->http_buffer_size;
         int new_size = old_size + evt->data_len;
 
         if(new_size > DISCORD_API_BUFFER_MAX_SIZE) { // buffer overflow can occured
-            DISCORD_LOGW("Api response chunk cannot fit into buffer");
-            return ESP_OK;
+            DISCORD_LOGW("Response chunk cannot fit into api buffer");
+            client->http_buffer_record_status = ESP_FAIL;
+            dcapi_clear_buffer(client);
+            return ESP_FAIL;
         }
 
         char* _buffer = realloc(client->http_buffer, new_size);
 
         if(_buffer == NULL) {
             DISCORD_LOGW("Cannot expand api buffer");
+            client->http_buffer_record_status = ESP_FAIL;
+            dcapi_clear_buffer(client);
             return ESP_FAIL;
         }
 
@@ -93,6 +97,7 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     }
 
     dcapi_clear_buffer(client);
+    client->http_buffer_record_status = ESP_OK;
 
     esp_http_client_config_t config = {
         .url = DISCORD_API_URL,
@@ -105,24 +110,6 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     client->http = esp_http_client_init(&config);
 
     return client->http ? ESP_OK : ESP_FAIL;
-}
-
-/**
- * @param len On success it will be >= 0, otherwise ESP_FAIL (-1)
- * @return Pointer to data buffer if there is data in http response, otherwise NULL
- */
-static char* dcapi_read_http_response_stream(discord_client_handle_t client, int* len) {
-    DISCORD_LOG_FOO();
-
-    dcapi_flush_http(client, true);
-
-    char* buffer = client->http_buffer;
-    *len = client->http_buffer_size;
-
-    client->http_buffer = NULL;
-    client->http_buffer_size = 0;
-
-    return buffer;
 }
 
 static discord_api_response_t* dcapi_request_fail(discord_client_handle_t client) {
@@ -144,6 +131,9 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     }
 
     esp_http_client_handle_t http = client->http;
+
+    client->http_buffer_record = stream_response;
+    client->http_buffer_record_status = ESP_OK;
 
     char* url = STRCAT(DISCORD_API_URL, uri);
     esp_http_client_set_url(http, url);
@@ -174,44 +164,35 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 
     DISCORD_LOGD("Fetching API response...");
 
-    client->http_buffer_record = true; // record first chunk which will come with headers
-
     if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
         DISCORD_LOGW("Fail to fetch API response");
         return dcapi_request_fail(client);
     }
-
-    client->http_buffer_record = false;
 
     discord_api_response_t* res = calloc(1, sizeof(discord_api_response_t));
 
     res->code = esp_http_client_get_status_code(http);
     res->data_len = 0;
 
-    if(! stream_response) {
-        dcapi_flush_http(client, false);
-    } else {
-        res->data = dcapi_read_http_response_stream(client, &res->data_len);
-        
-        if(res->data_len < 0) {
-            DISCORD_LOGW("Failed to read http stream");
+    dcapi_flush_http(client, stream_response);  // record if stream_response is true
+
+    if(stream_response) {
+        if(client->http_buffer_record_status != ESP_OK) {
+            DISCORD_LOGW("Fail to record api chunks");
+        } else {
+            res->data = client->http_buffer;
+            res->data_len = client->http_buffer_size;
+
+            // detach buffer to prevent res data releasing by clear_buffer foo
+            client->http_buffer = NULL;
+            client->http_buffer_size = 0;
         }
     }
 
     DISCORD_LOGD("Received response from API (res_code=%d, data_len=%d)", res->code, res->data_len);
 
-    if(stream_response && res->data_len > 0) {
-        for(int i = 0; i < res->data_len; i++) {
-            if(res->data[i] >= 32 && res->data[i] <= 126) {
-                printf("%c", res->data[i]);
-            } else {
-                printf("[%02x:%d] ", res->data[i], res->data[i]);
-            }
-        }
-        
-        printf("\n");
-
-        //DISCORD_LOGD("%.*s", res->data_len, res->data);
+    if(res->data_len > 0) {
+        DISCORD_LOGD("%.*s", res->data_len, res->data);
     }
 
     if(! DISCORD_API_KEEPALIVE) {
