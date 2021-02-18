@@ -20,13 +20,15 @@ esp_err_t discord_message_send(discord_client_handle_t client, discord_message_t
         return ESP_ERR_INVALID_ARG;
     }
 
-    discord_api_response_t* res = DCAPI_POST(
+    discord_api_response_t* res = dcapi_post(
+        client,
         STRCAT("/channels/", message->channel_id, "/messages"),
-        discord_model_message_serialize(message)
+        discord_model_message_serialize(message),
+        false
     );
 
-    esp_err_t err = res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
-
+    esp_err_t err = dcapi_response_to_esp_err(res);
+    
     dcapi_response_free(res);
 
     return err;

@@ -11,6 +11,10 @@ bool dcapi_response_is_success(discord_api_response_t* res) {
     return res->code >= 200 && res->code <= 299;
 }
 
+esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
+    return res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
+}
+
 void dcapi_response_free(discord_api_response_t* res) {
     if(res == NULL)
         return;
@@ -42,16 +46,6 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     return client->http ? ESP_OK : ESP_FAIL;
 }
 
-static discord_api_response_t* dcapi_request_fail(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-
-    if(! DISCORD_API_KEEPALIVE) {
-        esp_http_client_close(client->http);
-    }
-
-    return NULL;
-}
-
 static char* dcapi_empty_http_data(char* buffer, int** len, int len_val) {
     if(buffer) {
         free(buffer);
@@ -64,7 +58,11 @@ static char* dcapi_empty_http_data(char* buffer, int** len, int len_val) {
     return NULL;
 }
 
-static char* dcapi_read_http_response_static(discord_client_handle_t client, int* len) {
+/**
+ * @param len On success it will be >= 0, otherwise it will become -1 if there is no Content-Length header in response or -2 on memory or http_read error
+ * @return Pointer to data buffer if Content-Lenght header is > 0, otherwise NULL
+ */
+static char* dcapi_read_http_response_using_content_length_header(discord_client_handle_t client, int* len) {
     DISCORD_LOG_FOO();
 
     int content_length = esp_http_client_get_content_length(client->http);
@@ -97,11 +95,15 @@ static char* dcapi_read_http_response_static(discord_client_handle_t client, int
     return buffer;
 }
 
-static char* dcapi_read_http_response(discord_client_handle_t client, int* len) {
+/**
+ * @param len On success it will be >= 0, otherwise ESP_FAIL (-1)
+ * @return Pointer to data buffer if there is data in http response, otherwise NULL
+ */
+static char* dcapi_read_http_response_stream(discord_client_handle_t client, int* len) {
     DISCORD_LOG_FOO();
 
     int _len;
-    char* buffer = dcapi_read_http_response_static(client, &_len);
+    char* buffer = dcapi_read_http_response_using_content_length_header(client, &_len);
 
     if(_len >= 0) {
         *len = _len;
@@ -163,7 +165,17 @@ static char* dcapi_read_http_response(discord_client_handle_t client, int* len) 
     return buffer;
 }
 
-static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data, bool return_response_body) {
+static discord_api_response_t* dcapi_request_fail(discord_client_handle_t client) {
+    DISCORD_LOG_FOO();
+
+    if(! DISCORD_API_KEEPALIVE) {
+        esp_http_client_close(client->http);
+    }
+
+    return NULL;
+}
+
+static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, const char* uri, const char* data, bool stream_response) {
     DISCORD_LOG_FOO();
 
     if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already initialized
@@ -210,10 +222,10 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     discord_api_response_t* res = calloc(1, sizeof(discord_api_response_t));
 
     res->code = esp_http_client_get_status_code(http);
-    res->data = 0;
+    res->data_len = 0;
 
-    if(return_response_body) {
-        res->data = dcapi_read_http_response(client, &res->data_len);
+    if(stream_response) {
+        res->data = dcapi_read_http_response_stream(client, &res->data_len);
 
         if(res->data_len < 0) {
             DISCORD_LOGW("Failed to read http stream");
@@ -224,7 +236,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 
     DISCORD_LOGD("Received response from API (res_code=%d, data_len=%d)", res->code, res->data_len);
 
-    if(return_response_body && res->data_len > 0) {
+    if(stream_response && res->data_len > 0) {
         DISCORD_LOGD("%.*s", res->data_len, res->data);
     }
 
@@ -235,8 +247,13 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     return res;
 }
 
-discord_api_response_t* dcapi_post(discord_client_handle_t client, const char* uri, const char* data) {
-    return dcapi_request(client, HTTP_METHOD_POST, uri, data, true);
+discord_api_response_t* dcapi_post(discord_client_handle_t client, char* uri, char* data, bool stream) {
+    discord_api_response_t* res = dcapi_request(client, HTTP_METHOD_POST, uri, data, stream);
+
+    if(uri) free(uri);
+    if(data) free(data);
+
+    return res;
 }
 
 esp_err_t dcapi_close(discord_client_handle_t client) {
