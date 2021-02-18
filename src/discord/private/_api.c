@@ -8,6 +8,10 @@ bool dcapi_response_is_success(discord_api_response_t* res) {
     return res && res->code >= 200 && res->code <= 299;
 }
 
+bool dcapi_response_is_client_error(discord_api_response_t* res) {
+    return res && res->code >= 400 && res->code <= 499;
+}
+
 esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
     return res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
 }
@@ -129,7 +133,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 
     esp_http_client_handle_t http = client->http;
 
-    client->http_buffer_record = stream_response;
+    client->http_buffer_record = true; // always record first chunk which comes with headers because maybe will need to record error
     client->http_buffer_record_status = ESP_OK;
 
     char* url = STRCAT(DISCORD_API_URL, uri);
@@ -171,12 +175,14 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     res->code = esp_http_client_get_status_code(http);
     res->data_len = 0;
 
-    dcapi_flush_http(client, stream_response);  // record if stream_response is true
+    bool is_error = ! dcapi_response_is_success(res);
 
-    if(stream_response) {
+    dcapi_flush_http(client, stream_response || is_error);  // record if stream_response is true or there is errors
+
+    if(stream_response || is_error) {
         if(client->http_buffer_record_status != ESP_OK) {
             DISCORD_LOGW("Fail to record api chunks");
-        } else {
+        } else if(! is_error) { // point response to buffer if there is no errors
             res->data = client->http_buffer;
             res->data_len = client->http_buffer_size;
 
@@ -190,6 +196,15 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 
     if(res->data_len > 0) {
         DISCORD_LOGD("%.*s", res->data_len, res->data);
+    }
+
+    if(is_error && client->http_buffer_size > 0) {
+        // just print raw error for now
+        DISCORD_LOGW("Error: %.*s", client->http_buffer_size, client->http_buffer);
+    }
+
+    if(is_error && ! stream_response) { // there is recorded errors but response is not requested
+        dcapi_clear_buffer(client);
     }
 
     if(! DISCORD_API_KEEPALIVE) {

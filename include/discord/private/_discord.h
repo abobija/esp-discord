@@ -24,7 +24,7 @@ extern "C" {
 #define DISCORD_API_KEEPALIVE            true
 #define DISCORD_API_BUFFER_MAX_SIZE      DISCORD_DEFAULT_BUFFER_SIZE
 
-#define DISCORD_LOG_TAG "discord"
+#define DISCORD_LOG_TAG "DISCORD"
 
 #define DISCORD_LOG_DEFINE_BASE() static const char* TAG = DISCORD_LOG_TAG
 #define DISCORD_LOG(esp_log_foo, format, ...) esp_log_foo(TAG, "%s: " format, __func__, ##__VA_ARGS__)
