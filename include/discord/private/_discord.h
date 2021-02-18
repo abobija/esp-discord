@@ -52,7 +52,6 @@ extern "C" {
 
 #define STREQ(s1, s2) (strcmp(s1, s2) == 0)
 #define STRDUP(str) (str ? strdup(str) : NULL)
-#define STRCAT(...) _dc_strcat(__VA_ARGS__, NULL)
 
 typedef enum {
     DISCORD_CLIENT_STATE_ERROR = -2,
@@ -141,9 +140,6 @@ struct discord_client {
     discord_close_reason_t close_reason;
     discord_close_code_t close_code;
 };
-
-uint64_t dc_tick_ms();
-char* _dc_strcat(const char* str, ...);
 
 #ifdef __cplusplus
 }

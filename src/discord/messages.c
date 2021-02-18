@@ -1,3 +1,4 @@
+#include "discord/utils.h"
 #include "discord/messages.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
@@ -24,7 +25,7 @@ static discord_message_t* _discord_message_send_(discord_client_handle_t client,
 
     discord_api_response_t* res = dcapi_post(
         client,
-        STRCAT("/channels/", message->channel_id, "/messages"),
+        discord_strcat("/channels/", message->channel_id, "/messages"),
         discord_model_message_serialize(message),
         _return
     );

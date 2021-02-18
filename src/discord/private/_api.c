@@ -1,3 +1,4 @@
+#include "discord/utils.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "esp_http_client.h"
@@ -136,13 +137,13 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     client->http_buffer_record = true; // always record first chunk which comes with headers because maybe will need to record error
     client->http_buffer_record_status = ESP_OK;
 
-    char* url = STRCAT(DISCORD_API_URL, uri);
+    char* url = discord_strcat(DISCORD_API_URL, uri);
     esp_http_client_set_url(http, url);
     free(url);
 
     esp_http_client_set_method(http, HTTP_METHOD_POST);
 
-    char* auth = STRCAT("Bot ", client->config->token);
+    char* auth = discord_strcat("Bot ", client->config->token);
     esp_http_client_set_header(http, "Authorization", auth);
     free(auth);
 

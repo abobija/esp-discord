@@ -1,3 +1,4 @@
+#include "discord/utils.h"
 #include "discord/private/_gateway.h"
 #include "discord/models/message.h"
 #include "esp_transport_ws.h"
@@ -128,17 +129,17 @@ esp_err_t gw_heartbeat_start(discord_client_handle_t client, discord_gateway_hel
     // Set ack to true to prevent first ack checking
     client->heartbeater.received_ack = true;
     client->heartbeater.interval = hello->heartbeat_interval;
-    client->heartbeater.tick_ms = dc_tick_ms();
+    client->heartbeater.tick_ms = discord_tick_ms();
     client->heartbeater.running = true;
 
     return ESP_OK;
 }
 
 esp_err_t gw_heartbeat_send_if_expired(discord_client_handle_t client) {
-    if(client->heartbeater.running && dc_tick_ms() - client->heartbeater.tick_ms > client->heartbeater.interval) {
+    if(client->heartbeater.running && discord_tick_ms() - client->heartbeater.tick_ms > client->heartbeater.interval) {
         DISCORD_LOGD("Heartbeat");
 
-        client->heartbeater.tick_ms = dc_tick_ms();
+        client->heartbeater.tick_ms = discord_tick_ms();
 
         if(! client->heartbeater.received_ack) {
             DISCORD_LOGW("ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
