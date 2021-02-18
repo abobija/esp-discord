@@ -5,10 +5,7 @@
 DISCORD_LOG_DEFINE_BASE();
 
 bool dcapi_response_is_success(discord_api_response_t* res) {
-    if(res == NULL)
-        return false;
-    
-    return res->code >= 200 && res->code <= 299;
+    return res && res->code >= 200 && res->code <= 299;
 }
 
 esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
