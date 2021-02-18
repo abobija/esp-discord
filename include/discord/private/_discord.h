@@ -129,6 +129,9 @@ struct discord_client {
     bool running;
     esp_websocket_client_handle_t ws;
     esp_http_client_handle_t http;
+    char* http_buffer;
+    int http_buffer_size;
+    bool http_buffer_record;
     discord_heartbeater_t heartbeater;
     discord_gateway_session_t* session;
     int last_sequence_number;

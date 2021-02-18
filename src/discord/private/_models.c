@@ -6,6 +6,17 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+static cJSON* _discord_model_parse(const char* json, size_t length) {
+    cJSON* cjson = cJSON_ParseWithLength(json, length);
+    
+    if(cjson == NULL) {
+        DISCORD_LOGW("JSON parsing (syntax?) error");
+        return NULL;
+    }
+
+    return cjson;
+}
+
 discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway_payload_data_t d) {
     discord_gateway_payload_t* pl = calloc(1, sizeof(discord_gateway_payload_t));
 
@@ -73,10 +84,9 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
 }
 
 discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json, size_t length) {
-    cJSON* cjson = cJSON_ParseWithLength(json, length);
-    
+    cJSON* cjson = _discord_model_parse(json, length);
+
     if(cjson == NULL) {
-        DISCORD_LOGW("JSON parsing (syntax?) error");
         return NULL;
     }
 
@@ -325,16 +335,6 @@ cJSON* discord_model_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
-void discord_model_user_free(discord_user_t* user) {
-    if(user == NULL)
-        return;
-
-    free(user->id);
-    free(user->username);
-    free(user->discriminator);
-    free(user);
-}
-
 discord_message_t* discord_model_message(const char* id, const char* content, const char* channel_id, discord_user_t* author) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
@@ -380,13 +380,16 @@ char* discord_model_message_serialize(discord_message_t* msg) {
     return payload_raw;
 }
 
-void discord_model_message_free(discord_message_t* message) {
-    if(message == NULL)
-        return;
+discord_message_t* discord_model_message_deserialize(const char* json, size_t length) {
+    cJSON* cjson = _discord_model_parse(json, length);
 
-    free(message->id);
-    free(message->content);
-    free(message->channel_id);
-    discord_model_user_free(message->author);
-    free(message);
+    if(cjson == NULL) {
+        return NULL;
+    }
+
+    discord_message_t* msg = discord_model_message_from_cjson(cjson);
+
+    cJSON_Delete(cjson);
+
+    return msg;
 }

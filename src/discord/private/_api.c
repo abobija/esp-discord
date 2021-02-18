@@ -20,8 +20,65 @@ void dcapi_response_free(discord_api_response_t* res) {
         return;
     
     free(res->data);
+    res->data = NULL;
     res->data_len = 0;
     free(res);
+}
+
+static void dcapi_clear_buffer(discord_client_handle_t client) {
+    DISCORD_LOG_FOO();
+
+    if(client->http_buffer != NULL) {
+        free(client->http_buffer);
+        client->http_buffer = NULL;
+    }
+    
+    client->http_buffer_size = 0;
+    client->http_buffer_record = false;
+}
+
+static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
+    DISCORD_LOG_FOO();
+
+    client->http_buffer_record = record;
+    esp_err_t err = esp_http_client_flush_response(client->http, NULL);
+    client->http_buffer_record = false;
+
+    if(! record) {
+        dcapi_clear_buffer(client);
+    }
+
+    return err;
+}
+
+static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
+    discord_client_handle_t client = (discord_client_handle_t) evt->user_data;
+
+    if(evt->event_id == HTTP_EVENT_ON_DATA && client->http_buffer_record && evt->data_len > 0) {
+        DISCORD_LOGD("http chunk received data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
+
+        int old_size = client->http_buffer_size;
+        int new_size = old_size + evt->data_len;
+
+        if(new_size > DISCORD_API_BUFFER_MAX_SIZE) { // buffer overflow can occured
+            DISCORD_LOGW("Api response chunk cannot fit into buffer");
+            return ESP_OK;
+        }
+
+        char* _buffer = realloc(client->http_buffer, new_size);
+
+        if(_buffer == NULL) {
+            DISCORD_LOGW("Cannot expand api buffer");
+            return ESP_FAIL;
+        }
+
+        memcpy(_buffer + old_size, evt->data, evt->data_len);
+
+        client->http_buffer = _buffer;
+        client->http_buffer_size = new_size;
+    }
+
+    return ESP_OK;
 }
 
 static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
@@ -35,64 +92,19 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
         return ESP_FAIL;
     }
 
+    dcapi_clear_buffer(client);
+
     esp_http_client_config_t config = {
         .url = DISCORD_API_URL,
         .is_async = false,
-        .keep_alive_enable = DISCORD_API_KEEPALIVE
+        .keep_alive_enable = DISCORD_API_KEEPALIVE,
+        .event_handler = dcapi_on_http_event,
+        .user_data = client
     };
 
     client->http = esp_http_client_init(&config);
 
     return client->http ? ESP_OK : ESP_FAIL;
-}
-
-static char* dcapi_empty_http_data(char* buffer, int** len, int len_val) {
-    if(buffer) {
-        free(buffer);
-    }
-
-    if(len) {
-        **len = len_val;
-    }
-
-    return NULL;
-}
-
-/**
- * @param len On success it will be >= 0, otherwise it will become -1 if there is no Content-Length header in response or -2 on memory or http_read error
- * @return Pointer to data buffer if Content-Lenght header is > 0, otherwise NULL
- */
-static char* dcapi_read_http_response_using_content_length_header(discord_client_handle_t client, int* len) {
-    DISCORD_LOG_FOO();
-
-    int content_length = esp_http_client_get_content_length(client->http);
-
-    if(content_length < 0) {
-        return dcapi_empty_http_data(NULL, &len, -1);
-    }
-
-    if(content_length == 0) {
-        return dcapi_empty_http_data(NULL, &len, 0);
-    }
-
-    if(content_length > DISCORD_API_BUFFER_MAX_SIZE) {
-        DISCORD_LOGW("Api response body is bigger than the DISCORD_API_BUFFER_MAX_SIZE");
-        return dcapi_empty_http_data(NULL, &len, -2);
-    }
-
-    char* buffer = malloc(*len = content_length + 1); // (+1 for null terminator)
-
-    if(buffer == NULL) { // malloc error
-        return dcapi_empty_http_data(buffer, &len, -2);
-    }
-
-    if(esp_http_client_read(client->http, buffer, content_length) < 0) {
-        return dcapi_empty_http_data(buffer, &len, -2);
-    }
-
-    buffer[content_length] = '\0';
-
-    return buffer;
 }
 
 /**
@@ -102,65 +114,13 @@ static char* dcapi_read_http_response_using_content_length_header(discord_client
 static char* dcapi_read_http_response_stream(discord_client_handle_t client, int* len) {
     DISCORD_LOG_FOO();
 
-    int _len;
-    char* buffer = dcapi_read_http_response_using_content_length_header(client, &_len);
+    dcapi_flush_http(client, true);
 
-    if(_len >= 0) {
-        *len = _len;
-        return buffer;
-    }
+    char* buffer = client->http_buffer;
+    *len = client->http_buffer_size;
 
-    if(_len == -2) { // memory or http error
-        return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
-    }
-
-    // content-length is < 0
-    // need to dinamically read http stream
-    
-    DISCORD_LOGD("Dinamically read http stream...");
-
-    const int step_expand = 256;
-    int step = 0, read_len = 0, data_read = 0;
-    buffer = calloc(0, sizeof(char));
-    
-    do {
-        if(read_len + step_expand > DISCORD_API_BUFFER_MAX_SIZE) { // response is bigger that the max buffer size
-            DISCORD_LOGW("Api response body is bigger than the DISCORD_API_BUFFER_MAX_SIZE");
-            return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
-        }
-
-        char* _buffer = realloc(buffer, ++step * step_expand); // expand
-
-        if(_buffer == NULL) { // expand error
-            return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
-        }
-
-        buffer = _buffer;
-
-        data_read = esp_http_client_read(client->http, buffer + read_len, step_expand);
-        read_len += data_read;
-
-        if(data_read < 0) { // error http read
-            return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
-        }
-        
-        if(data_read < step_expand) { // last chunk
-            if(read_len == 0) { // no data in stream
-                return dcapi_empty_http_data(buffer, &len, 0);
-            }
-
-            _buffer = realloc(buffer, ++read_len); // shrink (+1 for null terminator)
-
-            if(_buffer == NULL) { // shrink error
-                return dcapi_empty_http_data(buffer, &len, ESP_FAIL);
-            }
-
-            buffer = _buffer;
-            buffer[read_len - 1] = '\0';
-        }
-    } while(data_read >= step_expand);
-
-    *len = read_len;
+    client->http_buffer = NULL;
+    client->http_buffer_size = 0;
 
     return buffer;
 }
@@ -214,30 +174,44 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 
     DISCORD_LOGD("Fetching API response...");
 
+    client->http_buffer_record = true; // record first chunk which will come with headers
+
     if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
         DISCORD_LOGW("Fail to fetch API response");
         return dcapi_request_fail(client);
     }
+
+    client->http_buffer_record = false;
 
     discord_api_response_t* res = calloc(1, sizeof(discord_api_response_t));
 
     res->code = esp_http_client_get_status_code(http);
     res->data_len = 0;
 
-    if(stream_response) {
+    if(! stream_response) {
+        dcapi_flush_http(client, false);
+    } else {
         res->data = dcapi_read_http_response_stream(client, &res->data_len);
-
+        
         if(res->data_len < 0) {
             DISCORD_LOGW("Failed to read http stream");
         }
     }
 
-    esp_http_client_flush_response(http, NULL);
-
     DISCORD_LOGD("Received response from API (res_code=%d, data_len=%d)", res->code, res->data_len);
 
     if(stream_response && res->data_len > 0) {
-        DISCORD_LOGD("%.*s", res->data_len, res->data);
+        for(int i = 0; i < res->data_len; i++) {
+            if(res->data[i] >= 32 && res->data[i] <= 126) {
+                printf("%c", res->data[i]);
+            } else {
+                printf("[%02x:%d] ", res->data[i], res->data[i]);
+            }
+        }
+        
+        printf("\n");
+
+        //DISCORD_LOGD("%.*s", res->data_len, res->data);
     }
 
     if(! DISCORD_API_KEEPALIVE) {
@@ -258,6 +232,9 @@ discord_api_response_t* dcapi_post(discord_client_handle_t client, char* uri, ch
 
 esp_err_t dcapi_close(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
+
+    client->http_buffer_record = false;
+    dcapi_clear_buffer(client);
 
     if(client->http) {
         esp_http_client_cleanup(client->http);
