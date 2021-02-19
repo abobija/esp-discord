@@ -2,49 +2,54 @@
 #include "esp_timer.h"
 #include "stdarg.h"
 #include "string.h"
+#include "esp_heap_caps.h"
 
 uint64_t discord_tick_ms() {
     return esp_timer_get_time() / 1000;
 }
 
 char* _discord_strcat(const char* str, ...) {
-    va_list arg;
-    char* res = NULL;
-    int start_pos = 0;
-    int len = 0;
+    const char* first = str;
+    size_t length = 0;
+    va_list count;
+    va_list copy;
 
-    va_start(arg, str);
+    va_start(count, str);
+    va_copy(copy, count);
+    while(str) {
+        length += strlen(str);
+        str = va_arg(count, const char*);
+    }
+    va_end(count);
+
+    if(length <= 0) {
+        va_end(copy);
+        return NULL;
+    }
+    
+    char* res = malloc(length + 1);
+
+    if(!res) {
+        va_end(copy);
+        return NULL;
+    }
+
+    size_t offset = 0;
+    str = first;
 
     while(str) {
-        int _len = strlen(str);
+        size_t _len = strlen(str);
 
         if(_len > 0) {
-            char* _res = realloc(res, (len += _len));
-            if(_res) {
-                res = _res;
-            } else {
-                free(res);
-                res = NULL;
-                break;
-            }
-            memcpy(res + start_pos, str, _len);
-            start_pos += _len;
+            memcpy(res + offset, str, _len);
+            offset += _len;
         }
 
-        str = va_arg(arg, const char*);
+        str = va_arg(copy, const char*);
     }
-
-    va_end(arg);
-
-    char* _res = realloc(res, len + 1);
+    va_end(copy);
     
-    if(_res) {
-        res = _res;
-        res[len] = '\0';
-    } else {
-        free(res);
-        res = NULL;
-    }
+    res[length] = '\0';
 
     return res;
 }
