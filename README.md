@@ -1,4 +1,4 @@
-# esp-idf-discord
+# esp-discord
 C library for making Discord Bot on the ESP32, packaged as ESP-IDF component
 
 For now next option needs to be enabled:
