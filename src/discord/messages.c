@@ -42,7 +42,7 @@ static discord_message_t* _discord_message_send_(discord_client_handle_t client,
         }
     }
     
-    dcapi_response_free(res);
+    dcapi_response_free(client, res);
 
     return sent_message;
 }

@@ -24,7 +24,7 @@ typedef struct {
 
 bool dcapi_response_is_success(discord_api_response_t* res);
 esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res);
-void dcapi_response_free(discord_api_response_t* res);
+void dcapi_response_free(discord_client_handle_t client, discord_api_response_t* res);
 /**
  * POST request
  * 

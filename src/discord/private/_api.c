@@ -17,9 +17,13 @@ esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
     return res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
 }
 
-void dcapi_response_free(discord_api_response_t* res) {
+void dcapi_response_free(discord_client_handle_t client, discord_api_response_t* res) {
     if(res == NULL)
         return;
+
+    if(res->data || res->data_len > 0) { // if buffer was attached to result
+        client->http_buffer_size = 0;
+    }
 
     res->data = NULL; // do not free() res->data because it holds addr of internal api buffer
     res->data_len = 0;
@@ -203,7 +207,7 @@ discord_api_response_t* dcapi_post(discord_client_handle_t client, char* uri, ch
 esp_err_t dcapi_post_(discord_client_handle_t client, char* uri, char* data) {
     discord_api_response_t* res = dcapi_post(client, uri, data, false);
     esp_err_t err = dcapi_response_to_esp_err(res);
-    dcapi_response_free(res);
+    dcapi_response_free(client, res);
 
     return err;
 }
@@ -215,7 +219,7 @@ discord_api_response_t* dcapi_put(discord_client_handle_t client, char* uri, cha
 esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data) {
     discord_api_response_t* res = dcapi_put(client, uri, data, false);
     esp_err_t err = dcapi_response_to_esp_err(res);
-    dcapi_response_free(res);
+    dcapi_response_free(client, res);
 
     return err;
 }
