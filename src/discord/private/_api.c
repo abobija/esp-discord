@@ -91,6 +91,13 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
 
     client->http = esp_http_client_init(&config);
 
+    char* auth = discord_strcat("Bot ", client->config->token);
+    esp_http_client_set_header(client->http, "Authorization", auth);
+    free(auth);
+
+    esp_http_client_set_header(client->http, "User-Agent", "DiscordBot (ESP-IDF, 1.0.0.0)");
+    esp_http_client_set_header(client->http, "Content-Type", "application/json");
+
     return client->http ? ESP_OK : ESP_FAIL;
 }
 
@@ -123,13 +130,6 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     free(url);
 
     esp_http_client_set_method(http, method);
-
-    char* auth = discord_strcat("Bot ", client->config->token);
-    esp_http_client_set_header(http, "Authorization", auth);
-    free(auth);
-
-    esp_http_client_set_header(http, "User-Agent", "DiscordBot (ESP-IDF, 1.0.0.0)");
-    esp_http_client_set_header(http, "Content-Type", "application/json");
 
     int len = data ? strlen(data) : 0;
 
