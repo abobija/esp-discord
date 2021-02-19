@@ -77,5 +77,9 @@ esp_err_t discord_message_react(discord_client_handle_t client, discord_message_
         return ESP_FAIL;
     }
 
-    return dcapi_put_(client, discord_strcat("/channels/", message->channel_id, "/messages/", message->id, "/reactions/", emoji, "/@me"), NULL);
+    char* _emoji = dcapi_urlencode(emoji);
+    esp_err_t err = dcapi_put_(client, discord_strcat("/channels/", message->channel_id, "/messages/", message->id, "/reactions/", _emoji, "/@me"), NULL);
+    free(_emoji);
+
+    return err;
 }
