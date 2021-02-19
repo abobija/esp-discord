@@ -22,7 +22,7 @@ extern "C" {
 #define DISCORD_DEFAULT_TASK_PRIORITY    (4)
 #define DISCORD_API_URL                  "https://discord.com/api/v8"
 #define DISCORD_API_KEEPALIVE            true
-#define DISCORD_API_BUFFER_MAX_SIZE      DISCORD_DEFAULT_BUFFER_SIZE
+#define DISCORD_API_BUFFER_SIZE          (3 * 1024)
 
 #define DISCORD_LOG_TAG "DISCORD"
 

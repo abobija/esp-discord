@@ -20,23 +20,10 @@ esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
 void dcapi_response_free(discord_api_response_t* res) {
     if(res == NULL)
         return;
-    
-    free(res->data);
-    res->data = NULL;
+
+    res->data = NULL; // do not free() res->data because it holds addr of internal api buffer
     res->data_len = 0;
     free(res);
-}
-
-static void dcapi_clear_buffer(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-
-    if(client->http_buffer != NULL) {
-        free(client->http_buffer);
-        client->http_buffer = NULL;
-    }
-    
-    client->http_buffer_size = 0;
-    client->http_buffer_record = false;
 }
 
 static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
@@ -47,7 +34,7 @@ static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
     client->http_buffer_record = false;
 
     if(! record) {
-        dcapi_clear_buffer(client);
+        client->http_buffer_size = 0;
     }
 
     return err;
@@ -56,32 +43,19 @@ static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
 static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     discord_client_handle_t client = (discord_client_handle_t) evt->user_data;
 
-    if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->http_buffer_record) {
+    if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->http_buffer_record && client->http_buffer) {
         DISCORD_LOGD("Buffering received chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
 
-        int old_size = client->http_buffer_size;
-        int new_size = old_size + evt->data_len;
-
-        if(new_size > DISCORD_API_BUFFER_MAX_SIZE) { // buffer overflow can occured
+        if(client->http_buffer_size + evt->data_len > DISCORD_API_BUFFER_SIZE) { // prevent buffer overflow
             DISCORD_LOGW("Response chunk cannot fit into api buffer");
             client->http_buffer_record_status = ESP_FAIL;
-            dcapi_clear_buffer(client);
+            client->http_buffer_size = 0;
             return ESP_FAIL;
         }
 
-        char* _buffer = realloc(client->http_buffer, new_size);
+        memcpy(client->http_buffer + client->http_buffer_size, evt->data, evt->data_len);
 
-        if(_buffer == NULL) {
-            DISCORD_LOGW("Cannot expand api buffer");
-            client->http_buffer_record_status = ESP_FAIL;
-            dcapi_clear_buffer(client);
-            return ESP_FAIL;
-        }
-
-        memcpy(_buffer + old_size, evt->data, evt->data_len);
-
-        client->http_buffer = _buffer;
-        client->http_buffer_size = new_size;
+        client->http_buffer_size += evt->data_len;
     }
 
     return ESP_OK;
@@ -98,7 +72,13 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
         return ESP_FAIL;
     }
 
-    dcapi_clear_buffer(client);
+    client->http_buffer = malloc(DISCORD_API_BUFFER_SIZE);
+
+    if(client->http_buffer == NULL) {
+        DISCORD_LOGW("Cannot allocate api buffer. No memory.");
+        return ESP_FAIL;
+    }
+
     client->http_buffer_record_status = ESP_OK;
 
     esp_http_client_config_t config = {
@@ -188,13 +168,9 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     if(stream_response || is_error) {
         if(client->http_buffer_record_status != ESP_OK) {
             DISCORD_LOGW("Fail to record api chunks");
-        } else if(! is_error) { // point response to buffer if there is no errors
+        } else if(! is_error) { // copy buffer to response if there is no errors
             res->data = client->http_buffer;
             res->data_len = client->http_buffer_size;
-
-            // detach buffer to prevent res data releasing by clear_buffer foo
-            client->http_buffer = NULL;
-            client->http_buffer_size = 0;
         }
     }
 
@@ -210,7 +186,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     }
 
     if(is_error && ! stream_response) { // there is recorded errors but response is not requested
-        dcapi_clear_buffer(client);
+        client->http_buffer_size = 0;
     }
 
     if(! DISCORD_API_KEEPALIVE) {
@@ -222,6 +198,14 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
 
 discord_api_response_t* dcapi_post(discord_client_handle_t client, char* uri, char* data, bool stream) {
     return dcapi_request(client, HTTP_METHOD_POST, uri, data, stream, true);
+}
+
+esp_err_t dcapi_post_(discord_client_handle_t client, char* uri, char* data) {
+    discord_api_response_t* res = dcapi_post(client, uri, data, false);
+    esp_err_t err = dcapi_response_to_esp_err(res);
+    dcapi_response_free(res);
+
+    return err;
 }
 
 discord_api_response_t* dcapi_put(discord_client_handle_t client, char* uri, char* data, bool stream) {
@@ -239,8 +223,13 @@ esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data) {
 esp_err_t dcapi_close(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
+    if(client->http_buffer != NULL) {
+        free(client->http_buffer);
+        client->http_buffer = NULL;
+    }
+
+    client->http_buffer_size = 0;
     client->http_buffer_record = false;
-    dcapi_clear_buffer(client);
 
     if(client->http) {
         esp_http_client_cleanup(client->http);
