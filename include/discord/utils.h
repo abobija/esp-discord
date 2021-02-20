@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include "stdint.h"
+#include "stdbool.h"
 
 /**
  * Concatenate optional number of strings. User need to release the resulting string with a free function
@@ -24,6 +25,11 @@ uint64_t discord_tick_ms();
  * Don't use this function. Use discord_strcat macro instead.
  */
 char* _discord_strcat(const char* str, ...);
+
+/**
+ * @returns true if str1 starts with str2
+ */
+bool discord_strsw(const char* str1, const char* str2);
 
 #ifdef __cplusplus
 }

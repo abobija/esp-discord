@@ -53,3 +53,14 @@ char* _discord_strcat(const char* str, ...) {
 
     return res;
 }
+
+bool discord_strsw(const char* str1, const char* str2) {
+    if(! str1 || ! str2) {
+        return false;
+    }
+
+    size_t i = 0;
+    for(; str2[i] && str1[i] && str2[i] == str1[i]; i++);
+    
+    return i > 0 && ! str2[i];
+}
