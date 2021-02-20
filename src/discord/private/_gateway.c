@@ -23,7 +23,6 @@ static esp_err_t dcgw_reset(discord_client_handle_t client) {
     
     dcgw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    xEventGroupClearBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
     client->buffer_len = 0;
 
     return ESP_OK;
@@ -76,22 +75,30 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
     
     DISCORD_LOGD("Buffering received data:\n%.*s", data->data_len, data->data_ptr);
     
-    DC_LOCK_ESP_ERR(
-        memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
+    memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
 
-        if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
-            DISCORD_LOGD("Buffering done.");
+    if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
+        DISCORD_LOGD("Buffering done.");
 
-            if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
-                client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
-            }
-            
-            // append null terminator
-            client->buffer[client->buffer_len] = '\0';
-
-            xEventGroupSetBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY);
+        if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
+            client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
         }
-    );
+        
+        // append null terminator
+        client->buffer[client->buffer_len] = '\0';
+
+        discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len);
+
+        if(!payload) {
+            DISCORD_LOGE("Fail to deserialize payload");
+            return ESP_FAIL;
+        }
+
+        if(xQueueSend(client->queue, &payload, 5000 / portTICK_PERIOD_MS) != pdPASS) { // 5sec timeout
+            DISCORD_LOGW("Fail to queue the payload");
+            discord_model_gateway_payload_free(payload);
+        }
+    }
 
     return ESP_OK;
 }
@@ -120,7 +127,7 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
 
         case WEBSOCKET_EVENT_DATA:
             if(data->op_code == WS_TRANSPORT_OPCODES_TEXT || data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
-                DC_LOCK_NO_ERR(dcgw_buffer_websocket_data(client, data));
+                dcgw_buffer_websocket_data(client, data);
             }
             break;
         
@@ -354,8 +361,11 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_p
     return ESP_OK;
 }
 
-esp_err_t dcgw_handle_buffered_data(discord_client_handle_t client) {
+esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_payload_t* payload) {
     DISCORD_LOG_FOO();
+
+    if(!payload)
+        return ESP_FAIL;
 
     if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING) {
         discord_close_code_t close_code = dcgw_close_opcode(client);
@@ -370,15 +380,6 @@ esp_err_t dcgw_handle_buffered_data(discord_client_handle_t client) {
         client->close_code = close_code;
 
         return ESP_OK;
-    }
-
-    discord_gateway_payload_t* payload;
-
-    DC_LOCK_ESP_ERR(payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len));
-    
-    if(!payload) {
-        DISCORD_LOGE("Cannot deserialize payload");
-        return ESP_FAIL;
     }
 
     if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {

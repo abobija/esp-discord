@@ -16,7 +16,7 @@ esp_err_t dcgw_start(discord_client_handle_t client);
 esp_err_t dcgw_close(discord_client_handle_t client, discord_close_reason_t reason);
 char* dcgw_close_desc(discord_client_handle_t client);
 esp_err_t dcgw_heartbeat_send_if_expired(discord_client_handle_t client);
-esp_err_t dcgw_handle_buffered_data(discord_client_handle_t client);
+esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_payload_t* payload);
 
 #ifdef __cplusplus
 }

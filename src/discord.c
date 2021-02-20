@@ -54,7 +54,7 @@ static void dc_task(void* arg) {
     bool restart_gw = false;
 
     while(client->running) {
-        DC_LOCK_BREAK(switch(client->state) {
+        switch(client->state) {
             case DISCORD_CLIENT_STATE_UNKNOWN:
                 // gateway not started yet
                 // this state will be active just a few ticks,
@@ -101,13 +101,13 @@ static void dc_task(void* arg) {
                 DISCORD_LOGE("Unhandled error occurred. Disconnecting...");
                 discord_logout(client);
                 break;
-        });
+        }
 
         if(client->state >= DISCORD_CLIENT_STATE_CONNECTING) {
-            EventBits_t bits = xEventGroupWaitBits(client->status_bits, DISCORD_CLIENT_STATUS_BIT_BUFFER_READY, pdTRUE, pdTRUE, 1000 / portTICK_PERIOD_MS); // poll every 1000ms
+            discord_gateway_payload_t* _payload = NULL;
 
-            if((DISCORD_CLIENT_STATUS_BIT_BUFFER_READY & bits) != 0) {
-                DC_LOCK_NO_ERR(dcgw_handle_buffered_data(client));
+            if(xQueueReceive(client->queue, &_payload, 1000 / portTICK_PERIOD_MS) == pdPASS) { // poll every 1 sec
+                dcgw_handle_payload(client, _payload);
             }
         } else if(DISCORD_CLIENT_STATE_DISCONNECTED == client->state && restart_gw) {
             restart_gw = false;
@@ -129,8 +129,11 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
     
-    client->lock = xSemaphoreCreateRecursiveMutex();
-    client->status_bits = xEventGroupCreate();
+    if(! (client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_gateway_payload_t*)))) {
+        DISCORD_LOGE("Fail to create queue");
+        discord_destroy(client);
+        return NULL;
+    }
 
     esp_event_loop_args_t event_args = {
         .queue_size = 1,
@@ -138,13 +141,19 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     };
 
     if (esp_event_loop_create(&event_args, &client->event_handle) != ESP_OK) {
-        DISCORD_LOGE("Cannot create event handler for discord client");
-        free(client);
+        DISCORD_LOGE("Fail to create event handler");
+        discord_destroy(client);
         return NULL;
     }
 
     client->config = dc_config_copy(config);
-    client->buffer = malloc(client->config->buffer_size + 1);
+
+    if(! (client->buffer = malloc(client->config->buffer_size + 1))) {
+        DISCORD_LOGE("Fail to allocate buffer");
+        discord_destroy(client);
+        return NULL;
+    }
+
     client->event_handler = &dc_dispatch_event;
 
     dcgw_init(client);
@@ -182,6 +191,16 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
     return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
 }
 
+static void dc_queue_flush(discord_client_handle_t client) {
+    if(!client || !client->queue) {
+        discord_gateway_payload_t* _payload = NULL;
+
+        while(xQueueReceive(client->queue, _payload, (TickType_t) 0) == pdPASS) {
+            discord_model_gateway_payload_free(_payload);
+        }
+    }
+}
+
 esp_err_t discord_logout(discord_client_handle_t client) {
     if(client == NULL)
         return ESP_ERR_INVALID_ARG;
@@ -192,12 +211,13 @@ esp_err_t discord_logout(discord_client_handle_t client) {
         DISCORD_LOGW("Client has been already disconnected");
         return ESP_OK;
     }
-    
-    DC_LOCK_ESP_ERR(
-        client->running = false;
-        dcgw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
-        dcapi_close(client);
-    );
+
+    client->running = false;
+
+    dc_queue_flush(client);
+
+    dcgw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
+    dcapi_close(client);
 
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
@@ -225,10 +245,12 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
         client->event_handle = NULL;
     }
 
-    vSemaphoreDelete(client->lock);
-    if(client->status_bits) {
-        vEventGroupDelete(client->status_bits);
+    
+    if(client->queue) {
+        dc_queue_flush(client);
+        vQueueDelete(client->queue);
     }
+
     free(client->buffer);
     dc_config_free(client->config);
     free(client);

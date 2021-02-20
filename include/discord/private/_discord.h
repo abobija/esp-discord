@@ -7,7 +7,7 @@ extern "C" {
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
+#include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "esp_event_base.h"
@@ -23,6 +23,7 @@ extern "C" {
 #define DISCORD_API_URL                  "https://discord.com/api/v8"
 #define DISCORD_API_KEEPALIVE            true
 #define DISCORD_API_BUFFER_SIZE          (3 * 1024)
+#define DISCORD_QUEUE_SIZE               (3)
 
 #define DISCORD_LOG_TAG "DISCORD"
 
@@ -37,19 +38,6 @@ extern "C" {
 
 #define DISCORD_EVENT_EMIT(event, data) client->event_handler(client, event, data)
 
-#define DC_LOCK(code, fail_to_lock_code) {\
-    if (xSemaphoreTakeRecursive(client->lock, portMAX_DELAY) != pdPASS) {\
-        DISCORD_LOGE("Could not lock");\
-        fail_to_lock_code;\
-    }\
-    code;\
-    xSemaphoreGiveRecursive(client->lock);\
-}
-
-#define DC_LOCK_NO_ERR(code) DC_LOCK(code, ({;}))
-#define DC_LOCK_BREAK(code) DC_LOCK(code, break)
-#define DC_LOCK_ESP_ERR(code) DC_LOCK(code, return ESP_FAIL)
-
 #define STRDUP(str) (str ? strdup(str) : NULL)
 
 typedef enum {
@@ -61,10 +49,6 @@ typedef enum {
     DISCORD_CLIENT_STATE_CONNECTED,
     DISCORD_CLIENT_STATE_DISCONNECTING
 } discord_client_state_t;
-
-enum {
-    DISCORD_CLIENT_STATUS_BIT_BUFFER_READY = (1 << 0)
-};
 
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
@@ -119,8 +103,7 @@ typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, disc
 struct discord_client {
     discord_client_state_t state;
     TaskHandle_t task_handle;
-    SemaphoreHandle_t lock;
-    EventGroupHandle_t status_bits;
+    QueueHandle_t queue;
     esp_event_loop_handle_t event_handle;
     discord_event_handler_t event_handler;
     discord_client_config_t* config;
