@@ -64,3 +64,7 @@ bool discord_strsw(const char* str1, const char* str2) {
     
     return i > 0 && ! str2[i];
 }
+
+bool discord_streq(const char* str1, const char* str2) {
+    return strcmp(str1, str2) == 0;
+}

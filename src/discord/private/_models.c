@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_models.h"
+#include "discord/utils.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -140,13 +141,13 @@ char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload
 }
 
 discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char* name) {
-    if(STREQ("READY", name)) {
+    if(discord_streq("READY", name)) {
         return DISCORD_GATEWAY_EVENT_READY;
-    } else if(STREQ("MESSAGE_CREATE", name)) {
+    } else if(discord_streq("MESSAGE_CREATE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_CREATE;
-    } else if(STREQ("MESSAGE_DELETE", name)) {
+    } else if(discord_streq("MESSAGE_DELETE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_DELETE;
-    } else if(STREQ("MESSAGE_UPDATE", name)) {
+    } else if(discord_streq("MESSAGE_UPDATE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE;
     }
 

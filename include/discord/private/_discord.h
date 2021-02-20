@@ -50,7 +50,6 @@ extern "C" {
 #define DC_LOCK_BREAK(code) DC_LOCK(code, break)
 #define DC_LOCK_ESP_ERR(code) DC_LOCK(code, return ESP_FAIL)
 
-#define STREQ(s1, s2) (strcmp(s1, s2) == 0)
 #define STRDUP(str) (str ? strdup(str) : NULL)
 
 typedef enum {

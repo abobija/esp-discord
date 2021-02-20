@@ -373,7 +373,7 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
                 }
 
                 // emit event only if message is not from us
-                if(! STREQ(msg->author->id, client->session->user->id)) {
+                if(! discord_streq(msg->author->id, client->session->user->id)) {
                     DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
                 }
             }
@@ -387,7 +387,7 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
                 }
 
                 // emit event only if message is not from us
-                if(! STREQ(msg->author->id, client->session->user->id)) {
+                if(! discord_streq(msg->author->id, client->session->user->id)) {
                     DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_UPDATED, msg);
                 }
             }
@@ -399,7 +399,7 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
                 if(! msg) {
                     break;
                 }
-                
+
                 DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_DELETED, msg);
             }
             break;

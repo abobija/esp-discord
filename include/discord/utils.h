@@ -27,9 +27,14 @@ uint64_t discord_tick_ms();
 char* _discord_strcat(const char* str, ...);
 
 /**
- * @returns true if str1 starts with str2
+ * @return true if str1 starts with str2
  */
 bool discord_strsw(const char* str1, const char* str2);
+
+/**
+ * @return true if str1 and str2 are equal
+ */
+bool discord_streq(const char* str1, const char* str2);
 
 #ifdef __cplusplus
 }
