@@ -5,8 +5,6 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-#define dcgw_heartbeat_init(client) dcgw_heartbeat_stop(client)
-
 static esp_err_t dcgw_heartbeat_stop(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
@@ -30,8 +28,7 @@ static esp_err_t dcgw_reset(discord_client_handle_t client) {
 
 esp_err_t dcgw_init(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
-
-    ESP_ERROR_CHECK(dcgw_heartbeat_init(client));
+    
     dcgw_reset(client);
     client->state = DISCORD_CLIENT_STATE_UNKNOWN;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
@@ -147,7 +144,7 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
         return;
     }
 
-    DISCORD_LOGD("Received WebSocket frame (event=%d, op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
+    DISCORD_LOGD("ws event (event=%d, op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
         event_id,
         data->op_code,
         data->payload_len, 
@@ -157,7 +154,6 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
 
     switch (event_id) {
         case WEBSOCKET_EVENT_CONNECTED:
-            DISCORD_LOGD("WEBSOCKET_EVENT_CONNECTED");
             client->state = DISCORD_CLIENT_STATE_CONNECTING;
             break;
 
@@ -168,22 +164,19 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
             break;
         
         case WEBSOCKET_EVENT_ERROR:
-            DISCORD_LOGD("WEBSOCKET_EVENT_ERROR");
             client->state = DISCORD_CLIENT_STATE_ERROR;
             break;
 
         case WEBSOCKET_EVENT_DISCONNECTED:
-            DISCORD_LOGD("WEBSOCKET_EVENT_DISCONNECTED");
             client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
             break;
 
         case WEBSOCKET_EVENT_CLOSED:
-            DISCORD_LOGD("WEBSOCKET_EVENT_CLOSED");
             client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
             break;
             
         default:
-            DISCORD_LOGW("WEBSOCKET_EVENT_UNKNOWN %d", event_id);
+            DISCORD_LOGW("Unknown ws event %d", event_id);
             break;
     }
 }
@@ -206,8 +199,8 @@ esp_err_t dcgw_open(discord_client_handle_t client) {
 
     client->ws = esp_websocket_client_init(&ws_cfg);
 
-    ESP_ERROR_CHECK(esp_websocket_register_events(client->ws, WEBSOCKET_EVENT_ANY, dcgw_websocket_event_handler, (void*) client));
-    ESP_ERROR_CHECK(dcgw_start(client));
+    esp_websocket_register_events(client->ws, WEBSOCKET_EVENT_ANY, dcgw_websocket_event_handler, (void*) client);
+    dcgw_start(client);
 
     return ESP_OK;
 }
