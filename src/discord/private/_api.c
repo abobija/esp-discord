@@ -173,7 +173,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
         if(client->http_buffer_record_status != ESP_OK) {
             DISCORD_LOGW("Fail to record api chunks");
             client->http_buffer_size = 0;
-        } else if(! is_error) { // copy buffer to response if there is no errors
+        } else if(! is_error) { // point response to buffer if there is no errors
             res->data = client->http_buffer;
             res->data_len = client->http_buffer_size;
         }
