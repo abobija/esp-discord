@@ -146,6 +146,8 @@ discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char
         return DISCORD_GATEWAY_EVENT_MESSAGE_CREATE;
     } else if(STREQ("MESSAGE_DELETE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_DELETE;
+    } else if(STREQ("MESSAGE_UPDATE", name)) {
+        return DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE;
     }
 
     return DISCORD_GATEWAY_EVENT_UNKNOWN;
@@ -157,6 +159,7 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
             return discord_model_gateway_session_from_cjson(cjson);
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             return discord_model_message_from_cjson(cjson);
         
@@ -175,6 +178,7 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
             return discord_model_gateway_session_free((discord_gateway_session_t*) payload->d);
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             return discord_model_message_free((discord_message_t*) payload->d);
         

@@ -368,15 +368,9 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
         case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE: {
                 discord_message_t* msg = (discord_message_t*) payload->d;
 
-                if(msg == NULL || msg->content == NULL) {
+                if(! msg || ! msg->content) {
                     break;
                 }
-
-                DISCORD_LOGD("New message (from %s#%s): %s",
-                    msg->author->username,
-                    msg->author->discriminator,
-                    msg->content
-                );
 
                 // emit event only if message is not from us
                 if(! STREQ(msg->author->id, client->session->user->id)) {
@@ -384,15 +378,28 @@ esp_err_t gw_dispatch(discord_client_handle_t client, discord_gateway_payload_t*
                 }
             }
             break;
+
+        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE: {
+                discord_message_t* msg = (discord_message_t*) payload->d;
+
+                if(! msg || ! msg->content) {
+                    break;
+                }
+
+                // emit event only if message is not from us
+                if(! STREQ(msg->author->id, client->session->user->id)) {
+                    DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_UPDATED, msg);
+                }
+            }
+            break;
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE: {
                 discord_message_t* msg = (discord_message_t*) payload->d;
 
-                if(msg == NULL) {
+                if(! msg) {
                     break;
                 }
-
-                DISCORD_LOGD("Message #%s has been deleted in channel #%s", msg->id, msg->channel_id);
+                
                 DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_DELETED, msg);
             }
             break;
