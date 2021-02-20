@@ -51,8 +51,13 @@ esp_err_t dcgw_send(discord_client_handle_t client, discord_gateway_payload_t* p
 
     DISCORD_LOGD("%s", payload_raw);
 
-    esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), portMAX_DELAY);
+    int sent_bytes = esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), 5000 / portTICK_PERIOD_MS); // 5sec timeout
     free(payload_raw);
+
+    if(sent_bytes == ESP_FAIL) {
+        DISCORD_LOGW("Fail to send data to gateway");
+        return ESP_FAIL;
+    }
 
     return ESP_OK;
 }

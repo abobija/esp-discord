@@ -10,7 +10,7 @@ DISCORD_LOG_DEFINE_BASE();
 static cJSON* _discord_model_parse(const char* json, size_t length) {
     cJSON* cjson = cJSON_ParseWithLength(json, length);
     
-    if(cjson == NULL) {
+    if(!cjson) {
         DISCORD_LOGW("JSON parsing (syntax?) error");
         return NULL;
     }
@@ -30,6 +30,9 @@ discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway
 }
 
 cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload) {
+    if(!payload)
+        return NULL;
+    
     cJSON* root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "op", payload->op);
 
@@ -55,7 +58,7 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
 }
 
 void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
-    if(payload == NULL)
+    if(!payload)
         return;
 
     switch (payload->op) {
@@ -87,9 +90,8 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
 discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json, size_t length) {
     cJSON* cjson = _discord_model_parse(json, length);
 
-    if(cjson == NULL) {
+    if(!cjson)
         return NULL;
-    }
 
     discord_gateway_payload_t* pl = discord_model_gateway_payload(
         cJSON_GetObjectItem(cjson, "op")->valueint,
@@ -171,7 +173,7 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
 }
 
 void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* payload) {
-    if(payload == NULL)
+    if(!payload)
         return;
 
     switch (payload->t) {
@@ -204,7 +206,7 @@ discord_gateway_hello_t* discord_model_gateway_hello(int heartbeat_interval) {
 }
 
 void discord_model_gateway_hello_free(discord_gateway_hello_t* hello) {
-    if(hello == NULL)
+    if(!hello)
         return;
 
     free(hello);
@@ -231,7 +233,7 @@ cJSON* discord_model_gateway_identify_properties_to_cjson(discord_gateway_identi
 }
 
 void discord_model_gateway_identify_properties_free(discord_gateway_identify_properties_t* properties) {
-    if(properties == NULL)
+    if(!properties)
         return;
 
     free(properties->$os);
@@ -261,7 +263,7 @@ cJSON* discord_model_gateway_identify_to_cjson(discord_gateway_identify_t* ident
 }
 
 void discord_model_gateway_identify_free(discord_gateway_identify_t* identify) {
-    if(identify == NULL)
+    if(!identify)
         return;
 
     free(identify->token);
@@ -270,7 +272,7 @@ void discord_model_gateway_identify_free(discord_gateway_identify_t* identify) {
 }
 
 discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJSON* root) {
-    if(root == NULL)
+    if(!root)
         return NULL;
     
     discord_gateway_session_user_t* user = calloc(1, sizeof(discord_gateway_session_user_t));
@@ -283,7 +285,7 @@ discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJ
 }
 
 void discord_model_gateway_session_user_free(discord_gateway_session_user_t* user) {
-    if(user == NULL)
+    if(!user)
         return;
     
     free(user->id);
@@ -293,7 +295,7 @@ void discord_model_gateway_session_user_free(discord_gateway_session_user_t* use
 }
 
 discord_gateway_session_t* discord_model_gateway_session_from_cjson(cJSON* root) {
-    if(root == NULL)
+    if(!root)
         return NULL;
     
     discord_gateway_session_t* id = calloc(1, sizeof(discord_gateway_session_t));
@@ -305,7 +307,7 @@ discord_gateway_session_t* discord_model_gateway_session_from_cjson(cJSON* root)
 }
 
 void discord_model_gateway_session_free(discord_gateway_session_t* id) {
-    if(id == NULL)
+    if(!id)
         return;
 
     discord_model_gateway_session_user_free(id->user);
@@ -314,7 +316,7 @@ void discord_model_gateway_session_free(discord_gateway_session_t* id) {
 }
 
 discord_user_t* discord_model_user_from_cjson(cJSON* root) {
-    if(root == NULL)
+    if(!root)
         return NULL;
     
     discord_user_t* user = calloc(1, sizeof(discord_user_t));
@@ -352,15 +354,23 @@ discord_message_t* discord_model_message(const char* id, const char* content, co
 }
 
 discord_message_t* discord_model_message_from_cjson(cJSON* root) {
-    if(root == NULL)
+    if(!root)
         return NULL;
 
+    cJSON* _id = cJSON_GetObjectItem(root, "id");
+
+    if(!_id) {
+        DISCORD_LOGW("Missing id");
+        return NULL;
+    }
+
     cJSON* _content = cJSON_GetObjectItem(root, "content");
+    cJSON* _chid = cJSON_GetObjectItem(root, "channel_id");
 
     return discord_model_message(
-        cJSON_GetObjectItem(root, "id")->valuestring,
+        _id->valuestring,
         _content ? _content->valuestring : NULL,
-        cJSON_GetObjectItem(root, "channel_id")->valuestring,
+        _chid ? _chid->valuestring : NULL,
         discord_model_user_from_cjson(cJSON_GetObjectItem(root, "author"))
     );
 }
@@ -388,9 +398,8 @@ char* discord_model_message_serialize(discord_message_t* msg) {
 discord_message_t* discord_model_message_deserialize(const char* json, size_t length) {
     cJSON* cjson = _discord_model_parse(json, length);
 
-    if(cjson == NULL) {
+    if(!cjson)
         return NULL;
-    }
 
     discord_message_t* msg = discord_model_message_from_cjson(cjson);
 

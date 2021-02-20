@@ -172,6 +172,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     if(stream_response || is_error) {
         if(client->http_buffer_record_status != ESP_OK) {
             DISCORD_LOGW("Fail to record api chunks");
+            client->http_buffer_size = 0;
         } else if(! is_error) { // copy buffer to response if there is no errors
             res->data = client->http_buffer;
             res->data_len = client->http_buffer_size;
@@ -185,11 +186,7 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     }
 
     if(is_error && client->http_buffer_size > 0) {
-        // just print raw error for now
-        DISCORD_LOGW("Error: %.*s", client->http_buffer_size, client->http_buffer);
-    }
-
-    if(is_error && ! stream_response) { // there is recorded errors but response is not requested
+        DISCORD_LOGW("Error: %.*s", client->http_buffer_size, client->http_buffer); // just print raw error for now
         client->http_buffer_size = 0;
     }
 
