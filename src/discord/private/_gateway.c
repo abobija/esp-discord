@@ -65,6 +65,36 @@ static bool dcgw_is_open(discord_client_handle_t client) {
     return client->running && client->state >= DISCORD_CLIENT_STATE_INIT;
 }
 
+static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+    if(!payload)
+        return false;
+
+    if(payload->op == DISCORD_OP_DISPATCH) {
+        if(client->state < DISCORD_CLIENT_STATE_CONNECTED && payload->t != DISCORD_GATEWAY_EVENT_READY) {
+            DISCORD_LOGW("Ignoring payload because client is not in CONNECTED state and still not receive READY payload");
+            return false;
+        }
+
+        switch(payload->t) {
+            case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
+            case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE: {
+                    discord_message_t* msg = (discord_message_t*) payload->d;
+
+                    // ignore messages which are ones from us or does not contain any content
+                    if(!msg || !msg->content || !msg->author || discord_streq(msg->author->id, client->session->user->id)) {
+                        return false;
+                    }
+                }
+                break;
+                
+            default:
+                break;
+        }
+    }
+
+    return true;
+}
+
 static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
     DISCORD_LOG_FOO();
 
@@ -94,7 +124,13 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
             return ESP_FAIL;
         }
 
-        if(xQueueSend(client->queue, &payload, 5000 / portTICK_PERIOD_MS) != pdPASS) { // 5sec timeout
+        if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
+            client->last_sequence_number = payload->s;
+        }
+
+        if(! dcgw_whether_payload_should_go_into_queue(client, payload)) {
+            discord_model_gateway_payload_free(payload);
+        } else if(xQueueSend(client->queue, &payload, 5000 / portTICK_PERIOD_MS) != pdPASS) { // 5sec timeout
             DISCORD_LOGW("Fail to queue the payload");
             discord_model_gateway_payload_free(payload);
         }
@@ -285,31 +321,26 @@ esp_err_t dcgw_identify(discord_client_handle_t client) {
 static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_payload_t* payload) {
     DISCORD_LOG_FOO();
 
-    if(client->state < DISCORD_CLIENT_STATE_CONNECTED) {
-        if(DISCORD_GATEWAY_EVENT_READY != payload->t) {
-            // maybe logout or reconnect instead of warning (?), because probably every other payload will be ignored like this one
-            DISCORD_LOGW("Ignoring payload because client is not in CONNECTED state and still not receive READY payload");
-        } else {
-            if(client->session) {
-                discord_model_gateway_session_free(client->session);
-            }
-
-            client->session = (discord_gateway_session_t*) payload->d;
-
-            // Detach pointer in order to prevent session deallocation by payload free function
-            payload->d = NULL;
-
-            client->state = DISCORD_CLIENT_STATE_CONNECTED;
-            
-            DISCORD_LOGD("Identified [%s#%s (%s), session: %s]", 
-                client->session->user->username,
-                client->session->user->discriminator,
-                client->session->user->id,
-                client->session->session_id
-            );
-
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, NULL);
+    if(DISCORD_GATEWAY_EVENT_READY == payload->t) {
+        if(client->session) {
+            discord_model_gateway_session_free(client->session);
         }
+
+        client->session = (discord_gateway_session_t*) payload->d;
+
+        // Detach pointer in order to prevent session deallocation by payload free function
+        payload->d = NULL;
+
+        client->state = DISCORD_CLIENT_STATE_CONNECTED;
+        
+        DISCORD_LOGD("Identified [%s#%s (%s), session: %s]", 
+            client->session->user->username,
+            client->session->user->discriminator,
+            client->session->user->id,
+            client->session->session_id
+        );
+
+        DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, NULL);
 
         return ESP_OK;
     }
@@ -317,39 +348,15 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_p
     // client is connected, we can handle events
     
     switch(payload->t) {
-        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE: {
-                discord_message_t* msg = (discord_message_t*) payload->d;
-
-                if(!msg || !msg->author || !msg->content) {
-                    break;
-                }
-
-                // emit event only if message is not from us
-                if(! discord_streq(msg->author->id, client->session->user->id)) {
-                    DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, msg);
-                }
-            }
+        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, payload->d);
             break;
 
-        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE: {
-                discord_message_t* msg = (discord_message_t*) payload->d;
-
-                if(!msg || !msg->author || !msg->content) {
-                    break;
-                }
-
-                // emit event only if message is not from us
-                if(! discord_streq(msg->author->id, client->session->user->id)) {
-                    DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_UPDATED, msg);
-                }
-            }
+        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_UPDATED, payload->d);
             break;
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
-            if(!payload->d) {
-                break;
-            }
-
             DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_DELETED, payload->d);
             break;
 
@@ -376,14 +383,9 @@ esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_pa
         }
 
         DISCORD_LOGD("Closing with code %d", close_code);
-
         client->close_code = close_code;
 
         return ESP_OK;
-    }
-
-    if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
-        client->last_sequence_number = payload->s;
     }
 
     DISCORD_LOGD("Received payload (op: %d)", payload->op);
