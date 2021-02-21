@@ -66,25 +66,25 @@ discord_identify_t* discord_identify_ctor(const char* token, int intents, discor
 cJSON* discord_identify_to_cjson(discord_identify_t* identify);
 void discord_identify_free(discord_identify_t* identify);
 
-discord_session_t* discord_session_ctor(const char* id, discord_user_t* user);
+discord_session_t* discord_session_ctor(char* id, discord_user_t* user);
 discord_session_t* discord_session_clone(discord_session_t* session);
 discord_session_t* discord_session_from_cjson(cJSON* root);
 
-discord_user_t* discord_user_ctor(const char* id, bool bot, const char* username, const char* discriminator);
+discord_user_t* discord_user_ctor(char* id, bool bot, char* username, char* discriminator);
 discord_user_t* discord_user_clone(discord_user_t* user);
 discord_user_t* discord_user_from_cjson(cJSON* root);
 cJSON* discord_user_to_cjson(discord_user_t* user);
 
-discord_message_t* discord_message_ctor(const char* id, const char* content, const char* channel_id, discord_user_t* author);
+discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author);
 discord_message_t* discord_message_from_cjson(cJSON* root);
 cJSON* discord_message_to_cjson(discord_message_t* msg);
 char* discord_message_serialize(discord_message_t* msg);
 discord_message_t* discord_message_deserialize(const char* json, size_t length);
 
-discord_emoji_t* discord_emoji_ctor(const char* name);
+discord_emoji_t* discord_emoji_ctor(char* name);
 discord_emoji_t* discord_emoji_from_cjson(cJSON* root);
 
-discord_message_reaction_t* discord_message_reaction_ctor(const char* user_id, const char* message_id, const char* channel_id, discord_emoji_t* emoji);
+discord_message_reaction_t* discord_message_reaction_ctor(char* user_id, char* message_id, char* channel_id, discord_emoji_t* emoji);
 discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root);
 
 #ifdef __cplusplus

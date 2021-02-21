@@ -289,10 +289,10 @@ void discord_identify_free(discord_identify_t* identify) {
     free(identify);
 }
 
-discord_session_t* discord_session_ctor(const char* id, discord_user_t* user) {
+discord_session_t* discord_session_ctor(char* id, discord_user_t* user) {
     discord_session_t* session = calloc(1, sizeof(discord_session_t));
 
-    session->session_id = STRDUP(id);
+    session->session_id = id;
     session->user = user;
 
     return session;
@@ -303,7 +303,7 @@ discord_session_t* discord_session_clone(discord_session_t* session) {
         return NULL;
 
     return discord_session_ctor(
-        session->session_id,
+        STRDUP(session->session_id),
         discord_user_clone(session->user)
     );
 }
@@ -312,19 +312,25 @@ discord_session_t* discord_session_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
 
-    return discord_session_ctor(
-        cJSON_GetObjectItem(root, "session_id")->valuestring,
+    cJSON* _id = cJSON_GetObjectItem(root, "session_id");
+
+    discord_session_t* session = discord_session_ctor(
+        _id->valuestring,
         discord_user_from_cjson(cJSON_GetObjectItem(root, "user"))
     );
+
+    _id->valuestring = NULL;
+
+    return session;
 }
 
-discord_user_t* discord_user_ctor(const char* id, bool bot, const char* username, const char* discriminator) {
+discord_user_t* discord_user_ctor(char* id, bool bot, char* username, char* discriminator) {
     discord_user_t* user = calloc(1, sizeof(discord_user_t));
 
-    user->id = STRDUP(id);
+    user->id = id;
     user->bot = bot;
-    user->username = STRDUP(username);
-    user->discriminator = STRDUP(discriminator);
+    user->username = username;
+    user->discriminator = discriminator;
 
     return user;
 }
@@ -334,10 +340,10 @@ discord_user_t* discord_user_clone(discord_user_t* user) {
         return NULL;
 
     return discord_user_ctor(
-        user->id,
+        STRDUP(user->id),
         user->bot,
-        user->username,
-        user->discriminator
+        STRDUP(user->username),
+        STRDUP(user->discriminator)
     );
 }
 
@@ -345,14 +351,24 @@ discord_user_t* discord_user_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
 
+    cJSON* _id = cJSON_GetObjectItem(root, "id");
     cJSON* _bot = cJSON_GetObjectItem(root, "bot");
+    cJSON* _username = cJSON_GetObjectItem(root, "username");
+    cJSON* _discriminator = cJSON_GetObjectItem(root, "discriminator");
 
-    return discord_user_ctor(
-        cJSON_GetObjectItem(root, "id")->valuestring,
+    discord_user_t* user = discord_user_ctor(
+        _id->valuestring,
         _bot && _bot->valueint,
-        cJSON_GetObjectItem(root, "username")->valuestring,
-        cJSON_GetObjectItem(root, "discriminator")->valuestring
+        _username->valuestring,
+        _discriminator->valuestring
     );
+
+    _id->valuestring =
+    _username->valuestring =
+    _discriminator->valuestring =
+    NULL;
+
+    return user;
 }
 
 cJSON* discord_user_to_cjson(discord_user_t* user) {
@@ -366,12 +382,12 @@ cJSON* discord_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
-discord_message_t* discord_message_ctor(const char* id, const char* content, const char* channel_id, discord_user_t* author) {
+discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
-    message->id = STRDUP(id);
-    message->content = STRDUP(content);
-    message->channel_id = STRDUP(channel_id);
+    message->id = id;
+    message->content = content;
+    message->channel_id = channel_id;
     message->author = author;
 
     return message;
@@ -389,14 +405,21 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
     }
 
     cJSON* _content = cJSON_GetObjectItem(root, "content");
-    cJSON* _chid = cJSON_GetObjectItem(root, "channel_id");
+    cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
 
-    return discord_message_ctor(
+    discord_message_t* message = discord_message_ctor(
         _id->valuestring,
-        _content ? _content->valuestring : NULL,
-        _chid ? _chid->valuestring : NULL,
+        _content->valuestring,
+        _cid->valuestring,
         discord_user_from_cjson(cJSON_GetObjectItem(root, "author"))
     );
+
+    _id->valuestring =
+    _content->valuestring =
+    _cid->valuestring
+    = NULL;
+
+    return message;
 }
 
 cJSON* discord_message_to_cjson(discord_message_t* msg) {
@@ -432,10 +455,10 @@ discord_message_t* discord_message_deserialize(const char* json, size_t length) 
     return msg;
 }
 
-discord_emoji_t* discord_emoji_ctor(const char* name) {
+discord_emoji_t* discord_emoji_ctor(char* name) {
     discord_emoji_t* emoji = calloc(1, sizeof(discord_emoji_t));
 
-    emoji->name = STRDUP(name);
+    emoji->name = name;
 
     return emoji;
 }
@@ -451,15 +474,19 @@ discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
         return NULL;
     }
 
-    return discord_emoji_ctor(_name->valuestring);
+    discord_emoji_t* emoji = discord_emoji_ctor(_name->valuestring);
+
+    _name->valuestring = NULL;
+
+    return emoji;
 }
 
-discord_message_reaction_t* discord_message_reaction_ctor(const char* user_id, const char* message_id, const char* channel_id, discord_emoji_t* emoji) {
+discord_message_reaction_t* discord_message_reaction_ctor(char* user_id, char* message_id, char* channel_id, discord_emoji_t* emoji) {
     discord_message_reaction_t* react = calloc(1, sizeof(discord_message_reaction_t));
 
-    react->user_id = STRDUP(user_id);
-    react->message_id = STRDUP(message_id);
-    react->channel_id = STRDUP(channel_id);
+    react->user_id = user_id;
+    react->message_id = message_id;
+    react->channel_id = channel_id;
     react->emoji = emoji;
 
     return react;
@@ -473,10 +500,17 @@ discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {
     cJSON* _mid = cJSON_GetObjectItem(root, "message_id");
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
 
-    return discord_message_reaction_ctor(
-        _uid ? _uid->valuestring : NULL,
-        _mid ? _mid->valuestring : NULL,
-        _cid ? _cid->valuestring : NULL,
+    discord_message_reaction_t* react = discord_message_reaction_ctor(
+        _uid->valuestring,
+        _mid->valuestring,
+        _cid->valuestring,
         discord_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
     );
+
+    _uid->valuestring =
+    _mid->valuestring =
+    _cid->valuestring =
+    NULL;
+
+    return react;
 }
