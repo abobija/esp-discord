@@ -151,6 +151,8 @@ discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char
         return DISCORD_GATEWAY_EVENT_MESSAGE_DELETE;
     } else if(discord_streq("MESSAGE_UPDATE", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE;
+    } else if(discord_streq("MESSAGE_REACTION_ADD", name)) {
+        return DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD;
     }
 
     return DISCORD_GATEWAY_EVENT_UNKNOWN;
@@ -165,6 +167,9 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
         case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             return discord_model_message_from_cjson(cjson);
+
+        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
+            return discord_model_message_reaction_from_cjson(cjson);
         
         default:
             DISCORD_LOGW("Cannot recognize event type");
@@ -184,6 +189,9 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
         case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             return discord_model_message_free((discord_message_t*) payload->d);
+
+        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
+            return discord_model_message_reaction_free((discord_message_reaction_t*) payload->d);
         
         default:
             DISCORD_LOGW("Cannot recognize event type");
@@ -406,4 +414,53 @@ discord_message_t* discord_model_message_deserialize(const char* json, size_t le
     cJSON_Delete(cjson);
 
     return msg;
+}
+
+discord_emoji_t* discord_model_emoji(const char* name) {
+    discord_emoji_t* emoji = calloc(1, sizeof(discord_emoji_t));
+
+    emoji->name = STRDUP(name);
+
+    return emoji;
+}
+
+discord_emoji_t* discord_model_emoji_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _name = cJSON_GetObjectItem(root, "name");
+
+    if(!_name) {
+        DISCORD_LOGW("Missing name");
+        return NULL;
+    }
+
+    return discord_model_emoji(_name->valuestring);
+}
+
+discord_message_reaction_t* discord_model_message_reaction(const char* user_id, const char* message_id, const char* channel_id, discord_emoji_t* emoji) {
+    discord_message_reaction_t* react = calloc(1, sizeof(discord_message_reaction_t));
+
+    react->user_id = STRDUP(user_id);
+    react->message_id = STRDUP(message_id);
+    react->channel_id = STRDUP(channel_id);
+    react->emoji = emoji;
+
+    return react;
+}
+
+discord_message_reaction_t* discord_model_message_reaction_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _uid = cJSON_GetObjectItem(root, "user_id");
+    cJSON* _mid = cJSON_GetObjectItem(root, "message_id");
+    cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
+
+    return discord_model_message_reaction(
+        _uid ? _uid->valuestring : NULL,
+        _mid ? _mid->valuestring : NULL,
+        _cid ? _cid->valuestring : NULL,
+        discord_model_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
+    );
 }

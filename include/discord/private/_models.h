@@ -4,6 +4,7 @@
 #include "cJSON.h"
 #include "discord/models/user.h"
 #include "discord/models/message.h"
+#include "discord/models/message_reaction.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,7 +18,8 @@ typedef enum {
     DISCORD_GATEWAY_EVENT_READY,
     DISCORD_GATEWAY_EVENT_MESSAGE_CREATE,
     DISCORD_GATEWAY_EVENT_MESSAGE_DELETE,
-    DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE
+    DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE,
+    DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD
 } discord_gateway_event_t;
 
 typedef void* discord_gateway_payload_data_t;
@@ -98,6 +100,12 @@ discord_message_t* discord_model_message_from_cjson(cJSON* root);
 cJSON* discord_model_message_to_cjson(discord_message_t* msg);
 char* discord_model_message_serialize(discord_message_t* msg);
 discord_message_t* discord_model_message_deserialize(const char* json, size_t length);
+
+discord_emoji_t* discord_model_emoji(const char* name);
+discord_emoji_t* discord_model_emoji_from_cjson(cJSON* root);
+
+discord_message_reaction_t* discord_model_message_reaction(const char* user_id, const char* message_id, const char* channel_id, discord_emoji_t* emoji);
+discord_message_reaction_t* discord_model_message_reaction_from_cjson(cJSON* root);
 
 #ifdef __cplusplus
 }

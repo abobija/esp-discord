@@ -3,6 +3,7 @@
 
 #include "discord.h"
 #include "discord/models/message.h"
+#include "discord/models/message_reaction.h"
 
 #ifdef __cplusplus
 extern "C" {

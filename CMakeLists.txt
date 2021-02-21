@@ -4,6 +4,8 @@ idf_component_register(
          src/discord/messages.c
          src/discord/models/user.c
          src/discord/models/message.c
+         src/discord/models/emoji.c
+         src/discord/models/message_reaction.c
          src/discord/private/_models.c
          src/discord/private/_gateway.c
          src/discord/private/_api.c

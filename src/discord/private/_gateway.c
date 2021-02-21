@@ -355,6 +355,10 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_p
         case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
             DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_DELETED, payload->d);
             break;
+        
+        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_REACTION_ADDED, payload->d);
+            break;
 
         default:
             DISCORD_LOGW("Ignored dispatch event");
