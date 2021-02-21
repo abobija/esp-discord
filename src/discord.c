@@ -193,11 +193,13 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
 
 static void dc_queue_flush(discord_client_handle_t client) {
     if(!client || !client->queue) {
-        discord_gateway_payload_t* _payload = NULL;
+        return;
+    }
+    
+    discord_gateway_payload_t* _payload = NULL;
 
-        while(xQueueReceive(client->queue, _payload, (TickType_t) 0) == pdPASS) {
-            discord_model_gateway_payload_free(_payload);
-        }
+    while(xQueueReceive(client->queue, &_payload, (TickType_t) 0) == pdPASS) {
+        discord_model_gateway_payload_free(_payload);
     }
 }
 
