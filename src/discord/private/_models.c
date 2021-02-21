@@ -9,7 +9,7 @@ DISCORD_LOG_DEFINE_BASE();
 
 static struct {
     const char* name;
-    discord_event_id_t event;
+    discord_event_t event;
 } discord_event_name_map[] = {
     { "READY",                   DISCORD_EVENT_READY },
     { "MESSAGE_CREATE",          DISCORD_EVENT_MESSAGE_RECEIVED },
@@ -19,7 +19,7 @@ static struct {
     { "MESSAGE_REACTION_REMOVE", DISCORD_EVENT_MESSAGE_REACTION_REMOVED }
 };
 
-static discord_event_id_t discord_model_event_by_name(const char* name) {
+static discord_event_t discord_model_event_by_name(const char* name) {
     size_t map_len = sizeof(discord_event_name_map) / sizeof(discord_event_name_map[0]);
 
     for(size_t i = 0; i < map_len; i++) {
@@ -42,8 +42,8 @@ static cJSON* _discord_model_parse(const char* json, size_t length) {
     return cjson;
 }
 
-discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway_payload_data_t d) {
-    discord_gateway_payload_t* pl = calloc(1, sizeof(discord_gateway_payload_t));
+discord_payload_t* discord_payload_ctor(int op, discord_payload_data_t d) {
+    discord_payload_t* pl = calloc(1, sizeof(discord_payload_t));
 
     pl->op = op;
     pl->d = d;
@@ -53,7 +53,7 @@ discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway
     return pl;
 }
 
-cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload) {
+cJSON* discord_payload_to_cjson(discord_payload_t* payload) {
     if(!payload)
         return NULL;
     
@@ -64,11 +64,11 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
 
     switch (payload->op) {
         case DISCORD_OP_HEARTBEAT:
-            cJSON_AddItemToObject(root, d, discord_model_gateway_heartbeat_to_cjson((discord_gateway_heartbeat_t*) payload->d));
+            cJSON_AddItemToObject(root, d, discord_heartbeat_to_cjson((discord_heartbeat_t*) payload->d));
             break;
 
         case DISCORD_OP_IDENTIFY:
-            cJSON_AddItemToObject(root, d, discord_model_gateway_identify_to_cjson((discord_gateway_identify_t*) payload->d));
+            cJSON_AddItemToObject(root, d, discord_identify_to_cjson((discord_identify_t*) payload->d));
             break;
         
         default:
@@ -81,17 +81,17 @@ cJSON* discord_model_gateway_payload_to_cjson(discord_gateway_payload_t* payload
     return root;
 }
 
-void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
+void discord_payload_free(discord_payload_t* payload) {
     if(!payload)
         return;
 
     switch (payload->op) {
         case DISCORD_OP_HELLO:
-            discord_model_gateway_hello_free((discord_gateway_hello_t*) payload->d);
+            discord_hello_free((discord_hello_t*) payload->d);
             break;
 
         case DISCORD_OP_DISPATCH:
-            discord_model_gateway_dispatch_event_data_free(payload);
+            discord_dispatch_event_data_free(payload);
             break;
 
         case DISCORD_OP_HEARTBEAT:
@@ -100,7 +100,7 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
             break;
 
         case DISCORD_OP_IDENTIFY:
-            discord_model_gateway_identify_free((discord_gateway_identify_t*) payload->d);
+            discord_identify_free((discord_identify_t*) payload->d);
             break;
         
         default:
@@ -111,13 +111,13 @@ void discord_model_gateway_payload_free(discord_gateway_payload_t* payload) {
     free(payload);
 }
 
-discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char* json, size_t length) {
+discord_payload_t* discord_payload_deserialize(const char* json, size_t length) {
     cJSON* cjson = _discord_model_parse(json, length);
 
     if(!cjson)
         return NULL;
 
-    discord_gateway_payload_t* pl = discord_model_gateway_payload(
+    discord_payload_t* pl = discord_payload_ctor(
         cJSON_GetObjectItem(cjson, "op")->valueint,
         NULL
     );
@@ -134,12 +134,12 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
 
     switch(pl->op) {
         case DISCORD_OP_HELLO:
-            pl->d = discord_model_gateway_hello(cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
+            pl->d = discord_hello_ctor(cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
             break;
 
         case DISCORD_OP_DISPATCH:
             pl->t = discord_model_event_by_name(cJSON_GetObjectItem(cjson, "t")->valuestring);
-            pl->d = discord_model_gateway_dispatch_event_data_from_cjson(pl->t, d);
+            pl->d = discord_dispatch_event_data_from_cjson(pl->t, d);
             break;
 
         case DISCORD_OP_HEARTBEAT_ACK:
@@ -156,9 +156,9 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
     return pl;
 }
 
-char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload) {
-    cJSON* cjson = discord_model_gateway_payload_to_cjson(payload);
-    discord_model_gateway_payload_free(payload);
+char* discord_payload_serialize(discord_payload_t* payload) {
+    cJSON* cjson = discord_payload_to_cjson(payload);
+    discord_payload_free(payload);
 
     char* payload_raw = cJSON_PrintUnformatted(cjson);
     cJSON_Delete(cjson);
@@ -166,19 +166,19 @@ char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload
     return payload_raw;
 }
 
-discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_event_id_t e, cJSON* cjson) {
+discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e, cJSON* cjson) {
     switch (e) {
         case DISCORD_EVENT_READY:
-            return discord_model_gateway_session_from_cjson(cjson);
+            return discord_session_from_cjson(cjson);
         
         case DISCORD_EVENT_MESSAGE_RECEIVED:
         case DISCORD_EVENT_MESSAGE_UPDATED:
         case DISCORD_EVENT_MESSAGE_DELETED:
-            return discord_model_message_from_cjson(cjson);
+            return discord_message_from_cjson(cjson);
 
         case DISCORD_EVENT_MESSAGE_REACTION_ADDED:
         case DISCORD_EVENT_MESSAGE_REACTION_REMOVED:
-            return discord_model_message_reaction_from_cjson(cjson);
+            return discord_message_reaction_from_cjson(cjson);
         
         default:
             DISCORD_LOGW("Cannot recognize event type");
@@ -186,22 +186,22 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
     }
 }
 
-void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* payload) {
+void discord_dispatch_event_data_free(discord_payload_t* payload) {
     if(!payload)
         return;
 
     switch (payload->t) {
         case DISCORD_EVENT_READY:
-            return discord_model_gateway_session_free((discord_gateway_session_t*) payload->d);
+            return discord_session_free((discord_session_t*) payload->d);
         
         case DISCORD_EVENT_MESSAGE_RECEIVED:
         case DISCORD_EVENT_MESSAGE_UPDATED:
         case DISCORD_EVENT_MESSAGE_DELETED:
-            return discord_model_message_free((discord_message_t*) payload->d);
+            return discord_message_free((discord_message_t*) payload->d);
 
         case DISCORD_EVENT_MESSAGE_REACTION_ADDED:
         case DISCORD_EVENT_MESSAGE_REACTION_REMOVED:
-            return discord_model_message_reaction_free((discord_message_reaction_t*) payload->d);
+            return discord_message_reaction_free((discord_message_reaction_t*) payload->d);
         
         default:
             DISCORD_LOGW("Cannot recognize event type");
@@ -209,29 +209,29 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
     }
 }
 
-cJSON* discord_model_gateway_heartbeat_to_cjson(discord_gateway_heartbeat_t* heartbeat) {
+cJSON* discord_heartbeat_to_cjson(discord_heartbeat_t* heartbeat) {
     int hb = *((int*) (heartbeat));
 
     return hb == DISCORD_NULL_SEQUENCE_NUMBER ? cJSON_CreateNull() : cJSON_CreateNumber(hb);
 }
 
-discord_gateway_hello_t* discord_model_gateway_hello(int heartbeat_interval) {
-    discord_gateway_hello_t* hello = calloc(1, sizeof(discord_gateway_hello_t));
+discord_hello_t* discord_hello_ctor(int heartbeat_interval) {
+    discord_hello_t* hello = calloc(1, sizeof(discord_hello_t));
 
     hello->heartbeat_interval = heartbeat_interval;
 
     return hello;
 }
 
-void discord_model_gateway_hello_free(discord_gateway_hello_t* hello) {
+void discord_hello_free(discord_hello_t* hello) {
     if(!hello)
         return;
 
     free(hello);
 }
 
-discord_gateway_identify_properties_t* discord_model_gateway_identify_properties(const char* $os, const char* $browser, const char* $device) {
-    discord_gateway_identify_properties_t* props = calloc(1, sizeof(discord_gateway_identify_properties_t));
+discord_identify_properties_t* discord_identify_properties_ctor(const char* $os, const char* $browser, const char* $device) {
+    discord_identify_properties_t* props = calloc(1, sizeof(discord_identify_properties_t));
 
     props->$os = strdup($os);
     props->$browser = strdup($browser);
@@ -240,7 +240,7 @@ discord_gateway_identify_properties_t* discord_model_gateway_identify_properties
     return props;
 }
 
-cJSON* discord_model_gateway_identify_properties_to_cjson(discord_gateway_identify_properties_t* properties) {
+cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* properties) {
     cJSON* root = cJSON_CreateObject();
 
     cJSON_AddStringToObject(root, "$os", properties->$os);
@@ -250,7 +250,7 @@ cJSON* discord_model_gateway_identify_properties_to_cjson(discord_gateway_identi
     return root;
 }
 
-void discord_model_gateway_identify_properties_free(discord_gateway_identify_properties_t* properties) {
+void discord_identify_properties_free(discord_identify_properties_t* properties) {
     if(!properties)
         return;
 
@@ -260,8 +260,8 @@ void discord_model_gateway_identify_properties_free(discord_gateway_identify_pro
     free(properties);
 }
 
-discord_gateway_identify_t* discord_model_gateway_identify(const char* token, int intents, discord_gateway_identify_properties_t* properties) {
-    discord_gateway_identify_t* identify = calloc(1, sizeof(discord_gateway_identify_t));
+discord_identify_t* discord_identify_ctor(const char* token, int intents, discord_identify_properties_t* properties) {
+    discord_identify_t* identify = calloc(1, sizeof(discord_identify_t));
 
     identify->token = strdup(token);
     identify->intents = intents;
@@ -270,30 +270,30 @@ discord_gateway_identify_t* discord_model_gateway_identify(const char* token, in
     return identify;
 }
 
-cJSON* discord_model_gateway_identify_to_cjson(discord_gateway_identify_t* identify) {
+cJSON* discord_identify_to_cjson(discord_identify_t* identify) {
     cJSON* root = cJSON_CreateObject();
 
     cJSON_AddStringToObject(root, "token", identify->token);
     cJSON_AddNumberToObject(root, "intents", identify->intents);
-    cJSON_AddItemToObject(root, "properties", discord_model_gateway_identify_properties_to_cjson(identify->properties));
+    cJSON_AddItemToObject(root, "properties", discord_identify_properties_to_cjson(identify->properties));
 
     return root;
 }
 
-void discord_model_gateway_identify_free(discord_gateway_identify_t* identify) {
+void discord_identify_free(discord_identify_t* identify) {
     if(!identify)
         return;
 
     free(identify->token);
-    discord_model_gateway_identify_properties_free(identify->properties);
+    discord_identify_properties_free(identify->properties);
     free(identify);
 }
 
-discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJSON* root) {
+discord_session_user_t* discord_session_user_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
     
-    discord_gateway_session_user_t* user = calloc(1, sizeof(discord_gateway_session_user_t));
+    discord_session_user_t* user = calloc(1, sizeof(discord_session_user_t));
 
     user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
     user->username = strdup(cJSON_GetObjectItem(root, "username")->valuestring);
@@ -302,7 +302,7 @@ discord_gateway_session_user_t* discord_model_gateway_session_user_from_cjson(cJ
     return user;
 }
 
-void discord_model_gateway_session_user_free(discord_gateway_session_user_t* user) {
+void discord_session_user_free(discord_session_user_t* user) {
     if(!user)
         return;
     
@@ -312,28 +312,28 @@ void discord_model_gateway_session_user_free(discord_gateway_session_user_t* use
     free(user);
 }
 
-discord_gateway_session_t* discord_model_gateway_session_from_cjson(cJSON* root) {
+discord_session_t* discord_session_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
     
-    discord_gateway_session_t* id = calloc(1, sizeof(discord_gateway_session_t));
+    discord_session_t* id = calloc(1, sizeof(discord_session_t));
 
     id->session_id = strdup(cJSON_GetObjectItem(root, "session_id")->valuestring);
-    id->user = discord_model_gateway_session_user_from_cjson(cJSON_GetObjectItem(root, "user"));
+    id->user = discord_session_user_from_cjson(cJSON_GetObjectItem(root, "user"));
 
     return id;
 }
 
-void discord_model_gateway_session_free(discord_gateway_session_t* id) {
+void discord_session_free(discord_session_t* id) {
     if(!id)
         return;
 
-    discord_model_gateway_session_user_free(id->user);
+    discord_session_user_free(id->user);
     free(id->session_id);
     free(id);
 }
 
-discord_user_t* discord_model_user_from_cjson(cJSON* root) {
+discord_user_t* discord_user_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
     
@@ -349,7 +349,7 @@ discord_user_t* discord_model_user_from_cjson(cJSON* root) {
     return user;
 }
 
-cJSON* discord_model_user_to_cjson(discord_user_t* user) {
+cJSON* discord_user_to_cjson(discord_user_t* user) {
     cJSON* root = cJSON_CreateObject();
 
     cJSON_AddStringToObject(root, "id", user->id);
@@ -360,7 +360,7 @@ cJSON* discord_model_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
-discord_message_t* discord_model_message(const char* id, const char* content, const char* channel_id, discord_user_t* author) {
+discord_message_t* discord_message_ctor(const char* id, const char* content, const char* channel_id, discord_user_t* author) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
     message->id = STRDUP(id);
@@ -371,7 +371,7 @@ discord_message_t* discord_model_message(const char* id, const char* content, co
     return message;
 }
 
-discord_message_t* discord_model_message_from_cjson(cJSON* root) {
+discord_message_t* discord_message_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
 
@@ -385,48 +385,48 @@ discord_message_t* discord_model_message_from_cjson(cJSON* root) {
     cJSON* _content = cJSON_GetObjectItem(root, "content");
     cJSON* _chid = cJSON_GetObjectItem(root, "channel_id");
 
-    return discord_model_message(
+    return discord_message_ctor(
         _id->valuestring,
         _content ? _content->valuestring : NULL,
         _chid ? _chid->valuestring : NULL,
-        discord_model_user_from_cjson(cJSON_GetObjectItem(root, "author"))
+        discord_user_from_cjson(cJSON_GetObjectItem(root, "author"))
     );
 }
 
-cJSON* discord_model_message_to_cjson(discord_message_t* msg) {
+cJSON* discord_message_to_cjson(discord_message_t* msg) {
     cJSON* root = cJSON_CreateObject();
 
     if(msg->id) cJSON_AddStringToObject(root, "id", msg->id);
     cJSON_AddStringToObject(root, "content", msg->content);
     cJSON_AddStringToObject(root, "channel_id", msg->channel_id);
-    if(msg->author) cJSON_AddItemToObject(root, "author", discord_model_user_to_cjson(msg->author));
+    if(msg->author) cJSON_AddItemToObject(root, "author", discord_user_to_cjson(msg->author));
 
     return root;
 }
 
 
-char* discord_model_message_serialize(discord_message_t* msg) {
-    cJSON* cjson = discord_model_message_to_cjson(msg);
+char* discord_message_serialize(discord_message_t* msg) {
+    cJSON* cjson = discord_message_to_cjson(msg);
     char* payload_raw = cJSON_PrintUnformatted(cjson);
     cJSON_Delete(cjson);
 
     return payload_raw;
 }
 
-discord_message_t* discord_model_message_deserialize(const char* json, size_t length) {
+discord_message_t* discord_message_deserialize(const char* json, size_t length) {
     cJSON* cjson = _discord_model_parse(json, length);
 
     if(!cjson)
         return NULL;
 
-    discord_message_t* msg = discord_model_message_from_cjson(cjson);
+    discord_message_t* msg = discord_message_from_cjson(cjson);
 
     cJSON_Delete(cjson);
 
     return msg;
 }
 
-discord_emoji_t* discord_model_emoji(const char* name) {
+discord_emoji_t* discord_emoji_ctor(const char* name) {
     discord_emoji_t* emoji = calloc(1, sizeof(discord_emoji_t));
 
     emoji->name = STRDUP(name);
@@ -434,7 +434,7 @@ discord_emoji_t* discord_model_emoji(const char* name) {
     return emoji;
 }
 
-discord_emoji_t* discord_model_emoji_from_cjson(cJSON* root) {
+discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
 
@@ -445,10 +445,10 @@ discord_emoji_t* discord_model_emoji_from_cjson(cJSON* root) {
         return NULL;
     }
 
-    return discord_model_emoji(_name->valuestring);
+    return discord_emoji_ctor(_name->valuestring);
 }
 
-discord_message_reaction_t* discord_model_message_reaction(const char* user_id, const char* message_id, const char* channel_id, discord_emoji_t* emoji) {
+discord_message_reaction_t* discord_message_reaction_ctor(const char* user_id, const char* message_id, const char* channel_id, discord_emoji_t* emoji) {
     discord_message_reaction_t* react = calloc(1, sizeof(discord_message_reaction_t));
 
     react->user_id = STRDUP(user_id);
@@ -459,7 +459,7 @@ discord_message_reaction_t* discord_model_message_reaction(const char* user_id, 
     return react;
 }
 
-discord_message_reaction_t* discord_model_message_reaction_from_cjson(cJSON* root) {
+discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
 
@@ -467,10 +467,10 @@ discord_message_reaction_t* discord_model_message_reaction_from_cjson(cJSON* roo
     cJSON* _mid = cJSON_GetObjectItem(root, "message_id");
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
 
-    return discord_model_message_reaction(
+    return discord_message_reaction_ctor(
         _uid ? _uid->valuestring : NULL,
         _mid ? _mid->valuestring : NULL,
         _cid ? _cid->valuestring : NULL,
-        discord_model_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
+        discord_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
     );
 }

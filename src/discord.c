@@ -31,7 +31,7 @@ static void dc_config_free(discord_client_config_t* config) {
     free(config);
 }
 
-static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_id_t event, discord_event_data_ptr_t data_ptr) {
+static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr) {
     DISCORD_LOG_FOO();
 
     esp_err_t err;
@@ -104,7 +104,7 @@ static void dc_task(void* arg) {
         }
 
         if(client->state >= DISCORD_CLIENT_STATE_CONNECTING) {
-            discord_gateway_payload_t* payload = NULL;
+            discord_payload_t* payload = NULL;
 
             if(xQueueReceive(client->queue, &payload, 1000 / portTICK_PERIOD_MS) == pdPASS) { // poll every 1 sec
                 dcgw_handle_payload(client, payload);
@@ -129,7 +129,7 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
     
-    if(! (client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_gateway_payload_t*)))) {
+    if(! (client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
         DISCORD_LOGE("Fail to create queue");
         discord_destroy(client);
         return NULL;
@@ -182,7 +182,7 @@ esp_err_t discord_login(discord_client_handle_t client) {
     return dcgw_open(client);
 }
 
-esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
+esp_err_t discord_register_events(discord_client_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
     if(client == NULL)
         return ESP_ERR_INVALID_ARG;
     
@@ -196,10 +196,10 @@ static void dc_queue_flush(discord_client_handle_t client) {
         return;
     }
     
-    discord_gateway_payload_t* payload = NULL;
+    discord_payload_t* payload = NULL;
 
     while(xQueueReceive(client->queue, &payload, (TickType_t) 0) == pdPASS) {
-        discord_model_gateway_payload_free(payload);
+        discord_payload_free(payload);
     }
 }
 
@@ -224,7 +224,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
 
-    discord_model_gateway_session_free(client->session);
+    discord_session_free(client->session);
     client->session = NULL;
 
     return ESP_OK;

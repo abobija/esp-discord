@@ -9,7 +9,7 @@ typedef struct {
     char* name;
 } discord_emoji_t;
 
-void discord_model_emoji_free(discord_emoji_t* emoji);
+void discord_emoji_free(discord_emoji_t* emoji);
 
 #ifdef __cplusplus
 }

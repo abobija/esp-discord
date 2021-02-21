@@ -81,7 +81,7 @@ typedef enum {
     DISCORD_EVENT_MESSAGE_DELETED,
     DISCORD_EVENT_MESSAGE_REACTION_ADDED,
     DISCORD_EVENT_MESSAGE_REACTION_REMOVED
-} discord_event_id_t;
+} discord_event_t;
 
 typedef void* discord_event_data_ptr_t;
 
@@ -92,7 +92,7 @@ typedef struct {
 
 discord_client_handle_t discord_create(const discord_client_config_t* config);
 esp_err_t discord_login(discord_client_handle_t client);
-esp_err_t discord_register_events(discord_client_handle_t client, discord_event_id_t event, esp_event_handler_t event_handler, void* event_handler_arg);
+esp_err_t discord_register_events(discord_client_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg);
 esp_err_t discord_logout(discord_client_handle_t client);
 esp_err_t discord_destroy(discord_client_handle_t client);
 

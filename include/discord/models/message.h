@@ -14,7 +14,7 @@ typedef struct {
     discord_user_t* author;
 } discord_message_t;
 
-void discord_model_message_free(discord_message_t* message);
+void discord_message_free(discord_message_t* message);
 
 #ifdef __cplusplus
 }

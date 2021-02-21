@@ -14,7 +14,7 @@ typedef struct {
     char* discriminator;
 } discord_user_t;
 
-void discord_model_user_free(discord_user_t* user);
+void discord_user_free(discord_user_t* user);
 
 #ifdef __cplusplus
 }

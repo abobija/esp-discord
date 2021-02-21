@@ -40,10 +40,10 @@ esp_err_t dcgw_init(discord_client_handle_t client) {
 /**
  * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
  */
-esp_err_t dcgw_send(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
-    char* payload_raw = discord_model_gateway_payload_serialize(payload);
+    char* payload_raw = discord_payload_serialize(payload);
 
     DISCORD_LOGD("%s", payload_raw);
 
@@ -62,7 +62,7 @@ static bool dcgw_is_open(discord_client_handle_t client) {
     return client->running && client->state >= DISCORD_CLIENT_STATE_INIT;
 }
 
-static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t client, discord_payload_t* payload) {
     if(!payload)
         return false;
 
@@ -141,7 +141,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
             return ESP_OK;
         }
 
-        discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len);
+        discord_payload_t* payload = discord_payload_deserialize(client->buffer, client->buffer_len);
 
         if(!payload) {
             DISCORD_LOGE("Fail to deserialize payload");
@@ -153,10 +153,10 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
         }
         
         if(! dcgw_whether_payload_should_go_into_queue(client, payload)) {
-            discord_model_gateway_payload_free(payload);
+            discord_payload_free(payload);
         } else if(xQueueSend(client->queue, &payload, 5000 / portTICK_PERIOD_MS) != pdPASS) { // 5sec timeout
             DISCORD_LOGW("Fail to queue the payload");
-            discord_model_gateway_payload_free(payload);
+            discord_payload_free(payload);
         }
     }
 
@@ -267,7 +267,7 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_close_reason_t reas
     return ESP_OK;
 }
 
-static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello) {
+static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_hello_t* hello) {
     if(client->heartbeater.running)
         return ESP_OK;
     
@@ -296,9 +296,9 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_client_handle_t client) {
         client->heartbeater.received_ack = false;
         int s = client->last_sequence_number;
 
-        return dcgw_send(client, discord_model_gateway_payload(
+        return dcgw_send(client, discord_payload_ctor(
             DISCORD_OP_HEARTBEAT,
-            (discord_gateway_heartbeat_t*) &s
+            (discord_heartbeat_t*) &s
         ));
     }
 
@@ -308,12 +308,12 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_client_handle_t client) {
 esp_err_t dcgw_identify(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
-    return dcgw_send(client, discord_model_gateway_payload(
+    return dcgw_send(client, discord_payload_ctor(
         DISCORD_OP_IDENTIFY,
-        discord_model_gateway_identify(
+        discord_identify_ctor(
             client->config->token,
             client->config->intents,
-            discord_model_gateway_identify_properties(
+            discord_identify_properties_ctor(
                 "freertos",
                 "esp-idf",
                 "esp32"
@@ -325,15 +325,15 @@ esp_err_t dcgw_identify(discord_client_handle_t client) {
 /**
  * @brief Check event name in payload and invoke appropriate functions
  */
-static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
     if(DISCORD_EVENT_READY == payload->t) {
         if(client->session) {
-            discord_model_gateway_session_free(client->session);
+            discord_session_free(client->session);
         }
 
-        client->session = (discord_gateway_session_t*) payload->d;
+        client->session = (discord_session_t*) payload->d;
 
         // Detach pointer in order to prevent session deallocation by payload free function
         payload->d = NULL;
@@ -360,7 +360,7 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_p
     return ESP_OK;
 }
 
-esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_payload_t* payload) {
+esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
     if(!payload)
@@ -370,8 +370,8 @@ esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_pa
 
     switch (payload->op) {
         case DISCORD_OP_HELLO:
-            dcgw_heartbeat_start(client, (discord_gateway_hello_t*) payload->d);
-            discord_model_gateway_payload_free(payload);
+            dcgw_heartbeat_start(client, (discord_hello_t*) payload->d);
+            discord_payload_free(payload);
             payload = NULL;
             dcgw_identify(client);
             break;
@@ -391,7 +391,7 @@ esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_pa
     }
 
     if(payload) {
-        discord_model_gateway_payload_free(payload);
+        discord_payload_free(payload);
     }
 
     return ESP_OK;

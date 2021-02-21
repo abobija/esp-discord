@@ -98,7 +98,7 @@ typedef struct {
     bool received_ack;
 } discord_heartbeater_t;
 
-typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, discord_event_id_t event, discord_event_data_ptr_t data_ptr);
+typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr);
 
 struct discord_client {
     discord_client_state_t state;
@@ -115,7 +115,7 @@ struct discord_client {
     bool http_buffer_record;
     esp_err_t http_buffer_record_status;
     discord_heartbeater_t heartbeater;
-    discord_gateway_session_t* session;
+    discord_session_t* session;
     int last_sequence_number;
     char* buffer;
     int buffer_len;
