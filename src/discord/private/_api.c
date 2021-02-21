@@ -90,7 +90,8 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
         .is_async = false,
         .keep_alive_enable = DISCORD_API_KEEPALIVE,
         .event_handler = dcapi_on_http_event,
-        .user_data = client
+        .user_data = client,
+        .timeout_ms = 8000
     };
 
     client->http = esp_http_client_init(&config);
