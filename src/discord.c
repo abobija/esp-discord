@@ -104,10 +104,10 @@ static void dc_task(void* arg) {
         }
 
         if(client->state >= DISCORD_CLIENT_STATE_CONNECTING) {
-            discord_gateway_payload_t* _payload = NULL;
+            discord_gateway_payload_t* payload = NULL;
 
-            if(xQueueReceive(client->queue, &_payload, 1000 / portTICK_PERIOD_MS) == pdPASS) { // poll every 1 sec
-                dcgw_handle_payload(client, _payload);
+            if(xQueueReceive(client->queue, &payload, 1000 / portTICK_PERIOD_MS) == pdPASS) { // poll every 1 sec
+                dcgw_handle_payload(client, payload);
             }
         } else if(DISCORD_CLIENT_STATE_DISCONNECTED == client->state && restart_gw) {
             restart_gw = false;
@@ -196,10 +196,10 @@ static void dc_queue_flush(discord_client_handle_t client) {
         return;
     }
     
-    discord_gateway_payload_t* _payload = NULL;
+    discord_gateway_payload_t* payload = NULL;
 
-    while(xQueueReceive(client->queue, &_payload, (TickType_t) 0) == pdPASS) {
-        discord_model_gateway_payload_free(_payload);
+    while(xQueueReceive(client->queue, &payload, (TickType_t) 0) == pdPASS) {
+        discord_model_gateway_payload_free(payload);
     }
 }
 
@@ -247,7 +247,6 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
         client->event_handle = NULL;
     }
 
-    
     if(client->queue) {
         dc_queue_flush(client);
         vQueueDelete(client->queue);

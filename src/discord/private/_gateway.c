@@ -92,6 +92,19 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
     return true;
 }
 
+static discord_close_code_t dcgw_close_opcode(discord_client_handle_t client) {
+    if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING && client->buffer_len >= 2) {
+        int code = (256 * client->buffer[0] + client->buffer[1]);
+        return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
+    }
+
+    return DISCORD_CLOSEOP_NO_CODE;
+}
+
+char* dcgw_close_desc(discord_client_handle_t client) {
+    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
+}
+
 static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
     DISCORD_LOG_FOO();
 
@@ -107,12 +120,15 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
     if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
         DISCORD_LOGD("Buffering done.");
 
-        if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
-            client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
-        }
-        
         // append null terminator
         client->buffer[client->buffer_len] = '\0';
+
+        if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
+            client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
+            client->close_code = dcgw_close_opcode(client);
+
+            return ESP_OK;
+        }
 
         discord_gateway_payload_t* payload = discord_model_gateway_payload_deserialize(client->buffer, client->buffer_len);
 
@@ -124,7 +140,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
         if(payload->s != DISCORD_NULL_SEQUENCE_NUMBER) {
             client->last_sequence_number = payload->s;
         }
-
+        
         if(! dcgw_whether_payload_should_go_into_queue(client, payload)) {
             discord_model_gateway_payload_free(payload);
         } else if(xQueueSend(client->queue, &payload, 5000 / portTICK_PERIOD_MS) != pdPASS) { // 5sec timeout
@@ -240,19 +256,6 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_close_reason_t reas
     return ESP_OK;
 }
 
-static discord_close_code_t dcgw_close_opcode(discord_client_handle_t client) {
-    if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING && client->buffer_len >= 2) {
-        int code = (256 * client->buffer[0] + client->buffer[1]);
-        return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
-    }
-
-    return DISCORD_CLOSEOP_NO_CODE;
-}
-
-char* dcgw_close_desc(discord_client_handle_t client) {
-    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
-}
-
 static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_gateway_hello_t* hello) {
     if(client->heartbeater.running)
         return ESP_OK;
@@ -366,20 +369,6 @@ esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_gateway_pa
 
     if(!payload)
         return ESP_FAIL;
-
-    if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING) {
-        discord_close_code_t close_code = dcgw_close_opcode(client);
-
-        if(close_code == DISCORD_CLOSEOP_NO_CODE) {
-            DISCORD_LOGE("Cannot read or invalid close op code");
-            return ESP_OK;
-        }
-
-        DISCORD_LOGD("Closing with code %d", close_code);
-        client->close_code = close_code;
-
-        return ESP_OK;
-    }
 
     DISCORD_LOGD("Received payload (op: %d)", payload->op);
 

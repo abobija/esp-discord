@@ -156,7 +156,8 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     DISCORD_LOGD("Sending request to API and fetching response...");
 
     if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
-        DISCORD_LOGW("Fail to fetch API response");
+        DISCORD_LOGW("Fail to fetch API response headers");
+        dcapi_flush_http(client, false);
         return dcapi_request_fail(client);
     }
 
