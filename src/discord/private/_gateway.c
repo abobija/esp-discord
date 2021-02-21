@@ -347,7 +347,9 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_payload_t
             client->session->session_id
         );
 
-        DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, NULL);
+        discord_session_t* session_clone = discord_session_clone(client->session);
+        DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, session_clone);
+        discord_session_free(session_clone);
 
         return ESP_OK;
     }

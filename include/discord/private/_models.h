@@ -3,6 +3,7 @@
 
 #include "cJSON.h"
 #include "discord.h"
+#include "discord/models/session.h"
 #include "discord/models/user.h"
 #include "discord/models/message.h"
 #include "discord/models/message_reaction.h"
@@ -40,17 +41,6 @@ typedef struct {
     discord_identify_properties_t* properties;
 } discord_identify_t;
 
-typedef struct {
-    char* id;
-    char* username;
-    char* discriminator;
-} discord_session_user_t;
-
-typedef struct {
-    char* session_id;
-    discord_session_user_t* user;
-} discord_session_t;
-
 discord_payload_t* discord_payload_ctor(int op, discord_payload_data_t d);
 cJSON* discord_payload_to_cjson(discord_payload_t* payload);
 void discord_payload_free(discord_payload_t* payload);
@@ -76,12 +66,12 @@ discord_identify_t* discord_identify_ctor(const char* token, int intents, discor
 cJSON* discord_identify_to_cjson(discord_identify_t* identify);
 void discord_identify_free(discord_identify_t* identify);
 
-discord_session_user_t* discord_session_user_from_cjson(cJSON* root);
-void discord_session_user_free(discord_session_user_t* user);
-
+discord_session_t* discord_session_ctor(const char* id, discord_user_t* user);
+discord_session_t* discord_session_clone(discord_session_t* session);
 discord_session_t* discord_session_from_cjson(cJSON* root);
-void discord_session_free(discord_session_t* id);
 
+discord_user_t* discord_user_ctor(const char* id, bool bot, const char* username, const char* discriminator);
+discord_user_t* discord_user_clone(discord_user_t* user);
 discord_user_t* discord_user_from_cjson(cJSON* root);
 cJSON* discord_user_to_cjson(discord_user_t* user);
 

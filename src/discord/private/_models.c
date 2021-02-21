@@ -289,64 +289,70 @@ void discord_identify_free(discord_identify_t* identify) {
     free(identify);
 }
 
-discord_session_user_t* discord_session_user_from_cjson(cJSON* root) {
-    if(!root)
-        return NULL;
-    
-    discord_session_user_t* user = calloc(1, sizeof(discord_session_user_t));
+discord_session_t* discord_session_ctor(const char* id, discord_user_t* user) {
+    discord_session_t* session = calloc(1, sizeof(discord_session_t));
 
-    user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
-    user->username = strdup(cJSON_GetObjectItem(root, "username")->valuestring);
-    user->discriminator = strdup(cJSON_GetObjectItem(root, "discriminator")->valuestring);
+    session->session_id = STRDUP(id);
+    session->user = user;
 
-    return user;
+    return session;
 }
 
-void discord_session_user_free(discord_session_user_t* user) {
-    if(!user)
-        return;
-    
-    free(user->id);
-    free(user->username);
-    free(user->discriminator);
-    free(user);
+discord_session_t* discord_session_clone(discord_session_t* session) {
+    if(!session)
+        return NULL;
+
+    return discord_session_ctor(
+        session->session_id,
+        discord_user_clone(session->user)
+    );
 }
 
 discord_session_t* discord_session_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
-    
-    discord_session_t* id = calloc(1, sizeof(discord_session_t));
 
-    id->session_id = strdup(cJSON_GetObjectItem(root, "session_id")->valuestring);
-    id->user = discord_session_user_from_cjson(cJSON_GetObjectItem(root, "user"));
-
-    return id;
+    return discord_session_ctor(
+        cJSON_GetObjectItem(root, "session_id")->valuestring,
+        discord_user_from_cjson(cJSON_GetObjectItem(root, "user"))
+    );
 }
 
-void discord_session_free(discord_session_t* id) {
-    if(!id)
-        return;
+discord_user_t* discord_user_ctor(const char* id, bool bot, const char* username, const char* discriminator) {
+    discord_user_t* user = calloc(1, sizeof(discord_user_t));
 
-    discord_session_user_free(id->user);
-    free(id->session_id);
-    free(id);
+    user->id = STRDUP(id);
+    user->bot = bot;
+    user->username = STRDUP(username);
+    user->discriminator = STRDUP(discriminator);
+
+    return user;
+}
+
+discord_user_t* discord_user_clone(discord_user_t* user) {
+    if(!user)
+        return NULL;
+
+    return discord_user_ctor(
+        user->id,
+        user->bot,
+        user->username,
+        user->discriminator
+    );
 }
 
 discord_user_t* discord_user_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
-    
-    discord_user_t* user = calloc(1, sizeof(discord_user_t));
 
-    user->id = strdup(cJSON_GetObjectItem(root, "id")->valuestring);
-    user->username = strdup(cJSON_GetObjectItem(root, "username")->valuestring);
-    user->discriminator = strdup(cJSON_GetObjectItem(root, "discriminator")->valuestring);
+    cJSON* _bot = cJSON_GetObjectItem(root, "bot");
 
-    cJSON* bot = cJSON_GetObjectItem(root, "bot");
-    user->bot = bot && bot->valueint;
-
-    return user;
+    return discord_user_ctor(
+        cJSON_GetObjectItem(root, "id")->valuestring,
+        _bot && _bot->valueint,
+        cJSON_GetObjectItem(root, "username")->valuestring,
+        cJSON_GetObjectItem(root, "discriminator")->valuestring
+    );
 }
 
 cJSON* discord_user_to_cjson(discord_user_t* user) {

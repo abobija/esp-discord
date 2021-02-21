@@ -2,6 +2,7 @@ idf_component_register(
     SRCS src/discord.c
          src/discord/utils.c
          src/discord/messages.c
+         src/discord/models/session.c
          src/discord/models/user.c
          src/discord/models/message.c
          src/discord/models/emoji.c
