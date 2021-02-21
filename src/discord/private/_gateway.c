@@ -67,14 +67,14 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
         return false;
 
     if(payload->op == DISCORD_OP_DISPATCH) {
-        if(client->state < DISCORD_CLIENT_STATE_CONNECTED && payload->t != DISCORD_GATEWAY_EVENT_READY) {
+        if(client->state < DISCORD_CLIENT_STATE_CONNECTED && payload->t != DISCORD_EVENT_READY) {
             DISCORD_LOGW("Ignoring payload because client is not in CONNECTED state and still not receive READY payload");
             return false;
         }
 
         switch(payload->t) {
-            case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
-            case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE: {
+            case DISCORD_EVENT_MESSAGE_RECEIVED:
+            case DISCORD_EVENT_MESSAGE_UPDATED: {
                     discord_message_t* msg = (discord_message_t*) payload->d;
 
                     // ignore our messages
@@ -84,8 +84,8 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
                 }
                 break;
             
-            case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
-            case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE: {
+            case DISCORD_EVENT_MESSAGE_REACTION_ADDED:
+            case DISCORD_EVENT_MESSAGE_REACTION_REMOVED: {
                     discord_message_reaction_t* react = (discord_message_reaction_t*) payload->d;
 
                     // ignore our reactions
@@ -328,7 +328,7 @@ esp_err_t dcgw_identify(discord_client_handle_t client) {
 static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_payload_t* payload) {
     DISCORD_LOG_FOO();
 
-    if(DISCORD_GATEWAY_EVENT_READY == payload->t) {
+    if(DISCORD_EVENT_READY == payload->t) {
         if(client->session) {
             discord_model_gateway_session_free(client->session);
         }
@@ -352,32 +352,9 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_p
         return ESP_OK;
     }
 
-    // client is connected, we can handle events
-    
-    switch(payload->t) {
-        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_RECEIVED, payload->d);
-            break;
-
-        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_UPDATED, payload->d);
-            break;
-        
-        case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_DELETED, payload->d);
-            break;
-        
-        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_REACTION_ADDED, payload->d);
-            break;
-        
-        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE:
-            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_REACTION_REMOVED, payload->d);
-            break;
-
-        default:
-            DISCORD_LOGW("Ignored dispatch event");
-            break;
+    if(payload->t > DISCORD_EVENT_CONNECTED) {
+        // client is connected, we can emit event
+        DISCORD_EVENT_EMIT(payload->t, payload->d);
     }
 
     return ESP_OK;

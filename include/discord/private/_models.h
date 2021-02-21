@@ -2,6 +2,7 @@
 #define _DISCORD_PRIVATE_MODELS_H_
 
 #include "cJSON.h"
+#include "discord.h"
 #include "discord/models/user.h"
 #include "discord/models/message.h"
 #include "discord/models/message_reaction.h"
@@ -12,24 +13,13 @@ extern "C" {
 
 #define DISCORD_NULL_SEQUENCE_NUMBER -1
 
-typedef enum {
-    DISCORD_GATEWAY_EVENT_UNKNOWN = -1,
-    DISCORD_GATEWAY_EVENT_NONE,
-    DISCORD_GATEWAY_EVENT_READY,
-    DISCORD_GATEWAY_EVENT_MESSAGE_CREATE,
-    DISCORD_GATEWAY_EVENT_MESSAGE_DELETE,
-    DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE,
-    DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD,
-    DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE
-} discord_gateway_event_t;
-
 typedef void* discord_gateway_payload_data_t;
 
 typedef struct {
     int op;
     discord_gateway_payload_data_t d;
     int s;
-    discord_gateway_event_t t;
+    discord_event_id_t t;
 } discord_gateway_payload_t;
 
 typedef struct {
@@ -70,8 +60,7 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
  */
 char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload);
 
-discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char* name);
-discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson);
+discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_event_id_t e, cJSON* cjson);
 void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* payload);
 
 discord_gateway_hello_t* discord_model_gateway_hello(int heartbeat_interval);

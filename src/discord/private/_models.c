@@ -7,6 +7,30 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+static struct {
+    const char* name;
+    discord_event_id_t event;
+} discord_event_name_map[] = {
+    { "READY",                   DISCORD_EVENT_READY },
+    { "MESSAGE_CREATE",          DISCORD_EVENT_MESSAGE_RECEIVED },
+    { "MESSAGE_DELETE",          DISCORD_EVENT_MESSAGE_DELETED },
+    { "MESSAGE_UPDATE",          DISCORD_EVENT_MESSAGE_UPDATED },
+    { "MESSAGE_REACTION_ADD",    DISCORD_EVENT_MESSAGE_REACTION_ADDED },
+    { "MESSAGE_REACTION_REMOVE", DISCORD_EVENT_MESSAGE_REACTION_REMOVED }
+};
+
+static discord_event_id_t discord_model_event_by_name(const char* name) {
+    size_t map_len = sizeof(discord_event_name_map) / sizeof(discord_event_name_map[0]);
+
+    for(size_t i = 0; i < map_len; i++) {
+        if(discord_streq(name, discord_event_name_map[i].name)) {
+            return discord_event_name_map[i].event;
+        }
+    }
+
+    return DISCORD_EVENT_UNKNOWN;
+}
+
 static cJSON* _discord_model_parse(const char* json, size_t length) {
     cJSON* cjson = cJSON_ParseWithLength(json, length);
     
@@ -24,7 +48,7 @@ discord_gateway_payload_t* discord_model_gateway_payload(int op, discord_gateway
     pl->op = op;
     pl->d = d;
     pl->s = DISCORD_NULL_SEQUENCE_NUMBER;
-    pl->t = DISCORD_GATEWAY_EVENT_NONE;
+    pl->t = DISCORD_EVENT_NONE;
 
     return pl;
 }
@@ -114,7 +138,7 @@ discord_gateway_payload_t* discord_model_gateway_payload_deserialize(const char*
             break;
 
         case DISCORD_OP_DISPATCH:
-            pl->t = discord_model_gateway_dispatch_event_name_map(cJSON_GetObjectItem(cjson, "t")->valuestring);
+            pl->t = discord_model_event_by_name(cJSON_GetObjectItem(cjson, "t")->valuestring);
             pl->d = discord_model_gateway_dispatch_event_data_from_cjson(pl->t, d);
             break;
 
@@ -142,36 +166,18 @@ char* discord_model_gateway_payload_serialize(discord_gateway_payload_t* payload
     return payload_raw;
 }
 
-discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char* name) {
-    if(discord_streq("READY", name)) {
-        return DISCORD_GATEWAY_EVENT_READY;
-    } else if(discord_streq("MESSAGE_CREATE", name)) {
-        return DISCORD_GATEWAY_EVENT_MESSAGE_CREATE;
-    } else if(discord_streq("MESSAGE_DELETE", name)) {
-        return DISCORD_GATEWAY_EVENT_MESSAGE_DELETE;
-    } else if(discord_streq("MESSAGE_UPDATE", name)) {
-        return DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE;
-    } else if(discord_streq("MESSAGE_REACTION_ADD", name)) {
-        return DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD;
-    } else if(discord_streq("MESSAGE_REACTION_REMOVE", name)) {
-        return DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE;
-    }
-
-    return DISCORD_GATEWAY_EVENT_UNKNOWN;
-}
-
-discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_gateway_event_t e, cJSON* cjson) {
+discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cjson(discord_event_id_t e, cJSON* cjson) {
     switch (e) {
-        case DISCORD_GATEWAY_EVENT_READY:
+        case DISCORD_EVENT_READY:
             return discord_model_gateway_session_from_cjson(cjson);
         
-        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
-        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
-        case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
+        case DISCORD_EVENT_MESSAGE_RECEIVED:
+        case DISCORD_EVENT_MESSAGE_UPDATED:
+        case DISCORD_EVENT_MESSAGE_DELETED:
             return discord_model_message_from_cjson(cjson);
 
-        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
-        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE:
+        case DISCORD_EVENT_MESSAGE_REACTION_ADDED:
+        case DISCORD_EVENT_MESSAGE_REACTION_REMOVED:
             return discord_model_message_reaction_from_cjson(cjson);
         
         default:
@@ -185,16 +191,16 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
         return;
 
     switch (payload->t) {
-        case DISCORD_GATEWAY_EVENT_READY:
+        case DISCORD_EVENT_READY:
             return discord_model_gateway_session_free((discord_gateway_session_t*) payload->d);
         
-        case DISCORD_GATEWAY_EVENT_MESSAGE_CREATE:
-        case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE:
-        case DISCORD_GATEWAY_EVENT_MESSAGE_DELETE:
+        case DISCORD_EVENT_MESSAGE_RECEIVED:
+        case DISCORD_EVENT_MESSAGE_UPDATED:
+        case DISCORD_EVENT_MESSAGE_DELETED:
             return discord_model_message_free((discord_message_t*) payload->d);
 
-        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
-        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE:
+        case DISCORD_EVENT_MESSAGE_REACTION_ADDED:
+        case DISCORD_EVENT_MESSAGE_REACTION_REMOVED:
             return discord_model_message_reaction_free((discord_message_reaction_t*) payload->d);
         
         default:

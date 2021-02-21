@@ -71,7 +71,10 @@ typedef struct discord_client* discord_client_handle_t;
 ESP_EVENT_DECLARE_BASE(DISCORD_EVENTS);
 
 typedef enum {
+    DISCORD_EVENT_UNKNOWN = -2,
     DISCORD_EVENT_ANY = ESP_EVENT_ANY_ID,
+    DISCORD_EVENT_NONE,
+    DISCORD_EVENT_READY,                       /*<! This event will never be fired. Use DISCORD_EVENT_CONNECTED instead. */
     DISCORD_EVENT_CONNECTED,
     DISCORD_EVENT_MESSAGE_RECEIVED,
     DISCORD_EVENT_MESSAGE_UPDATED,
