@@ -16,6 +16,10 @@ extern "C" {
 #include "_models.h"
 #include "discord.h"
 
+#ifndef CONFIG_IDF_TARGET
+#define CONFIG_IDF_TARGET "esp32"
+#endif
+
 #define DISCORD_GW_WS_BUFFER_SIZE        (512)
 #define DISCORD_DEFAULT_BUFFER_SIZE      (3 * 1024)
 #define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)

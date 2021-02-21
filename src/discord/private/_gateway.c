@@ -313,11 +313,7 @@ esp_err_t dcgw_identify(discord_client_handle_t client) {
         discord_identify_ctor_(
             client->config->token,
             client->config->intents,
-            discord_identify_properties_ctor_(
-                "freertos",
-                "esp-idf",
-                "esp32"
-            )
+            discord_identify_properties_ctor_("freertos", "esp-idf", CONFIG_IDF_TARGET)
         )
     ));
 }
