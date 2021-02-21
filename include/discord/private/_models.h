@@ -58,11 +58,11 @@ void discord_hello_free(discord_hello_t* hello);
 
 cJSON* discord_heartbeat_to_cjson(discord_heartbeat_t* heartbeat);
 
-discord_identify_properties_t* discord_identify_properties_ctor(const char* $os, const char* $browser, const char* $device);
+discord_identify_properties_t* discord_identify_properties_ctor_(const char* $os, const char* $browser, const char* $device);
 cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* properties);
 void discord_identify_properties_free(discord_identify_properties_t* properties);
 
-discord_identify_t* discord_identify_ctor(const char* token, int intents, discord_identify_properties_t* properties);
+discord_identify_t* discord_identify_ctor_(const char* token, int intents, discord_identify_properties_t* properties);
 cJSON* discord_identify_to_cjson(discord_identify_t* identify);
 void discord_identify_free(discord_identify_t* identify);
 

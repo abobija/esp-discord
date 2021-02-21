@@ -310,10 +310,10 @@ esp_err_t dcgw_identify(discord_client_handle_t client) {
 
     return dcgw_send(client, discord_payload_ctor(
         DISCORD_OP_IDENTIFY,
-        discord_identify_ctor(
+        discord_identify_ctor_(
             client->config->token,
             client->config->intents,
-            discord_identify_properties_ctor(
+            discord_identify_properties_ctor_(
                 "freertos",
                 "esp-idf",
                 "esp32"

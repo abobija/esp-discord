@@ -158,10 +158,10 @@ discord_payload_t* discord_payload_deserialize(const char* json, size_t length) 
 
 char* discord_payload_serialize(discord_payload_t* payload) {
     cJSON* cjson = discord_payload_to_cjson(payload);
-    discord_payload_free(payload);
-
     char* payload_raw = cJSON_PrintUnformatted(cjson);
     cJSON_Delete(cjson);
+
+    discord_payload_free(payload); // free after parsing bcs strings are added to cjson by reference
 
     return payload_raw;
 }
@@ -230,7 +230,7 @@ void discord_hello_free(discord_hello_t* hello) {
     free(hello);
 }
 
-discord_identify_properties_t* discord_identify_properties_ctor(const char* $os, const char* $browser, const char* $device) {
+discord_identify_properties_t* discord_identify_properties_ctor_(const char* $os, const char* $browser, const char* $device) {
     discord_identify_properties_t* props = calloc(1, sizeof(discord_identify_properties_t));
 
     props->$os = strdup($os);
@@ -243,9 +243,9 @@ discord_identify_properties_t* discord_identify_properties_ctor(const char* $os,
 cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* properties) {
     cJSON* root = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(root, "$os", properties->$os);
-    cJSON_AddStringToObject(root, "$browser", properties->$browser);
-    cJSON_AddStringToObject(root, "$device", properties->$device);
+    cJSON_AddItemToObject(root, "$os", cJSON_CreateStringReference(properties->$os));
+    cJSON_AddItemToObject(root, "$browser", cJSON_CreateStringReference(properties->$browser));
+    cJSON_AddItemToObject(root, "$device", cJSON_CreateStringReference(properties->$device));
 
     return root;
 }
@@ -260,7 +260,7 @@ void discord_identify_properties_free(discord_identify_properties_t* properties)
     free(properties);
 }
 
-discord_identify_t* discord_identify_ctor(const char* token, int intents, discord_identify_properties_t* properties) {
+discord_identify_t* discord_identify_ctor_(const char* token, int intents, discord_identify_properties_t* properties) {
     discord_identify_t* identify = calloc(1, sizeof(discord_identify_t));
 
     identify->token = strdup(token);
@@ -273,7 +273,7 @@ discord_identify_t* discord_identify_ctor(const char* token, int intents, discor
 cJSON* discord_identify_to_cjson(discord_identify_t* identify) {
     cJSON* root = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(root, "token", identify->token);
+    cJSON_AddItemToObject(root, "token", cJSON_CreateStringReference(identify->token));
     cJSON_AddNumberToObject(root, "intents", identify->intents);
     cJSON_AddItemToObject(root, "properties", discord_identify_properties_to_cjson(identify->properties));
 
@@ -374,9 +374,9 @@ discord_user_t* discord_user_from_cjson(cJSON* root) {
 cJSON* discord_user_to_cjson(discord_user_t* user) {
     cJSON* root = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(root, "id", user->id);
-    cJSON_AddStringToObject(root, "username", user->username);
-    cJSON_AddStringToObject(root, "discriminator", user->discriminator);
+    cJSON_AddItemToObject(root, "id", cJSON_CreateStringReference(user->id));
+    cJSON_AddItemToObject(root, "username", cJSON_CreateStringReference(user->username));
+    cJSON_AddItemToObject(root, "discriminator", cJSON_CreateStringReference(user->discriminator));
     cJSON_AddBoolToObject(root, "bot", user->bot);
 
     return root;
@@ -425,9 +425,9 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
 cJSON* discord_message_to_cjson(discord_message_t* msg) {
     cJSON* root = cJSON_CreateObject();
 
-    if(msg->id) cJSON_AddStringToObject(root, "id", msg->id);
-    cJSON_AddStringToObject(root, "content", msg->content);
-    cJSON_AddStringToObject(root, "channel_id", msg->channel_id);
+    if(msg->id) cJSON_AddItemToObject(root, "id", cJSON_CreateStringReference(msg->id));
+    cJSON_AddItemToObject(root, "content", cJSON_CreateStringReference(msg->content));
+    cJSON_AddItemToObject(root, "channel_id", cJSON_CreateStringReference(msg->channel_id));
     if(msg->author) cJSON_AddItemToObject(root, "author", discord_user_to_cjson(msg->author));
 
     return root;
