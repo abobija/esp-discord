@@ -77,8 +77,19 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
             case DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE: {
                     discord_message_t* msg = (discord_message_t*) payload->d;
 
-                    // ignore messages which are ones from us or does not contain any content
-                    if(!msg || !msg->content || !msg->author || discord_streq(msg->author->id, client->session->user->id)) {
+                    // ignore our messages
+                    if(!msg || !msg->author || discord_streq(msg->author->id, client->session->user->id)) {
+                        return false;
+                    }
+                }
+                break;
+            
+            case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
+            case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE: {
+                    discord_message_reaction_t* react = (discord_message_reaction_t*) payload->d;
+
+                    // ignore our reactions
+                    if(!react || !react->emoji || discord_streq(react->user_id, client->session->user->id)) {
                         return false;
                     }
                 }
@@ -358,6 +369,10 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_gateway_p
         
         case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
             DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_REACTION_ADDED, payload->d);
+            break;
+        
+        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE:
+            DISCORD_EVENT_EMIT(DISCORD_EVENT_MESSAGE_REACTION_REMOVED, payload->d);
             break;
 
         default:

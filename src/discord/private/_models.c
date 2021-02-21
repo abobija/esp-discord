@@ -153,6 +153,8 @@ discord_gateway_event_t discord_model_gateway_dispatch_event_name_map(const char
         return DISCORD_GATEWAY_EVENT_MESSAGE_UPDATE;
     } else if(discord_streq("MESSAGE_REACTION_ADD", name)) {
         return DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD;
+    } else if(discord_streq("MESSAGE_REACTION_REMOVE", name)) {
+        return DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE;
     }
 
     return DISCORD_GATEWAY_EVENT_UNKNOWN;
@@ -169,6 +171,7 @@ discord_gateway_payload_data_t discord_model_gateway_dispatch_event_data_from_cj
             return discord_model_message_from_cjson(cjson);
 
         case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE:
             return discord_model_message_reaction_from_cjson(cjson);
         
         default:
@@ -191,6 +194,7 @@ void discord_model_gateway_dispatch_event_data_free(discord_gateway_payload_t* p
             return discord_model_message_free((discord_message_t*) payload->d);
 
         case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_ADD:
+        case DISCORD_GATEWAY_EVENT_MESSAGE_REACTION_REMOVE:
             return discord_model_message_reaction_free((discord_message_reaction_t*) payload->d);
         
         default:
