@@ -128,8 +128,8 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     DISCORD_LOG_FOO();
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
-    
-    if(! (client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
+
+    if(!(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
         DISCORD_LOGE("Fail to create queue");
         discord_destroy(client);
         return NULL;
@@ -155,7 +155,6 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     }
 
     client->event_handler = &dc_dispatch_event;
-
     dcgw_init(client);
     
     return client;
@@ -250,10 +249,13 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
     if(client->queue) {
         dc_queue_flush(client);
         vQueueDelete(client->queue);
+        client->queue = NULL;
     }
 
     free(client->buffer);
+    client->buffer = NULL;
     dc_config_free(client->config);
+    client->config = NULL;
     free(client);
 
     return ESP_OK;

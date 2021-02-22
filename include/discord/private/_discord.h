@@ -8,7 +8,7 @@ extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "esp_event_base.h"
 #include "esp_websocket_client.h"
@@ -25,8 +25,8 @@ extern "C" {
 #define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)
 #define DISCORD_DEFAULT_TASK_PRIORITY    (4)
 #define DISCORD_API_URL                  "https://discord.com/api/v8"
-#define DISCORD_API_KEEPALIVE            true
 #define DISCORD_API_BUFFER_SIZE          (3 * 1024)
+#define DISCORD_API_TIMEOUT_MS           (8000)
 #define DISCORD_QUEUE_SIZE               (3)
 
 #define DISCORD_LOG_TAG "DISCORD"
@@ -105,14 +105,15 @@ typedef struct {
 typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr);
 
 struct discord_client {
+    bool running;
     discord_client_state_t state;
     TaskHandle_t task_handle;
     QueueHandle_t queue;
     esp_event_loop_handle_t event_handle;
     discord_event_handler_t event_handler;
     discord_client_config_t* config;
-    bool running;
     esp_websocket_client_handle_t ws;
+    SemaphoreHandle_t api_lock;
     esp_http_client_handle_t http;
     char* http_buffer;
     int http_buffer_size;
