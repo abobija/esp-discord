@@ -265,18 +265,11 @@ esp_err_t dcgw_start(discord_client_handle_t client) {
 esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reason_t reason) {
     DISCORD_LOG_FOO();
 
-    if(! dcgw_is_open(client)) {
-        DISCORD_LOGD("Already closed");
-        return ESP_OK;
-    }
-
     // do not set client status in this function
     // it will be automatically set in ws task
 
     xSemaphoreTake(client->gw_lock, portMAX_DELAY); // wait to unlock
-
     client->close_reason = reason;
-
     dcgw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     
@@ -286,7 +279,6 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reaso
 
     client->buffer_len = 0;
     dcgw_queue_flush(client);
-
     xSemaphoreGive(client->gw_lock);
 
     return ESP_OK;
@@ -311,6 +303,8 @@ esp_err_t dcgw_destroy(discord_client_handle_t client) {
         vQueueDelete(client->queue);
         client->queue = NULL;
     }
+
+    client->state = DISCORD_STATE_UNKNOWN;
 
     return ESP_OK;
 }

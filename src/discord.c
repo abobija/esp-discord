@@ -9,6 +9,8 @@
 #include "esp_log.h"
 #include "esp_websocket_client.h"
 
+#define DISCORD_STOPPED_BIT (1 << 0)
+
 DISCORD_LOG_DEFINE_BASE();
 
 ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
@@ -47,6 +49,23 @@ static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event
     return esp_event_loop_run(client->event_handle, 0);
 }
 
+static esp_err_t dc_shutdown(discord_client_handle_t client) {
+    if(!client)
+        return ESP_ERR_INVALID_ARG;
+
+    DISCORD_LOG_FOO();
+
+    client->running = false;
+    dcgw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
+    esp_websocket_client_destroy(client->ws);
+    client->ws = NULL;
+    dcapi_close(client);
+    discord_session_free(client->session);
+    client->session = NULL;
+
+    return ESP_OK;
+}
+
 static void dc_task(void* arg) {
     DISCORD_LOG_FOO();
 
@@ -68,19 +87,19 @@ static void dc_task(void* arg) {
                         client->close_code = DISCORD_CLOSEOP_NO_CODE;
                     }
 
-                    discord_logout(client);
+                    dc_shutdown(client);
                 } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
                     restart_gw = true;
                 } else {
                     DISCORD_LOGW("Disconnection requested but not handled");
-                    discord_logout(client);
+                    dc_shutdown(client);
                 }
 
                 break;
             
             case DISCORD_STATE_ERROR:
                 DISCORD_LOGE("Unhandled error occurred. Disconnecting...");
-                discord_logout(client);
+                dc_shutdown(client);
                 break;
 
             default: // ignore other states
@@ -102,7 +121,9 @@ static void dc_task(void* arg) {
         }
     }
 
-    DISCORD_LOGD("Task exit...");
+    
+    xEventGroupSetBits(client->bits, DISCORD_STOPPED_BIT);
+    DISCORD_LOGD("Task exit.");
     vTaskDelete(NULL);
 }
 
@@ -115,6 +136,12 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
         .queue_size = 1,
         .task_name = NULL // no task will be created
     };
+
+    if(!(client->bits = xEventGroupCreate())) {
+        DISCORD_LOGE("Fail to create bits group");
+        discord_destroy(client);
+        return NULL;
+    }
 
     if (esp_event_loop_create(&event_args, &client->event_handle) != ESP_OK) {
         DISCORD_LOGE("Fail to create event handler");
@@ -146,6 +173,7 @@ esp_err_t discord_login(discord_client_handle_t client) {
     }
 
     client->running = true;
+    xEventGroupClearBits(client->bits, DISCORD_STOPPED_BIT);
 
     if (xTaskCreate(dc_task, "discord_task", DISCORD_DEFAULT_TASK_STACK_SIZE, client, DISCORD_DEFAULT_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
         DISCORD_LOGE("Cannot create discord task");
@@ -171,19 +199,19 @@ esp_err_t discord_logout(discord_client_handle_t client) {
 
     DISCORD_LOG_FOO();
 
+    if (xTaskGetCurrentTaskHandle() == client->task_handle) {
+        DISCORD_LOGE("Cannot logout from event handler");
+        return ESP_FAIL;
+    }
+
     if(!client->running) {
-        DISCORD_LOGW("Already disconnected");
+        DISCORD_LOGW("Already logged out");
         return ESP_OK;
     }
 
     client->running = false;
-
-    dcgw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
-    esp_websocket_client_destroy(client->ws);
-    client->ws = NULL;
-    dcapi_close(client);
-    discord_session_free(client->session);
-    client->session = NULL;
+    xEventGroupWaitBits(client->bits, DISCORD_STOPPED_BIT, pdFALSE, pdTRUE, portMAX_DELAY); // wait for the discord task to be stopped
+    dc_shutdown(client);
 
     return ESP_OK;
 }
@@ -193,18 +221,24 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
         return ESP_ERR_INVALID_ARG;
     
     DISCORD_LOG_FOO();
-
-    client->event_handler = NULL;
-
-    if(client->running) {
-        discord_logout(client);
+    
+    if (xTaskGetCurrentTaskHandle() == client->task_handle) {
+        DISCORD_LOGE("Cannot destroy from event handler");
+        return ESP_FAIL;
     }
 
+    discord_logout(client);
+    client->event_handler = NULL;
     dcgw_destroy(client);
 
     if(client->event_handle) {
         esp_event_loop_delete(client->event_handle);
         client->event_handle = NULL;
+    }
+
+    if(client->bits) {
+        vEventGroupDelete(client->bits);
+        client->bits = NULL;
     }
 
     dc_config_free(client->config);

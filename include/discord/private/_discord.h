@@ -9,6 +9,7 @@ extern "C" {
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/event_groups.h"
 #include "esp_log.h"
 #include "esp_event_base.h"
 #include "esp_websocket_client.h"
@@ -109,6 +110,7 @@ typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, disc
 
 struct discord_client {
     bool running;
+    EventGroupHandle_t bits;
     discord_gateway_state_t state;
     TaskHandle_t task_handle;
     QueueHandle_t queue;
