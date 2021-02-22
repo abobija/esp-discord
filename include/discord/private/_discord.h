@@ -20,6 +20,7 @@ extern "C" {
 #define CONFIG_IDF_TARGET "esp32"
 #endif
 
+#define DISCORD_GW_URL                   "wss://gateway.discord.gg/?v=8&encoding=json"
 #define DISCORD_GW_WS_BUFFER_SIZE        (512)
 #define DISCORD_DEFAULT_BUFFER_SIZE      (3 * 1024)
 #define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)
@@ -57,7 +58,8 @@ typedef enum {
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
     DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED,
-    DISCORD_CLOSE_REASON_LOGOUT
+    DISCORD_CLOSE_REASON_LOGOUT,
+    DISCORD_CLOSE_REASON_DESTROY
 } discord_close_reason_t;
 
 enum {
@@ -112,6 +114,7 @@ struct discord_client {
     esp_event_loop_handle_t event_handle;
     discord_event_handler_t event_handler;
     discord_client_config_t* config;
+    SemaphoreHandle_t gw_lock;
     esp_websocket_client_handle_t ws;
     SemaphoreHandle_t api_lock;
     esp_http_client_handle_t http;

@@ -16,23 +16,26 @@ static esp_err_t dcgw_heartbeat_stop(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-static esp_err_t dcgw_reset(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-    
-    dcgw_heartbeat_stop(client);
-    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    client->buffer_len = 0;
-
-    return ESP_OK;
-}
-
 esp_err_t dcgw_init(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
     
-    dcgw_reset(client);
+    if(!(client->gw_lock = xSemaphoreCreateMutex()) ||
+       !(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
+        DISCORD_LOGE("Fail to create mutex/queue");
+        return ESP_FAIL;
+    }
+
+    if(!(client->buffer = malloc(client->config->buffer_size + 1))) {
+        DISCORD_LOGE("Fail to allocate buffer");
+        return ESP_FAIL;
+    }
+
     client->state = DISCORD_CLIENT_STATE_UNKNOWN;
+    dcgw_heartbeat_stop(client);
+    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
     client->close_code = DISCORD_CLOSEOP_NO_CODE;
+    client->buffer_len = 0;
 
     return ESP_OK;
 }
@@ -43,6 +46,11 @@ esp_err_t dcgw_init(discord_client_handle_t client) {
 esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
+    if(xSemaphoreTake(client->gw_lock, 5000 / portTICK_PERIOD_MS) != pdTRUE) { // 5sec timeout
+        DISCORD_LOGW("Gateway is locked");
+        return ESP_FAIL;
+    }
+
     char* payload_raw = discord_payload_serialize(payload);
 
     DISCORD_LOGD("%s", payload_raw);
@@ -52,8 +60,11 @@ esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) 
 
     if(sent_bytes == ESP_FAIL) {
         DISCORD_LOGW("Fail to send data to gateway");
+        xSemaphoreGive(client->gw_lock);
         return ESP_FAIL;
     }
+    
+    xSemaphoreGive(client->gw_lock);
 
     return ESP_OK;
 }
@@ -103,7 +114,7 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
     return true;
 }
 
-static discord_close_code_t dcgw_close_opcode(discord_client_handle_t client) {
+static discord_close_code_t dcgw_get_close_opcode(discord_client_handle_t client) {
     if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING && client->buffer_len >= 2) {
         int code = (256 * client->buffer[0] + client->buffer[1]);
         return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
@@ -112,7 +123,7 @@ static discord_close_code_t dcgw_close_opcode(discord_client_handle_t client) {
     return DISCORD_CLOSEOP_NO_CODE;
 }
 
-char* dcgw_close_desc(discord_client_handle_t client) {
+char* dcgw_get_close_desc(discord_client_handle_t client) {
     return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
 }
 
@@ -136,7 +147,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
 
         if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
             client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
-            client->close_code = dcgw_close_opcode(client);
+            client->close_code = dcgw_get_close_opcode(client);
 
             return ESP_OK;
         }
@@ -220,7 +231,7 @@ esp_err_t dcgw_open(discord_client_handle_t client) {
     }
 
     esp_websocket_client_config_t ws_cfg = {
-        .uri = "wss://gateway.discord.gg/?v=8&encoding=json",
+        .uri = DISCORD_GW_URL,
         .buffer_size = DISCORD_GW_WS_BUFFER_SIZE
     };
 
@@ -255,16 +266,56 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_close_reason_t reas
 
     // do not set client status in this function
     // it will be automatically set in ws task
-    
+
+    xSemaphoreTake(client->gw_lock, portMAX_DELAY); // wait to unlock
+
     client->close_reason = reason;
 
+    dcgw_heartbeat_stop(client);
+    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+    
     if(esp_websocket_client_is_connected(client->ws)) {
         esp_websocket_client_close(client->ws, portMAX_DELAY);
     }
 
-    dcgw_reset(client);
+    client->buffer_len = 0;
+    dcgw_queue_flush(client);
 
     return ESP_OK;
+}
+
+esp_err_t dcgw_destroy(discord_client_handle_t client) {
+    if(dcgw_is_open(client)) {
+        dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
+    }
+
+    free(client->buffer);
+    client->buffer = NULL;
+
+    if(client->gw_lock) {
+        vSemaphoreDelete(client->gw_lock);
+        client->gw_lock = NULL;
+    }
+
+    if(client->queue) {
+        dcgw_queue_flush(client);
+        vQueueDelete(client->queue);
+        client->queue = NULL;
+    }
+
+    return ESP_OK;
+}
+
+void dcgw_queue_flush(discord_client_handle_t client) {
+    if(!client || !client->queue) {
+        return;
+    }
+    
+    discord_payload_t* payload = NULL;
+
+    while(xQueueReceive(client->queue, &payload, (TickType_t) 0) == pdPASS) {
+        discord_payload_free(payload);
+    }
 }
 
 static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_hello_t* hello) {

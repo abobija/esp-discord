@@ -83,7 +83,7 @@ static void dc_task(void* arg) {
                     if(client->close_code == DISCORD_CLOSEOP_NO_CODE) {
                         DISCORD_LOGE("Connection closed with unknown reason");
                     } else {
-                        DISCORD_LOGE("Connection closed with code %d: %s", client->close_code, dcgw_close_desc(client));
+                        DISCORD_LOGE("Connection closed with code %d: %s", client->close_code, dcgw_get_close_desc(client));
                         client->close_code = DISCORD_CLOSEOP_NO_CODE;
                     }
 
@@ -129,12 +129,6 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
 
     discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
 
-    if(!(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
-        DISCORD_LOGE("Fail to create queue");
-        discord_destroy(client);
-        return NULL;
-    }
-
     esp_event_loop_args_t event_args = {
         .queue_size = 1,
         .task_name = NULL // no task will be created
@@ -147,15 +141,13 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     }
 
     client->config = dc_config_copy(config);
+    client->event_handler = &dc_dispatch_event;
 
-    if(! (client->buffer = malloc(client->config->buffer_size + 1))) {
-        DISCORD_LOGE("Fail to allocate buffer");
+    if(dcgw_init(client) != ESP_OK) {
+        DISCORD_LOGE("Fail to init gateway");
         discord_destroy(client);
         return NULL;
     }
-
-    client->event_handler = &dc_dispatch_event;
-    dcgw_init(client);
     
     return client;
 }
@@ -190,18 +182,6 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
     return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
 }
 
-static void dc_queue_flush(discord_client_handle_t client) {
-    if(!client || !client->queue) {
-        return;
-    }
-    
-    discord_payload_t* payload = NULL;
-
-    while(xQueueReceive(client->queue, &payload, (TickType_t) 0) == pdPASS) {
-        discord_payload_free(payload);
-    }
-}
-
 esp_err_t discord_logout(discord_client_handle_t client) {
     if(client == NULL)
         return ESP_ERR_INVALID_ARG;
@@ -209,20 +189,16 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(! client->running) {
-        DISCORD_LOGW("Client has been already disconnected");
+        DISCORD_LOGW("Already disconnected");
         return ESP_OK;
     }
 
     client->running = false;
 
-    dc_queue_flush(client);
-
     dcgw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
-    dcapi_close(client);
-
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
-
+    dcapi_close(client);
     discord_session_free(client->session);
     client->session = NULL;
 
@@ -241,19 +217,13 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
         discord_logout(client);
     }
 
+    dcgw_destroy(client);
+
     if(client->event_handle) {
         esp_event_loop_delete(client->event_handle);
         client->event_handle = NULL;
     }
 
-    if(client->queue) {
-        dc_queue_flush(client);
-        vQueueDelete(client->queue);
-        client->queue = NULL;
-    }
-
-    free(client->buffer);
-    client->buffer = NULL;
     dc_config_free(client->config);
     client->config = NULL;
     free(client);
