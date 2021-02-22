@@ -16,8 +16,7 @@ extern "C" {
 
 /**
  * @brief Get time in miliseconds since boot
- * @return number of miliseconds since esp_timer_init was called (this normally
- *          happens early during application startup).
+ * @return number of miliseconds since esp_timer_init was called (this normally happens early during application startup)
  */
 uint64_t discord_tick_ms();
 
