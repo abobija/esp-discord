@@ -56,10 +56,8 @@ static esp_err_t dc_shutdown(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
     client->running = false;
-    dcgw_close(client, DISCORD_CLOSE_REASON_LOGOUT);
-    esp_websocket_client_destroy(client->ws);
-    client->ws = NULL;
-    dcapi_close(client);
+    dcgw_destroy(client);
+    dcapi_destroy(client);
     discord_session_free(client->session);
     client->session = NULL;
 
@@ -121,7 +119,7 @@ static void dc_task(void* arg) {
         }
     }
 
-    
+
     xEventGroupSetBits(client->bits, DISCORD_STOPPED_BIT);
     DISCORD_LOGD("Task exit.");
     vTaskDelete(NULL);
@@ -229,7 +227,6 @@ esp_err_t discord_destroy(discord_client_handle_t client) {
 
     discord_logout(client);
     client->event_handler = NULL;
-    dcgw_destroy(client);
 
     if(client->event_handle) {
         esp_event_loop_delete(client->event_handle);

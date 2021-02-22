@@ -43,7 +43,7 @@ esp_err_t dcapi_post_(discord_client_handle_t client, char* uri, char* data);
  */
 discord_api_response_t* dcapi_put(discord_client_handle_t client, char* uri, char* data, bool stream);
 esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data);
-esp_err_t dcapi_close(discord_client_handle_t client);
+esp_err_t dcapi_destroy(discord_client_handle_t client);
 
 char* dcapi_urlencode(const char* str);
 

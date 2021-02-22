@@ -10,6 +10,9 @@ extern "C" {
 #include "_models.h"
 
 esp_err_t dcgw_init(discord_client_handle_t client);
+/**
+ * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
+ */
 esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload);
 bool dcgw_is_open(discord_client_handle_t client);
 esp_err_t dcgw_open(discord_client_handle_t client);

@@ -91,7 +91,7 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
        !(client->http_buffer = malloc(DISCORD_API_BUFFER_SIZE)) ||
        !(client->http = esp_http_client_init(&config))) {
         DISCORD_LOGW("Cannot allocate api. No memory.");
-        dcapi_close(client);
+        dcapi_destroy(client);
         return ESP_FAIL;
     }
 
@@ -218,7 +218,7 @@ esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data) {
     return err;
 }
 
-esp_err_t dcapi_close(discord_client_handle_t client) {
+esp_err_t dcapi_destroy(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(client->api_lock) {

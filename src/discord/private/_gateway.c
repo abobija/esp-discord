@@ -16,64 +16,6 @@ static esp_err_t dcgw_heartbeat_stop(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-esp_err_t dcgw_init(discord_client_handle_t client) {
-    DISCORD_LOG_FOO();
-
-    if(client->state >= DISCORD_STATE_INIT) {
-        DISCORD_LOGW("Already inited");
-        return ESP_OK;
-    }
-    
-    if(!(client->gw_lock = xSemaphoreCreateMutex()) ||
-       !(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
-        DISCORD_LOGE("Fail to create mutex/queue");
-        return ESP_FAIL;
-    }
-
-    if(!(client->buffer = malloc(client->config->buffer_size + 1))) {
-        DISCORD_LOGE("Fail to allocate buffer");
-        return ESP_FAIL;
-    }
-
-    dcgw_heartbeat_stop(client);
-    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
-    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
-    client->close_code = DISCORD_CLOSEOP_NO_CODE;
-    client->buffer_len = 0;
-    client->state = DISCORD_STATE_INIT;
-
-    return ESP_OK;
-}
-
-/**
- * @brief Send payload (serialized to json) to gateway. Payload will be automatically freed
- */
-esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) {
-    DISCORD_LOG_FOO();
-
-    if(xSemaphoreTake(client->gw_lock, 5000 / portTICK_PERIOD_MS) != pdTRUE) { // 5sec timeout
-        DISCORD_LOGW("Gateway is locked");
-        return ESP_FAIL;
-    }
-
-    char* payload_raw = discord_payload_serialize(payload);
-
-    DISCORD_LOGD("%s", payload_raw);
-
-    int sent_bytes = esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), 5000 / portTICK_PERIOD_MS); // 5sec timeout
-    free(payload_raw);
-
-    if(sent_bytes == ESP_FAIL) {
-        DISCORD_LOGW("Fail to send data to gateway");
-        xSemaphoreGive(client->gw_lock);
-        return ESP_FAIL;
-    }
-    
-    xSemaphoreGive(client->gw_lock);
-
-    return ESP_OK;
-}
-
 static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t client, discord_payload_t* payload) {
     if(!payload)
         return false;
@@ -122,10 +64,6 @@ static discord_close_code_t dcgw_get_close_opcode(discord_client_handle_t client
     }
 
     return DISCORD_CLOSEOP_NO_CODE;
-}
-
-char* dcgw_get_close_desc(discord_client_handle_t client) {
-    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
 }
 
 static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
@@ -220,6 +158,82 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
     }
 }
 
+esp_err_t dcgw_init(discord_client_handle_t client) {
+    DISCORD_LOG_FOO();
+
+    if(client->state >= DISCORD_STATE_INIT) {
+        DISCORD_LOGW("Already inited");
+        return ESP_OK;
+    }
+    
+    if(!(client->gw_lock = xSemaphoreCreateMutex()) ||
+       !(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
+        DISCORD_LOGE("Fail to create mutex/queue");
+        return ESP_FAIL;
+    }
+
+    if(!(client->buffer = malloc(client->config->buffer_size + 1))) {
+        DISCORD_LOGE("Fail to allocate buffer");
+        return ESP_FAIL;
+    }
+
+    dcgw_heartbeat_stop(client);
+    client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
+    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
+    client->close_code = DISCORD_CLOSEOP_NO_CODE;
+    client->buffer_len = 0;
+    client->state = DISCORD_STATE_INIT;
+
+    esp_websocket_client_config_t ws_cfg = {
+        .uri = DISCORD_GW_URL,
+        .buffer_size = DISCORD_GW_WS_BUFFER_SIZE
+    };
+
+    if(!(client->ws = esp_websocket_client_init(&ws_cfg))) {
+        DISCORD_LOGE("Fail to create ws client");
+        dcgw_destroy(client);
+        return ESP_FAIL;
+    }
+
+    if(esp_websocket_register_events(client->ws, WEBSOCKET_EVENT_ANY, dcgw_websocket_event_handler, (void*) client) != ESP_OK) {
+        DISCORD_LOGE("Fail to register ws handler");
+        dcgw_destroy(client);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) {
+    DISCORD_LOG_FOO();
+
+    if(xSemaphoreTake(client->gw_lock, 5000 / portTICK_PERIOD_MS) != pdTRUE) { // 5sec timeout
+        DISCORD_LOGW("Gateway is locked");
+        return ESP_FAIL;
+    }
+
+    char* payload_raw = discord_payload_serialize(payload);
+
+    DISCORD_LOGD("%s", payload_raw);
+
+    int sent_bytes = esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), 5000 / portTICK_PERIOD_MS); // 5sec timeout
+    free(payload_raw);
+
+    if(sent_bytes == ESP_FAIL) {
+        DISCORD_LOGW("Fail to send data to gateway");
+        xSemaphoreGive(client->gw_lock);
+        return ESP_FAIL;
+    }
+    
+    xSemaphoreGive(client->gw_lock);
+
+    return ESP_OK;
+}
+
+char* dcgw_get_close_desc(discord_client_handle_t client) {
+    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
+}
+
 bool dcgw_is_open(discord_client_handle_t client) {
     return client->running && client->state >= DISCORD_STATE_OPEN;
 }
@@ -235,17 +249,7 @@ esp_err_t dcgw_open(discord_client_handle_t client) {
         return ESP_OK;
     }
 
-    esp_websocket_client_config_t ws_cfg = {
-        .uri = DISCORD_GW_URL,
-        .buffer_size = DISCORD_GW_WS_BUFFER_SIZE
-    };
-
-    client->ws = esp_websocket_client_init(&ws_cfg);
-
-    esp_websocket_register_events(client->ws, WEBSOCKET_EVENT_ANY, dcgw_websocket_event_handler, (void*) client);
-    dcgw_start(client);
-
-    return ESP_OK;
+    return dcgw_start(client);
 }
 
 esp_err_t dcgw_start(discord_client_handle_t client) {
@@ -257,8 +261,11 @@ esp_err_t dcgw_start(discord_client_handle_t client) {
     }
     
     esp_err_t err = esp_websocket_client_start(client->ws);
-    client->state = DISCORD_STATE_OPEN;
 
+    if(err == ESP_OK) {
+        client->state = DISCORD_STATE_OPEN;
+    }
+    
     return err;
 }
 
@@ -285,10 +292,11 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reaso
 }
 
 esp_err_t dcgw_destroy(discord_client_handle_t client) {
-    if(dcgw_is_open(client)) {
-        dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
-    }
+    DISCORD_LOG_FOO();
 
+    dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
+    esp_websocket_client_destroy(client->ws);
+    client->ws = NULL;
     free(client->buffer);
     client->buffer = NULL;
 
@@ -327,8 +335,7 @@ static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_he
     
     DISCORD_LOG_FOO();
     
-    // Set ack to true to prevent first ack checking
-    client->heartbeater.received_ack = true;
+    client->heartbeater.received_ack = true; // True to prevent first ack checking
     client->heartbeater.interval = hello->heartbeat_interval;
     client->heartbeater.tick_ms = discord_tick_ms();
     client->heartbeater.running = true;
