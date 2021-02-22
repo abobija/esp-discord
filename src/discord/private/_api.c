@@ -71,7 +71,7 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
 
     DISCORD_LOG_FOO();
 
-    if(client->state < DISCORD_CLIENT_STATE_CONNECTED) {
+    if(client->state < DISCORD_STATE_CONNECTED) {
         DISCORD_LOGW("API can be initialized only if client is in CONNECTED state");
         return ESP_FAIL;
     }

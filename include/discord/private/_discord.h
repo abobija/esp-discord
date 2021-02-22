@@ -46,21 +46,22 @@ extern "C" {
 #define STRDUP(str) (str ? strdup(str) : NULL)
 
 typedef enum {
-    DISCORD_CLIENT_STATE_ERROR = -2,
-    DISCORD_CLIENT_STATE_DISCONNECTED = -1,
-    DISCORD_CLIENT_STATE_UNKNOWN,
-    DISCORD_CLIENT_STATE_INIT,
-    DISCORD_CLIENT_STATE_CONNECTING,
-    DISCORD_CLIENT_STATE_CONNECTED,
-    DISCORD_CLIENT_STATE_DISCONNECTING
-} discord_client_state_t;
+    DISCORD_STATE_ERROR = -2,
+    DISCORD_STATE_DISCONNECTED = -1,   /*<! Disconnected from gateway */
+    DISCORD_STATE_UNKNOWN,             /*<! Not initialized */
+    DISCORD_STATE_INIT,                /*<! Initialized but not open */
+    DISCORD_STATE_OPEN,                /*<! Open and waiting to connect with gateway WebSocket server */
+    DISCORD_STATE_CONNECTING,          /*<! Connected with gateway WebSocket server and waiting to identify... */
+    DISCORD_STATE_CONNECTED,           /*<! Fully connected and identified with gateway */
+    DISCORD_STATE_DISCONNECTING        /*<! In process of disconnection from gateway */
+} discord_gateway_state_t;
 
 typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
     DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED,
     DISCORD_CLOSE_REASON_LOGOUT,
     DISCORD_CLOSE_REASON_DESTROY
-} discord_close_reason_t;
+} discord_gateway_close_reason_t;
 
 enum {
     DISCORD_OP_DISPATCH,                    /*!< [Receive] An event was dispatched */
@@ -108,7 +109,7 @@ typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, disc
 
 struct discord_client {
     bool running;
-    discord_client_state_t state;
+    discord_gateway_state_t state;
     TaskHandle_t task_handle;
     QueueHandle_t queue;
     esp_event_loop_handle_t event_handle;
@@ -127,7 +128,7 @@ struct discord_client {
     int last_sequence_number;
     char* buffer;
     int buffer_len;
-    discord_close_reason_t close_reason;
+    discord_gateway_close_reason_t close_reason;
     discord_close_code_t close_code;
 };
 

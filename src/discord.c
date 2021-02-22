@@ -24,7 +24,7 @@ static discord_client_config_t* dc_config_copy(const discord_client_config_t* co
 }
 
 static void dc_config_free(discord_client_config_t* config) {
-    if(config == NULL)
+    if(!config)
         return;
 
     free(config->token);
@@ -55,30 +55,11 @@ static void dc_task(void* arg) {
 
     while(client->running) {
         switch(client->state) {
-            case DISCORD_CLIENT_STATE_UNKNOWN:
-                // gateway not started yet
-                // this state will be active just a few ticks,
-                // because gateway will be started imidiatelly after task is created
-                // shortly, this state can be ignored
-                break;
-
-            case DISCORD_CLIENT_STATE_INIT:
-                // ws_client trying to connect...
-                break;
-
-            case DISCORD_CLIENT_STATE_CONNECTING:
-                // ws_client connected, but gateway not identified yet
-                break;
-
-            case DISCORD_CLIENT_STATE_CONNECTED:
+            case DISCORD_STATE_CONNECTED:
                 dcgw_heartbeat_send_if_expired(client);
                 break;
 
-            case DISCORD_CLIENT_STATE_DISCONNECTING:
-                // clean disconnection in process...
-                break;
-
-            case DISCORD_CLIENT_STATE_DISCONNECTED:
+            case DISCORD_STATE_DISCONNECTED:
                 if(DISCORD_CLOSE_REASON_NOT_REQUESTED == client->close_reason) {
                     if(client->close_code == DISCORD_CLOSEOP_NO_CODE) {
                         DISCORD_LOGE("Connection closed with unknown reason");
@@ -97,19 +78,22 @@ static void dc_task(void* arg) {
 
                 break;
             
-            case DISCORD_CLIENT_STATE_ERROR:
+            case DISCORD_STATE_ERROR:
                 DISCORD_LOGE("Unhandled error occurred. Disconnecting...");
                 discord_logout(client);
                 break;
+
+            default: // ignore other states
+                break;
         }
 
-        if(client->state >= DISCORD_CLIENT_STATE_CONNECTING) {
+        if(client->state >= DISCORD_STATE_CONNECTING) {
             discord_payload_t* payload = NULL;
 
             if(xQueueReceive(client->queue, &payload, 1000 / portTICK_PERIOD_MS) == pdPASS) { // poll every 1 sec
                 dcgw_handle_payload(client, payload);
             }
-        } else if(DISCORD_CLIENT_STATE_DISCONNECTED == client->state && restart_gw) {
+        } else if(DISCORD_STATE_DISCONNECTED == client->state && restart_gw) {
             restart_gw = false;
             DISCORD_LOGD("Restarting gateway...");
             dcgw_start(client);
@@ -119,8 +103,6 @@ static void dc_task(void* arg) {
     }
 
     DISCORD_LOGD("Task exit...");
-
-    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
     vTaskDelete(NULL);
 }
 
@@ -153,20 +135,21 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
 }
 
 esp_err_t discord_login(discord_client_handle_t client) {
-    if(client == NULL)
+    if(!client)
         return ESP_ERR_INVALID_ARG;
     
     DISCORD_LOG_FOO();
 
-    if(client->state >= DISCORD_CLIENT_STATE_INIT) {
-        DISCORD_LOGE("Client is above (or equal to) init state");
-        return ESP_FAIL;
+    if(dcgw_is_open(client)) {
+        DISCORD_LOGE("Gateway is already open");
+        return ESP_OK;
     }
 
     client->running = true;
 
     if (xTaskCreate(dc_task, "discord_task", DISCORD_DEFAULT_TASK_STACK_SIZE, client, DISCORD_DEFAULT_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
         DISCORD_LOGE("Cannot create discord task");
+        client->running = false;
         return ESP_FAIL;
     }
 
@@ -174,7 +157,7 @@ esp_err_t discord_login(discord_client_handle_t client) {
 }
 
 esp_err_t discord_register_events(discord_client_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
-    if(client == NULL)
+    if(!client)
         return ESP_ERR_INVALID_ARG;
     
     DISCORD_LOG_FOO();
@@ -183,12 +166,12 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
 }
 
 esp_err_t discord_logout(discord_client_handle_t client) {
-    if(client == NULL)
+    if(!client)
         return ESP_ERR_INVALID_ARG;
 
     DISCORD_LOG_FOO();
 
-    if(! client->running) {
+    if(!client->running) {
         DISCORD_LOGW("Already disconnected");
         return ESP_OK;
     }
@@ -206,7 +189,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
 }
 
 esp_err_t discord_destroy(discord_client_handle_t client) {
-    if(client == NULL)
+    if(!client)
         return ESP_ERR_INVALID_ARG;
     
     DISCORD_LOG_FOO();

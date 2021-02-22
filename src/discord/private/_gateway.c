@@ -18,6 +18,11 @@ static esp_err_t dcgw_heartbeat_stop(discord_client_handle_t client) {
 
 esp_err_t dcgw_init(discord_client_handle_t client) {
     DISCORD_LOG_FOO();
+
+    if(client->state >= DISCORD_STATE_INIT) {
+        DISCORD_LOGW("Already inited");
+        return ESP_OK;
+    }
     
     if(!(client->gw_lock = xSemaphoreCreateMutex()) ||
        !(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
@@ -30,12 +35,12 @@ esp_err_t dcgw_init(discord_client_handle_t client) {
         return ESP_FAIL;
     }
 
-    client->state = DISCORD_CLIENT_STATE_UNKNOWN;
     dcgw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
     client->close_code = DISCORD_CLOSEOP_NO_CODE;
     client->buffer_len = 0;
+    client->state = DISCORD_STATE_INIT;
 
     return ESP_OK;
 }
@@ -69,16 +74,12 @@ esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) 
     return ESP_OK;
 }
 
-static bool dcgw_is_open(discord_client_handle_t client) {
-    return client->running && client->state >= DISCORD_CLIENT_STATE_INIT;
-}
-
 static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t client, discord_payload_t* payload) {
     if(!payload)
         return false;
 
     if(payload->op == DISCORD_OP_DISPATCH) {
-        if(client->state < DISCORD_CLIENT_STATE_CONNECTED && payload->t != DISCORD_EVENT_READY) {
+        if(client->state < DISCORD_STATE_CONNECTED && payload->t != DISCORD_EVENT_READY) {
             DISCORD_LOGW("Ignoring payload because client is not in CONNECTED state and still not receive READY payload");
             return false;
         }
@@ -115,7 +116,7 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
 }
 
 static discord_close_code_t dcgw_get_close_opcode(discord_client_handle_t client) {
-    if(client->state == DISCORD_CLIENT_STATE_DISCONNECTING && client->buffer_len >= 2) {
+    if(client->state == DISCORD_STATE_DISCONNECTING && client->buffer_len >= 2) {
         int code = (256 * client->buffer[0] + client->buffer[1]);
         return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
     }
@@ -146,7 +147,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
         client->buffer[client->buffer_len] = '\0';
 
         if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
-            client->state = DISCORD_CLIENT_STATE_DISCONNECTING;
+            client->state = DISCORD_STATE_DISCONNECTING;
             client->close_code = dcgw_get_close_opcode(client);
 
             return ESP_OK;
@@ -192,7 +193,7 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
 
     switch (event_id) {
         case WEBSOCKET_EVENT_CONNECTED:
-            client->state = DISCORD_CLIENT_STATE_CONNECTING;
+            client->state = DISCORD_STATE_CONNECTING;
             break;
 
         case WEBSOCKET_EVENT_DATA:
@@ -202,21 +203,25 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
             break;
         
         case WEBSOCKET_EVENT_ERROR:
-            client->state = DISCORD_CLIENT_STATE_ERROR;
+            client->state = DISCORD_STATE_ERROR;
             break;
 
         case WEBSOCKET_EVENT_DISCONNECTED:
-            client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
+            client->state = DISCORD_STATE_DISCONNECTED;
             break;
 
         case WEBSOCKET_EVENT_CLOSED:
-            client->state = DISCORD_CLIENT_STATE_DISCONNECTED;
+            client->state = DISCORD_STATE_DISCONNECTED;
             break;
             
         default:
             DISCORD_LOGW("Unknown ws event %d", event_id);
             break;
     }
+}
+
+bool dcgw_is_open(discord_client_handle_t client) {
+    return client->running && client->state >= DISCORD_STATE_OPEN;
 }
 
 esp_err_t dcgw_open(discord_client_handle_t client) {
@@ -251,12 +256,13 @@ esp_err_t dcgw_start(discord_client_handle_t client) {
         return ESP_OK;
     }
     
-    client->state = DISCORD_CLIENT_STATE_INIT;
+    esp_err_t err = esp_websocket_client_start(client->ws);
+    client->state = DISCORD_STATE_OPEN;
 
-    return esp_websocket_client_start(client->ws);
+    return err;
 }
 
-esp_err_t dcgw_close(discord_client_handle_t client, discord_close_reason_t reason) {
+esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reason_t reason) {
     DISCORD_LOG_FOO();
 
     if(! dcgw_is_open(client)) {
@@ -281,6 +287,8 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_close_reason_t reas
     client->buffer_len = 0;
     dcgw_queue_flush(client);
 
+    xSemaphoreGive(client->gw_lock);
+
     return ESP_OK;
 }
 
@@ -293,6 +301,7 @@ esp_err_t dcgw_destroy(discord_client_handle_t client) {
     client->buffer = NULL;
 
     if(client->gw_lock) {
+        xSemaphoreTake(client->gw_lock, portMAX_DELAY); // wait to unlock
         vSemaphoreDelete(client->gw_lock);
         client->gw_lock = NULL;
     }
@@ -385,7 +394,7 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_payload_t
         // Detach pointer in order to prevent session deallocation by payload free function
         payload->d = NULL;
 
-        client->state = DISCORD_CLIENT_STATE_CONNECTED;
+        client->state = DISCORD_STATE_CONNECTED;
         
         DISCORD_LOGD("Identified [%s#%s (%s), session: %s]", 
             client->session->user->username,
