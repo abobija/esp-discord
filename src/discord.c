@@ -69,6 +69,9 @@ static void dc_task(void* arg) {
 
     discord_client_handle_t client = (discord_client_handle_t) arg;
     bool restart_gw = false;
+    bool is_shutted_down = false;
+
+    xEventGroupClearBits(client->bits, DISCORD_STOPPED_BIT);
 
     while(client->running) {
         switch(client->state) {
@@ -86,11 +89,13 @@ static void dc_task(void* arg) {
                     }
 
                     dc_shutdown(client);
+                    is_shutted_down = true;
                 } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
                     restart_gw = true;
                 } else {
                     DISCORD_LOGW("Disconnection requested but not handled");
                     dc_shutdown(client);
+                    is_shutted_down = true;
                 }
 
                 break;
@@ -98,10 +103,15 @@ static void dc_task(void* arg) {
             case DISCORD_STATE_ERROR:
                 DISCORD_LOGE("Unhandled error occurred. Disconnecting...");
                 dc_shutdown(client);
+                is_shutted_down = true;
                 break;
 
             default: // ignore other states
                 break;
+        }
+
+        if(is_shutted_down) {
+            break;
         }
 
         if(client->state >= DISCORD_STATE_CONNECTING) {
@@ -113,13 +123,18 @@ static void dc_task(void* arg) {
         } else if(DISCORD_STATE_DISCONNECTED == client->state && restart_gw) {
             restart_gw = false;
             DISCORD_LOGD("Restarting gateway...");
+            DISCORD_EVENT_FIRE(DISCORD_EVENT_RECONNECTING, NULL);
             dcgw_start(client);
         } else {
             vTaskDelay(125 / portTICK_PERIOD_MS);
         }
     }
 
-
+    if(! is_shutted_down) {
+        dc_shutdown(client);
+    }
+    
+    DISCORD_EVENT_FIRE(DISCORD_EVENT_DISCONNECTED, NULL);
     xEventGroupSetBits(client->bits, DISCORD_STOPPED_BIT);
     DISCORD_LOGD("Task exit.");
     vTaskDelete(NULL);
@@ -140,6 +155,8 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
         discord_destroy(client);
         return NULL;
     }
+
+    xEventGroupSetBits(client->bits, DISCORD_STOPPED_BIT);
 
     if (esp_event_loop_create(&event_args, &client->event_handle) != ESP_OK) {
         DISCORD_LOGE("Fail to create event handler");
@@ -165,16 +182,29 @@ esp_err_t discord_login(discord_client_handle_t client) {
     
     DISCORD_LOG_FOO();
 
-    if(dcgw_is_open(client)) {
-        DISCORD_LOGE("Gateway is already open");
+    if (xTaskGetCurrentTaskHandle() == client->task_handle) {
+        DISCORD_LOGE("Cannot login from event handler");
+        return ESP_FAIL;
+    }
+
+    if(client->running || dcgw_is_open(client)) {
+        DISCORD_LOGE("Already connected (or trying to connect)");
         return ESP_OK;
     }
 
+    if((xEventGroupWaitBits(client->bits, DISCORD_STOPPED_BIT, pdFALSE, pdTRUE, 5000 / portTICK_PERIOD_MS) & DISCORD_STOPPED_BIT) == 0) { // wait for stop
+        DISCORD_LOGE("Timeout while waited for disconnection");
+        return ESP_FAIL;
+    }
+
+    // wait a little just to ensure that previous discord task is exited.
+    // in case if discord_login is called from different task, and DISCORD_STOPPED_BIT is just raised
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+
     client->running = true;
-    xEventGroupClearBits(client->bits, DISCORD_STOPPED_BIT);
 
     if (xTaskCreate(dc_task, "discord_task", DISCORD_DEFAULT_TASK_STACK_SIZE, client, DISCORD_DEFAULT_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
-        DISCORD_LOGE("Cannot create discord task");
+        DISCORD_LOGE("Fail to create task");
         client->running = false;
         return ESP_FAIL;
     }
@@ -203,13 +233,12 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     }
 
     if(!client->running) {
-        DISCORD_LOGW("Already logged out");
+        DISCORD_LOGW("Not logged in");
         return ESP_OK;
     }
 
     client->running = false;
     xEventGroupWaitBits(client->bits, DISCORD_STOPPED_BIT, pdFALSE, pdTRUE, portMAX_DELAY); // wait for the discord task to be stopped
-    dc_shutdown(client);
 
     return ESP_OK;
 }

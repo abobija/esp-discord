@@ -275,7 +275,7 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reaso
     // do not set client status in this function
     // it will be automatically set in ws task
 
-    xSemaphoreTake(client->gw_lock, portMAX_DELAY); // wait to unlock
+    if(client->gw_lock) { xSemaphoreTake(client->gw_lock, portMAX_DELAY); } // wait to unlock
     client->close_reason = reason;
     dcgw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
@@ -286,7 +286,7 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reaso
 
     client->buffer_len = 0;
     dcgw_queue_flush(client);
-    xSemaphoreGive(client->gw_lock);
+    if(client->gw_lock) { xSemaphoreGive(client->gw_lock); }
 
     return ESP_OK;
 }
@@ -405,15 +405,15 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_payload_t
         );
 
         discord_session_t* session_clone = discord_session_clone(client->session);
-        DISCORD_EVENT_EMIT(DISCORD_EVENT_CONNECTED, session_clone);
+        DISCORD_EVENT_FIRE(DISCORD_EVENT_CONNECTED, session_clone);
         discord_session_free(session_clone);
 
         return ESP_OK;
     }
 
     if(payload->t > DISCORD_EVENT_CONNECTED) {
-        // client is connected, we can emit event
-        DISCORD_EVENT_EMIT(payload->t, payload->d);
+        // client is connected. fire the event!
+        DISCORD_EVENT_FIRE(payload->t, payload->d);
     }
 
     return ESP_OK;

@@ -71,16 +71,18 @@ typedef struct discord_client* discord_client_handle_t;
 ESP_EVENT_DECLARE_BASE(DISCORD_EVENTS);
 
 typedef enum {
-    DISCORD_EVENT_UNKNOWN = -2,
     DISCORD_EVENT_ANY = ESP_EVENT_ANY_ID,
     DISCORD_EVENT_NONE,
-    DISCORD_EVENT_READY,                       /*<! This event will never be fired. Use DISCORD_EVENT_CONNECTED instead. */
-    DISCORD_EVENT_CONNECTED,
-    DISCORD_EVENT_MESSAGE_RECEIVED,
-    DISCORD_EVENT_MESSAGE_UPDATED,
-    DISCORD_EVENT_MESSAGE_DELETED,
-    DISCORD_EVENT_MESSAGE_REACTION_ADDED,
-    DISCORD_EVENT_MESSAGE_REACTION_REMOVED
+    DISCORD_EVENT_UNKNOWN,                     /*<! Unknown event. This will probably never be fired */
+    DISCORD_EVENT_DISCONNECTED,                /*<! Bot is fully disconnected from discord. It's not going to automatically reconnect. To connect again, discord_login function needs to be called */
+    DISCORD_EVENT_RECONNECTING,                /*<! Something happened and bot is going to try to reconnect */
+    DISCORD_EVENT_READY,                       /*<! This event will never be fired. Use DISCORD_EVENT_CONNECTED instead */
+    DISCORD_EVENT_CONNECTED,                   /*<! Bot is fully connected and identified on discord. It's ready for action */
+    DISCORD_EVENT_MESSAGE_RECEIVED,            /*<! Message received */
+    DISCORD_EVENT_MESSAGE_UPDATED,             /*<! Message updated */
+    DISCORD_EVENT_MESSAGE_DELETED,             /*<! Message deleted */
+    DISCORD_EVENT_MESSAGE_REACTION_ADDED,      /*<! Reaction added to message */
+    DISCORD_EVENT_MESSAGE_REACTION_REMOVED     /*<! Reaction removed from message */
 } discord_event_t;
 
 typedef void* discord_event_data_ptr_t;
@@ -91,6 +93,9 @@ typedef struct {
 } discord_event_data_t;
 
 discord_client_handle_t discord_create(const discord_client_config_t* config);
+/**
+ * @brief Cannot be called from event handler
+ */
 esp_err_t discord_login(discord_client_handle_t client);
 esp_err_t discord_register_events(discord_client_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg);
 /**
