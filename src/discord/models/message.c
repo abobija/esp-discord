@@ -10,5 +10,6 @@ void discord_message_free(discord_message_t* message) {
     free(message->channel_id);
     discord_user_free(message->author);
     free(message->guild_id);
+    discord_member_free(message->member);
     free(message);
 }
