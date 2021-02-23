@@ -6,18 +6,18 @@
 DISCORD_LOG_DEFINE_BASE();
 
 static discord_message_t* _discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err, bool _return) {
-    if(client == NULL || message == NULL) {
+    if(!client || !message) {
         *err = ESP_FAIL;
         return NULL;
     }
 
-    if(message->content == NULL) {
+    if(!message->content) {
         DISCORD_LOGE("Missing content");
         *err = ESP_ERR_INVALID_ARG;
         return NULL;
     }
 
-    if(message->channel_id == NULL) {
+    if(!message->channel_id) {
         DISCORD_LOGE("Missing channel_id");
         *err = ESP_ERR_INVALID_ARG;
         return NULL;
@@ -63,16 +63,16 @@ esp_err_t discord_message_send(discord_handle_t client, discord_message_t* messa
 }
 
 esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji) {
-    if(client == NULL || message == NULL) {
+    if(!client || !message) {
         return ESP_FAIL;
     }
 
-    if(message->id == NULL) {
+    if(!message->id) {
         DISCORD_LOGE("Missing id");
         return ESP_FAIL;
     }
 
-    if(message->channel_id == NULL) {
+    if(!message->channel_id) {
         DISCORD_LOGE("Missing channel_id");
         return ESP_FAIL;
     }
