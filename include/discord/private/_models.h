@@ -86,7 +86,7 @@ discord_role_t* discord_role_ctor(char* id, char* name, uint8_t position, char* 
 discord_role_t* discord_role_from_cjson(cJSON* root);
 cJSON* discord_role_to_cjson(discord_role_t* role);
 discord_role_t* discord_role_deserialize(const char* json, size_t length);
-discord_role_t** discord_role_deserialize_list(const char* json, size_t length, uint8_t* roles_len);
+discord_role_t** discord_role_list_deserialize(const char* json, size_t length, uint8_t* roles_len);
 
 discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member);
 discord_message_t* discord_message_from_cjson(cJSON* root);

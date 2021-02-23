@@ -511,7 +511,7 @@ discord_role_t* discord_role_deserialize(const char* json, size_t length) {
     return role;
 }
 
-discord_role_t** discord_role_deserialize_list(const char* json, size_t length, uint8_t* roles_len) {
+discord_role_t** discord_role_list_deserialize(const char* json, size_t length, uint8_t* roles_len) {
     cJSON* cjson = _discord_model_parse(json, length);
 
     if(!cJSON_IsArray(cjson))
