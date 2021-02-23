@@ -17,7 +17,7 @@ esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
     return res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
 }
 
-void dcapi_response_free(discord_client_handle_t client, discord_api_response_t* res) {
+void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
     if(res == NULL)
         return;
 
@@ -30,7 +30,7 @@ void dcapi_response_free(discord_client_handle_t client, discord_api_response_t*
     free(res);
 }
 
-static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
+static esp_err_t dcapi_flush_http(discord_handle_t client, bool record) {
     DISCORD_LOG_FOO();
 
     client->http_buffer_record = record;
@@ -45,7 +45,7 @@ static esp_err_t dcapi_flush_http(discord_client_handle_t client, bool record) {
 }
 
 static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
-    discord_client_handle_t client = (discord_client_handle_t) evt->user_data;
+    discord_handle_t client = (discord_handle_t) evt->user_data;
 
     if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->http_buffer_record && client->http_buffer) {
         DISCORD_LOGD("Buffering received chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
@@ -65,7 +65,7 @@ static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     return ESP_OK;
 }
 
-static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
+static esp_err_t dcapi_init_lazy(discord_handle_t client) {
     if(client->http != NULL)
         return ESP_OK;
 
@@ -105,7 +105,7 @@ static esp_err_t dcapi_init_lazy(discord_client_handle_t client) {
     return client->http ? ESP_OK : ESP_FAIL;
 }
 
-static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp_http_client_method_t method, char* uri, char* data, bool stream_response, bool free_uri_and_data) {
+static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_client_method_t method, char* uri, char* data, bool stream_response, bool free_uri_and_data) {
     DISCORD_LOG_FOO();
 
     if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already initialized
@@ -194,11 +194,11 @@ static discord_api_response_t* dcapi_request(discord_client_handle_t client, esp
     return res;
 }
 
-discord_api_response_t* dcapi_post(discord_client_handle_t client, char* uri, char* data, bool stream) {
+discord_api_response_t* dcapi_post(discord_handle_t client, char* uri, char* data, bool stream) {
     return dcapi_request(client, HTTP_METHOD_POST, uri, data, stream, true);
 }
 
-esp_err_t dcapi_post_(discord_client_handle_t client, char* uri, char* data) {
+esp_err_t dcapi_post_(discord_handle_t client, char* uri, char* data) {
     discord_api_response_t* res = dcapi_post(client, uri, data, false);
     esp_err_t err = dcapi_response_to_esp_err(res);
     dcapi_response_free(client, res);
@@ -206,11 +206,11 @@ esp_err_t dcapi_post_(discord_client_handle_t client, char* uri, char* data) {
     return err;
 }
 
-discord_api_response_t* dcapi_put(discord_client_handle_t client, char* uri, char* data, bool stream) {
+discord_api_response_t* dcapi_put(discord_handle_t client, char* uri, char* data, bool stream) {
     return dcapi_request(client, HTTP_METHOD_PUT, uri, data, stream, true);
 }
 
-esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data) {
+esp_err_t dcapi_put_(discord_handle_t client, char* uri, char* data) {
     discord_api_response_t* res = dcapi_put(client, uri, data, false);
     esp_err_t err = dcapi_response_to_esp_err(res);
     dcapi_response_free(client, res);
@@ -218,7 +218,7 @@ esp_err_t dcapi_put_(discord_client_handle_t client, char* uri, char* data) {
     return err;
 }
 
-esp_err_t dcapi_destroy(discord_client_handle_t client) {
+esp_err_t dcapi_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(client->api_lock) {

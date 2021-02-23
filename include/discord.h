@@ -66,7 +66,7 @@ typedef struct {
     int buffer_size;
 } discord_client_config_t;
 
-typedef struct discord_client* discord_client_handle_t;
+typedef struct discord* discord_handle_t;
 
 ESP_EVENT_DECLARE_BASE(DISCORD_EVENTS);
 
@@ -88,24 +88,24 @@ typedef enum {
 typedef void* discord_event_data_ptr_t;
 
 typedef struct {
-    discord_client_handle_t client;
+    discord_handle_t client;
     discord_event_data_ptr_t ptr;
 } discord_event_data_t;
 
-discord_client_handle_t discord_create(const discord_client_config_t* config);
+discord_handle_t discord_create(const discord_client_config_t* config);
 /**
  * @brief Cannot be called from event handler
  */
-esp_err_t discord_login(discord_client_handle_t client);
-esp_err_t discord_register_events(discord_client_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg);
+esp_err_t discord_login(discord_handle_t client);
+esp_err_t discord_register_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg);
 /**
  * @brief Cannot be called from event handler
  */
-esp_err_t discord_logout(discord_client_handle_t client);
+esp_err_t discord_logout(discord_handle_t client);
 /**
  * @brief Cannot be called from event handler
  */
-esp_err_t discord_destroy(discord_client_handle_t client);
+esp_err_t discord_destroy(discord_handle_t client);
 
 #ifdef __cplusplus
 }

@@ -5,7 +5,7 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-static discord_message_t* _discord_message_send_(discord_client_handle_t client, discord_message_t* message, esp_err_t* err, bool _return) {
+static discord_message_t* _discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err, bool _return) {
     if(client == NULL || message == NULL) {
         *err = ESP_FAIL;
         return NULL;
@@ -47,7 +47,7 @@ static discord_message_t* _discord_message_send_(discord_client_handle_t client,
     return sent_message;
 }
 
-discord_message_t* discord_message_send_(discord_client_handle_t client, discord_message_t* message, esp_err_t* err) {
+discord_message_t* discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err) {
     esp_err_t _err;
     discord_message_t* sent_message = _discord_message_send_(client, message, &_err, true);
     if(err) *err = _err;
@@ -55,14 +55,14 @@ discord_message_t* discord_message_send_(discord_client_handle_t client, discord
     return sent_message;
 }
 
-esp_err_t discord_message_send(discord_client_handle_t client, discord_message_t* message) {
+esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message) {
     esp_err_t err;
     _discord_message_send_(client, message, &err, false);
 
     return err;
 }
 
-esp_err_t discord_message_react(discord_client_handle_t client, discord_message_t* message, const char* emoji) {
+esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji) {
     if(client == NULL || message == NULL) {
         return ESP_FAIL;
     }

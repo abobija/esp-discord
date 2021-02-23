@@ -106,9 +106,9 @@ typedef struct {
     bool received_ack;
 } discord_heartbeater_t;
 
-typedef esp_err_t(*discord_event_handler_t)(discord_client_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr);
+typedef esp_err_t(*discord_event_handler_t)(discord_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr);
 
-struct discord_client {
+struct discord {
     bool running;
     EventGroupHandle_t bits;
     discord_gateway_state_t state;

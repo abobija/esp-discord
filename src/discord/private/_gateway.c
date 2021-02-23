@@ -5,7 +5,7 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-static esp_err_t dcgw_heartbeat_stop(discord_client_handle_t client) {
+static esp_err_t dcgw_heartbeat_stop(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     client->heartbeater.running = false;
@@ -16,7 +16,7 @@ static esp_err_t dcgw_heartbeat_stop(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t client, discord_payload_t* payload) {
+static bool dcgw_whether_payload_should_go_into_queue(discord_handle_t client, discord_payload_t* payload) {
     if(!payload)
         return false;
 
@@ -57,7 +57,7 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_client_handle_t cl
     return true;
 }
 
-static discord_close_code_t dcgw_get_close_opcode(discord_client_handle_t client) {
+static discord_close_code_t dcgw_get_close_opcode(discord_handle_t client) {
     if(client->state == DISCORD_STATE_DISCONNECTING && client->buffer_len >= 2) {
         int code = (256 * client->buffer[0] + client->buffer[1]);
         return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
@@ -66,7 +66,7 @@ static discord_close_code_t dcgw_get_close_opcode(discord_client_handle_t client
     return DISCORD_CLOSEOP_NO_CODE;
 }
 
-static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_websocket_event_data_t* data) {
+static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websocket_event_data_t* data) {
     DISCORD_LOG_FOO();
 
     if(data->payload_len > client->config->buffer_size) {
@@ -114,7 +114,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_client_handle_t client, esp_
 }
 
 static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t base, int32_t event_id, void* event_data) {
-    discord_client_handle_t client = (discord_client_handle_t) handler_arg;
+    discord_handle_t client = (discord_handle_t) handler_arg;
     esp_websocket_event_data_t* data = (esp_websocket_event_data_t*) event_data;
 
     if(data->op_code == WS_TRANSPORT_OPCODES_PONG) { // ignore PONG frame
@@ -158,7 +158,7 @@ static void dcgw_websocket_event_handler(void* handler_arg, esp_event_base_t bas
     }
 }
 
-esp_err_t dcgw_init(discord_client_handle_t client) {
+esp_err_t dcgw_init(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(client->state >= DISCORD_STATE_INIT) {
@@ -204,7 +204,7 @@ esp_err_t dcgw_init(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) {
+esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
     if(xSemaphoreTake(client->gw_lock, 5000 / portTICK_PERIOD_MS) != pdTRUE) { // 5sec timeout
@@ -230,15 +230,15 @@ esp_err_t dcgw_send(discord_client_handle_t client, discord_payload_t* payload) 
     return ESP_OK;
 }
 
-char* dcgw_get_close_desc(discord_client_handle_t client) {
+char* dcgw_get_close_desc(discord_handle_t client) {
     return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
 }
 
-bool dcgw_is_open(discord_client_handle_t client) {
+bool dcgw_is_open(discord_handle_t client) {
     return client->running && client->state >= DISCORD_STATE_OPEN;
 }
 
-esp_err_t dcgw_open(discord_client_handle_t client) {
+esp_err_t dcgw_open(discord_handle_t client) {
     if(client == NULL)
         return ESP_ERR_INVALID_ARG;
     
@@ -252,7 +252,7 @@ esp_err_t dcgw_open(discord_client_handle_t client) {
     return dcgw_start(client);
 }
 
-esp_err_t dcgw_start(discord_client_handle_t client) {
+esp_err_t dcgw_start(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(dcgw_is_open(client)) {
@@ -269,7 +269,7 @@ esp_err_t dcgw_start(discord_client_handle_t client) {
     return err;
 }
 
-esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reason_t reason) {
+esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t reason) {
     DISCORD_LOG_FOO();
 
     // do not set client status in this function
@@ -291,7 +291,7 @@ esp_err_t dcgw_close(discord_client_handle_t client, discord_gateway_close_reaso
     return ESP_OK;
 }
 
-esp_err_t dcgw_destroy(discord_client_handle_t client) {
+esp_err_t dcgw_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
@@ -317,7 +317,7 @@ esp_err_t dcgw_destroy(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-void dcgw_queue_flush(discord_client_handle_t client) {
+void dcgw_queue_flush(discord_handle_t client) {
     if(!client || !client->queue) {
         return;
     }
@@ -329,7 +329,7 @@ void dcgw_queue_flush(discord_client_handle_t client) {
     }
 }
 
-static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_hello_t* hello) {
+static esp_err_t dcgw_heartbeat_start(discord_handle_t client, discord_hello_t* hello) {
     if(client->heartbeater.running)
         return ESP_OK;
     
@@ -343,7 +343,7 @@ static esp_err_t dcgw_heartbeat_start(discord_client_handle_t client, discord_he
     return ESP_OK;
 }
 
-esp_err_t dcgw_heartbeat_send_if_expired(discord_client_handle_t client) {
+esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
     if(client->heartbeater.running && discord_tick_ms() - client->heartbeater.tick_ms > client->heartbeater.interval) {
         DISCORD_LOGD("Heartbeat");
 
@@ -366,7 +366,7 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-esp_err_t dcgw_identify(discord_client_handle_t client) {
+esp_err_t dcgw_identify(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     return dcgw_send(client, discord_payload_ctor(
@@ -382,7 +382,7 @@ esp_err_t dcgw_identify(discord_client_handle_t client) {
 /**
  * @brief Check event name in payload and invoke appropriate functions
  */
-static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_payload_t* payload) {
+static esp_err_t dcgw_dispatch(discord_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
     if(DISCORD_EVENT_READY == payload->t) {
@@ -419,7 +419,7 @@ static esp_err_t dcgw_dispatch(discord_client_handle_t client, discord_payload_t
     return ESP_OK;
 }
 
-esp_err_t dcgw_handle_payload(discord_client_handle_t client, discord_payload_t* payload) {
+esp_err_t dcgw_handle_payload(discord_handle_t client, discord_payload_t* payload) {
     DISCORD_LOG_FOO();
 
     if(!payload)

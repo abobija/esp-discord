@@ -33,7 +33,7 @@ static void dc_config_free(discord_client_config_t* config) {
     free(config);
 }
 
-static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr) {
+static esp_err_t dc_dispatch_event(discord_handle_t client, discord_event_t event, discord_event_data_ptr_t data_ptr) {
     DISCORD_LOG_FOO();
 
     esp_err_t err;
@@ -49,7 +49,7 @@ static esp_err_t dc_dispatch_event(discord_client_handle_t client, discord_event
     return esp_event_loop_run(client->event_handle, 0);
 }
 
-static esp_err_t dc_shutdown(discord_client_handle_t client) {
+static esp_err_t dc_shutdown(discord_handle_t client) {
     if(!client)
         return ESP_ERR_INVALID_ARG;
 
@@ -67,7 +67,7 @@ static esp_err_t dc_shutdown(discord_client_handle_t client) {
 static void dc_task(void* arg) {
     DISCORD_LOG_FOO();
 
-    discord_client_handle_t client = (discord_client_handle_t) arg;
+    discord_handle_t client = (discord_handle_t) arg;
     bool restart_gw = false;
     bool is_shutted_down = false;
 
@@ -140,10 +140,10 @@ static void dc_task(void* arg) {
     vTaskDelete(NULL);
 }
 
-discord_client_handle_t discord_create(const discord_client_config_t* config) {
+discord_handle_t discord_create(const discord_client_config_t* config) {
     DISCORD_LOG_FOO();
 
-    discord_client_handle_t client = calloc(1, sizeof(struct discord_client));
+    discord_handle_t client = calloc(1, sizeof(struct discord));
 
     esp_event_loop_args_t event_args = {
         .queue_size = 1,
@@ -176,7 +176,7 @@ discord_client_handle_t discord_create(const discord_client_config_t* config) {
     return client;
 }
 
-esp_err_t discord_login(discord_client_handle_t client) {
+esp_err_t discord_login(discord_handle_t client) {
     if(!client)
         return ESP_ERR_INVALID_ARG;
     
@@ -212,7 +212,7 @@ esp_err_t discord_login(discord_client_handle_t client) {
     return dcgw_open(client);
 }
 
-esp_err_t discord_register_events(discord_client_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
+esp_err_t discord_register_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
     if(!client)
         return ESP_ERR_INVALID_ARG;
     
@@ -221,7 +221,7 @@ esp_err_t discord_register_events(discord_client_handle_t client, discord_event_
     return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
 }
 
-esp_err_t discord_logout(discord_client_handle_t client) {
+esp_err_t discord_logout(discord_handle_t client) {
     if(!client)
         return ESP_ERR_INVALID_ARG;
 
@@ -243,7 +243,7 @@ esp_err_t discord_logout(discord_client_handle_t client) {
     return ESP_OK;
 }
 
-esp_err_t discord_destroy(discord_client_handle_t client) {
+esp_err_t discord_destroy(discord_handle_t client) {
     if(!client)
         return ESP_ERR_INVALID_ARG;
     

@@ -9,9 +9,9 @@
 extern "C" {
 #endif
 
-discord_message_t* discord_message_send_(discord_client_handle_t client, discord_message_t* message, esp_err_t* err);
-esp_err_t discord_message_send(discord_client_handle_t client, discord_message_t* message);
-esp_err_t discord_message_react(discord_client_handle_t client, discord_message_t* message, const char* emoji);
+discord_message_t* discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err);
+esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message);
+esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji);
 
 #ifdef __cplusplus
 }
