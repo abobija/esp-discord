@@ -69,7 +69,7 @@ typedef struct {
     uint8_t queue_size;
     size_t task_stack_size;
     uint8_t task_priority;
-} discord_client_config_t;
+} discord_config_t;
 
 typedef struct discord* discord_handle_t;
 
@@ -97,7 +97,7 @@ typedef struct {
     discord_event_data_ptr_t ptr;
 } discord_event_data_t;
 
-discord_handle_t discord_create(const discord_client_config_t* config);
+discord_handle_t discord_create(const discord_config_t* config);
 /**
  * @brief Cannot be called from event handler
  */

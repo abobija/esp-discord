@@ -17,8 +17,8 @@ DISCORD_LOG_DEFINE_BASE();
 
 ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
 
-static discord_client_config_t* dc_config_copy(const discord_client_config_t* config) {
-    discord_client_config_t* clone = calloc(1, sizeof(discord_client_config_t));
+static discord_config_t* dc_config_copy(const discord_config_t* config) {
+    discord_config_t* clone = calloc(1, sizeof(discord_config_t));
 
     clone->token = config->token ? strdup(config->token) : NULL;
     clone->intents = config->intents;
@@ -32,7 +32,7 @@ static discord_client_config_t* dc_config_copy(const discord_client_config_t* co
     return clone;
 }
 
-static void dc_config_free(discord_client_config_t* config) {
+static void dc_config_free(discord_config_t* config) {
     if(!config)
         return;
 
@@ -147,7 +147,7 @@ static void dc_task(void* arg) {
     vTaskDelete(NULL);
 }
 
-discord_handle_t discord_create(const discord_client_config_t* config) {
+discord_handle_t discord_create(const discord_config_t* config) {
     DISCORD_LOG_FOO();
 
     discord_handle_t client = calloc(1, sizeof(struct discord));

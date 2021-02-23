@@ -115,7 +115,7 @@ struct discord {
     QueueHandle_t queue;
     esp_event_loop_handle_t event_handle;
     discord_event_handler_t event_handler;
-    discord_client_config_t* config;
+    discord_config_t* config;
     SemaphoreHandle_t gw_lock;
     esp_websocket_client_handle_t ws;
     SemaphoreHandle_t api_lock;
