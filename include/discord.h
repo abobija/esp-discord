@@ -63,7 +63,8 @@ extern "C" {
 typedef struct {
     char* token;
     int intents;
-    int buffer_size;
+    size_t gateway_buffer_size;
+    size_t api_buffer_size;
 } discord_client_config_t;
 
 typedef struct discord* discord_handle_t;

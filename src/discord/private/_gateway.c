@@ -69,7 +69,7 @@ static discord_close_code_t dcgw_get_close_opcode(discord_handle_t client) {
 static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websocket_event_data_t* data) {
     DISCORD_LOG_FOO();
 
-    if(data->payload_len > client->config->buffer_size) {
+    if(data->payload_len > client->config->gateway_buffer_size) {
         DISCORD_LOGW("Payload too big. Wider buffer required.");
         return ESP_FAIL;
     }
@@ -172,7 +172,7 @@ esp_err_t dcgw_init(discord_handle_t client) {
         return ESP_FAIL;
     }
 
-    if(!(client->gw_buffer = malloc(client->config->buffer_size + 1))) {
+    if(!(client->gw_buffer = malloc(client->config->gateway_buffer_size + 1))) {
         DISCORD_LOGE("Fail to allocate buffer");
         return ESP_FAIL;
     }

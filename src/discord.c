@@ -18,9 +18,10 @@ ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
 static discord_client_config_t* dc_config_copy(const discord_client_config_t* config) {
     discord_client_config_t* clone = calloc(1, sizeof(discord_client_config_t));
 
-    clone->token = strdup(config->token);
+    clone->token = config->token ? strdup(config->token) : NULL;
     clone->intents = config->intents;
-    clone->buffer_size = config->buffer_size > DISCORD_DEFAULT_BUFFER_SIZE ? config->buffer_size : DISCORD_DEFAULT_BUFFER_SIZE;
+    clone->gateway_buffer_size = config->gateway_buffer_size > 0 ? config->gateway_buffer_size : DISCORD_DEFAULT_GW_BUFFER_SIZE;
+    clone->api_buffer_size = config->api_buffer_size > 0 ? config->api_buffer_size : DISCORD_DEFAULT_API_BUFFER_SIZE;
 
     return clone;
 }

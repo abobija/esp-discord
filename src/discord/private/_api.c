@@ -50,7 +50,7 @@ static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->api_buffer_record && client->api_buffer) {
         DISCORD_LOGD("Buffering received chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
 
-        if(client->api_buffer_size + evt->data_len > DISCORD_API_BUFFER_SIZE) { // prevent buffer overflow
+        if(client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
             DISCORD_LOGW("Response chunk cannot fit into api buffer");
             client->api_buffer_record_status = ESP_FAIL;
             client->api_buffer_size = 0;
@@ -86,9 +86,9 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client) {
     };
 
     client->api_buffer_record_status = ESP_OK;
-
+    
     if(!(client->api_lock = xSemaphoreCreateMutex()) ||
-       !(client->api_buffer = malloc(DISCORD_API_BUFFER_SIZE)) ||
+       !(client->api_buffer = malloc(client->config->api_buffer_size)) ||
        !(client->http = esp_http_client_init(&config))) {
         DISCORD_LOGW("Cannot allocate api. No memory.");
         dcapi_destroy(client);
