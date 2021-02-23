@@ -75,7 +75,7 @@ discord_user_t* discord_user_clone(discord_user_t* user);
 discord_user_t* discord_user_from_cjson(cJSON* root);
 cJSON* discord_user_to_cjson(discord_user_t* user);
 
-discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author);
+discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id);
 discord_message_t* discord_message_from_cjson(cJSON* root);
 cJSON* discord_message_to_cjson(discord_message_t* msg);
 char* discord_message_serialize(discord_message_t* msg);

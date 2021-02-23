@@ -12,6 +12,7 @@ typedef struct {
     char* content;
     char* channel_id;
     discord_user_t* author;
+    char* guild_id;
 } discord_message_t;
 
 void discord_message_free(discord_message_t* message);

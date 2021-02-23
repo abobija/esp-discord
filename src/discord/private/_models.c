@@ -382,13 +382,14 @@ cJSON* discord_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
-discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author) {
+discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
     message->id = id;
     message->content = content;
     message->channel_id = channel_id;
     message->author = author;
+    message->guild_id = guild_id;
 
     return message;
 }
@@ -398,26 +399,24 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
         return NULL;
 
     cJSON* _id = cJSON_GetObjectItem(root, "id");
-
-    if(!_id) {
-        DISCORD_LOGW("Missing id");
-        return NULL;
-    }
-
     cJSON* _content = cJSON_GetObjectItem(root, "content");
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
+    cJSON* _gid = cJSON_GetObjectItem(root, "guild_id");
 
     discord_message_t* message = discord_message_ctor(
-        _id->valuestring,
+        _id ? _id->valuestring : NULL,
         _content->valuestring,
         _cid->valuestring,
-        discord_user_from_cjson(cJSON_GetObjectItem(root, "author"))
+        discord_user_from_cjson(cJSON_GetObjectItem(root, "author")),
+        _gid ? _gid->valuestring : NULL
     );
 
-    _id->valuestring =
     _content->valuestring =
-    _cid->valuestring
-    = NULL;
+    _cid->valuestring =
+    NULL;
+
+    if(_id) _id->valuestring = NULL;
+    if(_gid) _gid->valuestring = NULL;
 
     return message;
 }
@@ -429,6 +428,7 @@ cJSON* discord_message_to_cjson(discord_message_t* msg) {
     cJSON_AddItemToObject(root, "content", cJSON_CreateStringReference(msg->content));
     cJSON_AddItemToObject(root, "channel_id", cJSON_CreateStringReference(msg->channel_id));
     if(msg->author) cJSON_AddItemToObject(root, "author", discord_user_to_cjson(msg->author));
+    if(msg->guild_id) cJSON_AddItemToObject(root, "guild_id", cJSON_CreateStringReference(msg->guild_id));
 
     return root;
 }
