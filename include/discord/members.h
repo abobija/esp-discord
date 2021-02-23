@@ -1,5 +1,5 @@
-#ifndef _DISCORD_USERS_H_
-#define _DISCORD_USERS_H_
+#ifndef _DISCORD_MEMBERS_H_
+#define _DISCORD_MEMBERS_H_
 
 #include "discord.h"
 #include "discord/models/member.h"

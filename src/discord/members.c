@@ -1,4 +1,4 @@
-#include "discord/users.h"
+#include "discord/members.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "discord/utils.h"

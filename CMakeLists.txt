@@ -10,7 +10,7 @@ idf_component_register(
          src/discord/models/emoji.c
          src/discord/models/message_reaction.c
          src/discord/messages.c
-         src/discord/users.c
+         src/discord/members.c
          src/discord.c
     INCLUDE_DIRS include
     REQUIRES json esp_websocket_client esp_http_client
