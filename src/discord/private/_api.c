@@ -194,6 +194,10 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     return res;
 }
 
+discord_api_response_t* dcapi_get(discord_handle_t client, char* uri, char* data, bool stream) {
+    return dcapi_request(client, HTTP_METHOD_GET, uri, data, stream, true);
+}
+
 discord_api_response_t* dcapi_post(discord_handle_t client, char* uri, char* data, bool stream) {
     return dcapi_request(client, HTTP_METHOD_POST, uri, data, stream, true);
 }

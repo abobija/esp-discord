@@ -382,6 +382,57 @@ cJSON* discord_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
+discord_member_t* discord_member_ctor(char* nick, char* permissions) {
+    discord_member_t* member = calloc(1, sizeof(discord_member_t));
+
+    member->nick = nick;
+    member->permissions = permissions;
+
+    return member;
+}
+
+discord_member_t* discord_member_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _nick = cJSON_GetObjectItem(root, "nick");
+    cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
+
+    discord_member_t* member = discord_member_ctor(
+        _nick ? _nick->valuestring : NULL,
+        _permissions ? _permissions->valuestring : NULL
+    );
+
+    if(_nick) _nick->valuestring = NULL;
+    if(_permissions) _permissions->valuestring = NULL;
+
+    return member;
+}
+
+cJSON* discord_member_to_cjson(discord_member_t* member) {
+    if(!member)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(member->nick) cJSON_AddItemToObject(root, "nick", cJSON_CreateStringReference(member->nick));
+    if(member->permissions) cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(member->permissions));
+
+    return root;
+}
+
+discord_member_t* discord_member_deserialize(const char* json, size_t length) {
+    cJSON* cjson = _discord_model_parse(json, length);
+
+    if(!cjson)
+        return NULL;
+
+    discord_member_t* member = discord_member_from_cjson(cjson);
+    cJSON_Delete(cjson);
+
+    return member;
+}
+
 discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
@@ -449,7 +500,6 @@ discord_message_t* discord_message_deserialize(const char* json, size_t length) 
         return NULL;
 
     discord_message_t* msg = discord_message_from_cjson(cjson);
-
     cJSON_Delete(cjson);
 
     return msg;

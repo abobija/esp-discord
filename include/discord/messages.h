@@ -1,5 +1,5 @@
-#ifndef _DISCORD_MESSAGE_H_
-#define _DISCORD_MESSAGE_H_
+#ifndef _DISCORD_MESSAGES_H_
+#define _DISCORD_MESSAGES_H_
 
 #include "discord.h"
 #include "discord/models/message.h"

@@ -5,6 +5,7 @@
 #include "discord.h"
 #include "discord/models/session.h"
 #include "discord/models/user.h"
+#include "discord/models/member.h"
 #include "discord/models/message.h"
 #include "discord/models/message_reaction.h"
 
@@ -74,6 +75,11 @@ discord_user_t* discord_user_ctor(char* id, bool bot, char* username, char* disc
 discord_user_t* discord_user_clone(discord_user_t* user);
 discord_user_t* discord_user_from_cjson(cJSON* root);
 cJSON* discord_user_to_cjson(discord_user_t* user);
+
+discord_member_t* discord_member_ctor(char* nick, char* permissions);
+discord_member_t* discord_member_from_cjson(cJSON* root);
+cJSON* discord_member_to_cjson(discord_member_t* member);
+discord_member_t* discord_member_deserialize(const char* json, size_t length);
 
 discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id);
 discord_message_t* discord_message_from_cjson(cJSON* root);
