@@ -8,6 +8,7 @@
 #include "discord/models/member.h"
 #include "discord/models/message.h"
 #include "discord/models/message_reaction.h"
+#include "discord/models/role.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,6 +81,12 @@ discord_member_t* discord_member_ctor(char* nick, char* permissions, char** role
 discord_member_t* discord_member_from_cjson(cJSON* root);
 cJSON* discord_member_to_cjson(discord_member_t* member);
 discord_member_t* discord_member_deserialize(const char* json, size_t length);
+
+discord_role_t* discord_role_ctor(char* id, char* name, uint8_t position, char* permissions);
+discord_role_t* discord_role_from_cjson(cJSON* root);
+cJSON* discord_role_to_cjson(discord_role_t* role);
+discord_role_t* discord_role_deserialize(const char* json, size_t length);
+discord_role_t** discord_role_deserialize_list(const char* json, size_t length, uint8_t* roles_len);
 
 discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member);
 discord_message_t* discord_message_from_cjson(cJSON* root);

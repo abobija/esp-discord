@@ -450,6 +450,87 @@ discord_member_t* discord_member_deserialize(const char* json, size_t length) {
     return member;
 }
 
+discord_role_t* discord_role_ctor(char* id, char* name, uint8_t position, char* permissions) {
+    discord_role_t* role = calloc(1, sizeof(discord_role_t));
+
+    role->id = id;
+    role->name = name;
+    role->position = position;
+    role->permissions = permissions;
+
+    return role;
+}
+
+discord_role_t* discord_role_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _id = cJSON_GetObjectItem(root, "id");
+    cJSON* _name = cJSON_GetObjectItem(root, "name");
+    cJSON* _pos = cJSON_GetObjectItem(root, "position");
+    cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
+
+    discord_role_t* role = discord_role_ctor(
+        _id->valuestring,
+        _name->valuestring,
+        _pos->valueint,
+        _permissions->valuestring
+    );
+
+    _id->valuestring =
+    _name->valuestring =
+    _permissions->valuestring =
+    NULL;
+
+    return role;
+}
+
+cJSON* discord_role_to_cjson(discord_role_t* role) {
+    if(!role)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(role->id) cJSON_AddItemToObject(root, "id", cJSON_CreateStringReference(role->id));
+    cJSON_AddItemToObject(root, "name", cJSON_CreateStringReference(role->name));
+    cJSON_AddNumberToObject(root, "position", role->position);
+    cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(role->permissions));
+
+    return root;
+}
+
+discord_role_t* discord_role_deserialize(const char* json, size_t length) {
+    cJSON* cjson = _discord_model_parse(json, length);
+
+    if(!cjson)
+        return NULL;
+
+    discord_role_t* role = discord_role_from_cjson(cjson);
+    cJSON_Delete(cjson);
+
+    return role;
+}
+
+discord_role_t** discord_role_deserialize_list(const char* json, size_t length, uint8_t* roles_len) {
+    cJSON* cjson = _discord_model_parse(json, length);
+
+    if(!cJSON_IsArray(cjson))
+        return NULL;
+
+    uint8_t _roles_len = cJSON_GetArraySize(cjson);
+    discord_role_t** roles = calloc(_roles_len, sizeof(discord_role_t*));
+
+    for(uint8_t i = 0; i < _roles_len; i++) {
+        roles[i] = discord_role_from_cjson(cJSON_GetArrayItem(cjson, i));
+    }
+
+    *roles_len = _roles_len;
+    
+    cJSON_Delete(cjson);
+    
+    return roles;
+}
+
 discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
