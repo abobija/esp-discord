@@ -66,6 +66,9 @@ typedef struct {
     size_t gateway_buffer_size;
     size_t api_buffer_size;
     size_t api_timeout_ms;
+    uint8_t queue_size;
+    size_t task_stack_size;
+    uint8_t task_priority;
 } discord_client_config_t;
 
 typedef struct discord* discord_handle_t;

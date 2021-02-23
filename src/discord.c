@@ -23,6 +23,9 @@ static discord_client_config_t* dc_config_copy(const discord_client_config_t* co
     clone->gateway_buffer_size = config->gateway_buffer_size > 0 ? config->gateway_buffer_size : DISCORD_DEFAULT_GW_BUFFER_SIZE;
     clone->api_buffer_size = config->api_buffer_size > 0 ? config->api_buffer_size : DISCORD_DEFAULT_API_BUFFER_SIZE;
     clone->api_timeout_ms = config->api_timeout_ms > 0 ? config->api_timeout_ms : DISCORD_DEFAULT_API_TIMEOUT_MS;
+    clone->queue_size = config->queue_size > 0 ? config->queue_size : DISCORD_DEFAULT_QUEUE_SIZE;
+    clone->task_stack_size = config->task_stack_size > 0 ? config->task_stack_size : DISCORD_DEFAULT_TASK_STACK_SIZE;
+    clone->task_priority = config->task_priority > 0 ? config->task_priority : DISCORD_DEFAULT_TASK_PRIORITY;
 
     return clone;
 }
@@ -205,7 +208,7 @@ esp_err_t discord_login(discord_handle_t client) {
 
     client->running = true;
 
-    if (xTaskCreate(dc_task, "discord_task", DISCORD_DEFAULT_TASK_STACK_SIZE, client, DISCORD_DEFAULT_TASK_PRIORITY, &client->task_handle) != pdTRUE) {
+    if (xTaskCreate(dc_task, "discord_task", client->config->task_stack_size, client, client->config->task_priority, &client->task_handle) != pdTRUE) {
         DISCORD_LOGE("Fail to create task");
         client->running = false;
         return ESP_FAIL;

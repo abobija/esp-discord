@@ -167,7 +167,7 @@ esp_err_t dcgw_init(discord_handle_t client) {
     }
     
     if(!(client->gw_lock = xSemaphoreCreateMutex()) ||
-       !(client->queue = xQueueCreate(DISCORD_QUEUE_SIZE, sizeof(discord_payload_t*)))) {
+       !(client->queue = xQueueCreate(client->config->queue_size, sizeof(discord_payload_t*)))) {
         DISCORD_LOGE("Fail to create mutex/queue");
         return ESP_FAIL;
     }
@@ -186,7 +186,7 @@ esp_err_t dcgw_init(discord_handle_t client) {
 
     esp_websocket_client_config_t ws_cfg = {
         .uri = DISCORD_GW_URL,
-        .buffer_size = DISCORD_GW_WS_BUFFER_SIZE
+        .buffer_size = 512
     };
 
     if(!(client->ws = esp_websocket_client_init(&ws_cfg))) {
