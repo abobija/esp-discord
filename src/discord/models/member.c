@@ -7,5 +7,11 @@ void discord_member_free(discord_member_t* member) {
 
     free(member->nick);
     free(member->permissions);
+    if(member->roles) {
+        for(uint8_t i = 0; i < member->_roles_len; i++) {
+            free(member->roles[i]);
+        }
+        free(member->roles);
+    }
     free(member);
 }

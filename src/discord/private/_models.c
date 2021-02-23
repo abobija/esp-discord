@@ -382,11 +382,13 @@ cJSON* discord_user_to_cjson(discord_user_t* user) {
     return root;
 }
 
-discord_member_t* discord_member_ctor(char* nick, char* permissions) {
+discord_member_t* discord_member_ctor(char* nick, char* permissions, char** roles, uint8_t roles_len) {
     discord_member_t* member = calloc(1, sizeof(discord_member_t));
 
     member->nick = nick;
     member->permissions = permissions;
+    member->roles = roles;
+    member->_roles_len = roles_len;
 
     return member;
 }
@@ -400,11 +402,26 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
 
     discord_member_t* member = discord_member_ctor(
         _nick ? _nick->valuestring : NULL,
-        _permissions ? _permissions->valuestring : NULL
+        _permissions ? _permissions->valuestring : NULL,
+        NULL,
+        0
     );
 
     if(_nick) _nick->valuestring = NULL;
     if(_permissions) _permissions->valuestring = NULL;
+
+    cJSON* _roles = cJSON_GetObjectItem(root, "roles");
+
+    if(cJSON_IsArray(_roles)) {
+        member->_roles_len = cJSON_GetArraySize(_roles);
+        member->roles = calloc(member->_roles_len, sizeof(char*));
+
+        for(uint8_t i = 0; i < member->_roles_len; i++) {
+            cJSON* _role = cJSON_GetArrayItem(_roles, i);
+            member->roles[i] = _role->valuestring;
+            _role->valuestring = NULL;
+        }
+    }
 
     return member;
 }

@@ -76,7 +76,7 @@ discord_user_t* discord_user_clone(discord_user_t* user);
 discord_user_t* discord_user_from_cjson(cJSON* root);
 cJSON* discord_user_to_cjson(discord_user_t* user);
 
-discord_member_t* discord_member_ctor(char* nick, char* permissions);
+discord_member_t* discord_member_ctor(char* nick, char* permissions, char** roles, uint8_t roles_len);
 discord_member_t* discord_member_from_cjson(cJSON* root);
 cJSON* discord_member_to_cjson(discord_member_t* member);
 discord_member_t* discord_member_deserialize(const char* json, size_t length);
