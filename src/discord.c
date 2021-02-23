@@ -22,6 +22,7 @@ static discord_client_config_t* dc_config_copy(const discord_client_config_t* co
     clone->intents = config->intents;
     clone->gateway_buffer_size = config->gateway_buffer_size > 0 ? config->gateway_buffer_size : DISCORD_DEFAULT_GW_BUFFER_SIZE;
     clone->api_buffer_size = config->api_buffer_size > 0 ? config->api_buffer_size : DISCORD_DEFAULT_API_BUFFER_SIZE;
+    clone->api_timeout_ms = config->api_timeout_ms > 0 ? config->api_timeout_ms : DISCORD_DEFAULT_API_TIMEOUT_MS;
 
     return clone;
 }

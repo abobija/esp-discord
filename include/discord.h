@@ -65,6 +65,7 @@ typedef struct {
     int intents;
     size_t gateway_buffer_size;
     size_t api_buffer_size;
+    size_t api_timeout_ms;
 } discord_client_config_t;
 
 typedef struct discord* discord_handle_t;

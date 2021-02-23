@@ -82,11 +82,11 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client) {
         .keep_alive_enable = true,
         .event_handler = dcapi_on_http_event,
         .user_data = client,
-        .timeout_ms = DISCORD_API_TIMEOUT_MS
+        .timeout_ms = client->config->api_timeout_ms
     };
 
     client->api_buffer_record_status = ESP_OK;
-    
+
     if(!(client->api_lock = xSemaphoreCreateMutex()) ||
        !(client->api_buffer = malloc(client->config->api_buffer_size)) ||
        !(client->http = esp_http_client_init(&config))) {
@@ -113,7 +113,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
         return NULL;
     }
 
-    if(xSemaphoreTake(client->api_lock, DISCORD_API_TIMEOUT_MS / portTICK_PERIOD_MS) != pdTRUE) {
+    if(xSemaphoreTake(client->api_lock, client->config->api_timeout_ms / portTICK_PERIOD_MS) != pdTRUE) {
         DISCORD_LOGW("Api is locked");
         return NULL;
     }
