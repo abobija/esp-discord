@@ -22,7 +22,7 @@ void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
         return;
 
     if(res->data || res->data_len > 0) { // if buffer was attached to result
-        client->http_buffer_size = 0;
+        client->api_buffer_size = 0;
     }
 
     res->data = NULL; // do not free() res->data because it holds addr of internal api buffer
@@ -33,12 +33,12 @@ void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
 static esp_err_t dcapi_flush_http(discord_handle_t client, bool record) {
     DISCORD_LOG_FOO();
 
-    client->http_buffer_record = record;
+    client->api_buffer_record = record;
     esp_err_t err = esp_http_client_flush_response(client->http, NULL);
-    client->http_buffer_record = false;
+    client->api_buffer_record = false;
 
     if(! record) {
-        client->http_buffer_size = 0;
+        client->api_buffer_size = 0;
     }
 
     return err;
@@ -47,19 +47,19 @@ static esp_err_t dcapi_flush_http(discord_handle_t client, bool record) {
 static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     discord_handle_t client = (discord_handle_t) evt->user_data;
 
-    if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->http_buffer_record && client->http_buffer) {
+    if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->api_buffer_record && client->api_buffer) {
         DISCORD_LOGD("Buffering received chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
 
-        if(client->http_buffer_size + evt->data_len > DISCORD_API_BUFFER_SIZE) { // prevent buffer overflow
+        if(client->api_buffer_size + evt->data_len > DISCORD_API_BUFFER_SIZE) { // prevent buffer overflow
             DISCORD_LOGW("Response chunk cannot fit into api buffer");
-            client->http_buffer_record_status = ESP_FAIL;
-            client->http_buffer_size = 0;
+            client->api_buffer_record_status = ESP_FAIL;
+            client->api_buffer_size = 0;
             return ESP_FAIL;
         }
 
-        memcpy(client->http_buffer + client->http_buffer_size, evt->data, evt->data_len);
+        memcpy(client->api_buffer + client->api_buffer_size, evt->data, evt->data_len);
 
-        client->http_buffer_size += evt->data_len;
+        client->api_buffer_size += evt->data_len;
     }
 
     return ESP_OK;
@@ -85,10 +85,10 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client) {
         .timeout_ms = DISCORD_API_TIMEOUT_MS
     };
 
-    client->http_buffer_record_status = ESP_OK;
+    client->api_buffer_record_status = ESP_OK;
 
     if(!(client->api_lock = xSemaphoreCreateMutex()) ||
-       !(client->http_buffer = malloc(DISCORD_API_BUFFER_SIZE)) ||
+       !(client->api_buffer = malloc(DISCORD_API_BUFFER_SIZE)) ||
        !(client->http = esp_http_client_init(&config))) {
         DISCORD_LOGW("Cannot allocate api. No memory.");
         dcapi_destroy(client);
@@ -120,8 +120,8 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
 
     esp_http_client_handle_t http = client->http;
 
-    client->http_buffer_record = true; // always record first chunk which comes with headers because maybe will need to record error
-    client->http_buffer_record_status = ESP_OK;
+    client->api_buffer_record = true; // always record first chunk which comes with headers because maybe will need to record error
+    client->api_buffer_record_status = ESP_OK;
 
     char* url = discord_strcat(DISCORD_API_URL, uri);
     if(free_uri_and_data) { free(uri); }
@@ -169,12 +169,12 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     dcapi_flush_http(client, stream_response || is_error);  // record if stream_response is true or there is errors
 
     if(stream_response || is_error) {
-        if(client->http_buffer_record_status != ESP_OK) {
+        if(client->api_buffer_record_status != ESP_OK) {
             DISCORD_LOGW("Fail to record response chunks");
-            client->http_buffer_size = 0;
+            client->api_buffer_size = 0;
         } else if(! is_error) { // point response to buffer if there is no errors
-            res->data = client->http_buffer;
-            res->data_len = client->http_buffer_size;
+            res->data = client->api_buffer;
+            res->data_len = client->api_buffer_size;
         }
     }
 
@@ -184,9 +184,9 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
         DISCORD_LOGD("%.*s", res->data_len, res->data);
     }
 
-    if(is_error && client->http_buffer_size > 0) {
-        DISCORD_LOGW("Error: %.*s", client->http_buffer_size, client->http_buffer); // just print raw error for now
-        client->http_buffer_size = 0;
+    if(is_error && client->api_buffer_size > 0) {
+        DISCORD_LOGW("Error: %.*s", client->api_buffer_size, client->api_buffer); // just print raw error for now
+        client->api_buffer_size = 0;
     }
 
     xSemaphoreGive(client->api_lock);
@@ -227,13 +227,13 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
         client->api_lock = NULL;
     }
 
-    if(client->http_buffer != NULL) {
-        free(client->http_buffer);
-        client->http_buffer = NULL;
+    if(client->api_buffer != NULL) {
+        free(client->api_buffer);
+        client->api_buffer = NULL;
     }
 
-    client->http_buffer_size = 0;
-    client->http_buffer_record = false;
+    client->api_buffer_size = 0;
+    client->api_buffer_record = false;
 
     if(client->http) {
         esp_http_client_cleanup(client->http);

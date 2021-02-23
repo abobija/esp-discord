@@ -58,8 +58,8 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_handle_t client, d
 }
 
 static discord_close_code_t dcgw_get_close_opcode(discord_handle_t client) {
-    if(client->state == DISCORD_STATE_DISCONNECTING && client->buffer_len >= 2) {
-        int code = (256 * client->buffer[0] + client->buffer[1]);
+    if(client->state == DISCORD_STATE_DISCONNECTING && client->gw_buffer_len >= 2) {
+        int code = (256 * client->gw_buffer[0] + client->gw_buffer[1]);
         return code >= _DISCORD_CLOSEOP_MIN && code <= _DISCORD_CLOSEOP_MAX ? code : DISCORD_CLOSEOP_NO_CODE;
     }
 
@@ -76,13 +76,13 @@ static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websock
     
     DISCORD_LOGD("Buffering received data:\n%.*s", data->data_len, data->data_ptr);
     
-    memcpy(client->buffer + data->payload_offset, data->data_ptr, data->data_len);
+    memcpy(client->gw_buffer + data->payload_offset, data->data_ptr, data->data_len);
 
-    if((client->buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
+    if((client->gw_buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
         DISCORD_LOGD("Buffering done.");
 
         // append null terminator
-        client->buffer[client->buffer_len] = '\0';
+        client->gw_buffer[client->gw_buffer_len] = '\0';
 
         if(data->op_code == WS_TRANSPORT_OPCODES_CLOSE) {
             client->state = DISCORD_STATE_DISCONNECTING;
@@ -91,7 +91,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websock
             return ESP_OK;
         }
 
-        discord_payload_t* payload = discord_payload_deserialize(client->buffer, client->buffer_len);
+        discord_payload_t* payload = discord_payload_deserialize(client->gw_buffer, client->gw_buffer_len);
 
         if(!payload) {
             DISCORD_LOGE("Fail to deserialize payload");
@@ -172,7 +172,7 @@ esp_err_t dcgw_init(discord_handle_t client) {
         return ESP_FAIL;
     }
 
-    if(!(client->buffer = malloc(client->config->buffer_size + 1))) {
+    if(!(client->gw_buffer = malloc(client->config->buffer_size + 1))) {
         DISCORD_LOGE("Fail to allocate buffer");
         return ESP_FAIL;
     }
@@ -181,7 +181,7 @@ esp_err_t dcgw_init(discord_handle_t client) {
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
     client->close_code = DISCORD_CLOSEOP_NO_CODE;
-    client->buffer_len = 0;
+    client->gw_buffer_len = 0;
     client->state = DISCORD_STATE_INIT;
 
     esp_websocket_client_config_t ws_cfg = {
@@ -231,7 +231,7 @@ esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
 }
 
 char* dcgw_get_close_desc(discord_handle_t client) {
-    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->buffer + 2 : NULL;
+    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->gw_buffer + 2 : NULL;
 }
 
 bool dcgw_is_open(discord_handle_t client) {
@@ -284,7 +284,7 @@ esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t rea
         esp_websocket_client_close(client->ws, portMAX_DELAY);
     }
 
-    client->buffer_len = 0;
+    client->gw_buffer_len = 0;
     dcgw_queue_flush(client);
     if(client->gw_lock) { xSemaphoreGive(client->gw_lock); }
 
@@ -297,8 +297,8 @@ esp_err_t dcgw_destroy(discord_handle_t client) {
     dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
-    free(client->buffer);
-    client->buffer = NULL;
+    free(client->gw_buffer);
+    client->gw_buffer = NULL;
 
     if(client->gw_lock) {
         xSemaphoreTake(client->gw_lock, portMAX_DELAY); // wait to unlock
