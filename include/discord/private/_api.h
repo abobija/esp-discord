@@ -45,8 +45,6 @@ discord_api_response_t* dcapi_put(discord_handle_t client, char* uri, char* data
 esp_err_t dcapi_put_(discord_handle_t client, char* uri, char* data);
 esp_err_t dcapi_destroy(discord_handle_t client);
 
-char* dcapi_urlencode(const char* str);
-
 #ifdef __cplusplus
 }
 #endif

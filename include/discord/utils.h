@@ -35,6 +35,11 @@ bool discord_strsw(const char* str1, const char* str2);
  */
 bool discord_streq(const char* str1, const char* str2);
 
+/**
+ * @return Pointer to encoded string. Result needs to be freed.
+ */
+char* discord_url_encode(const char* str);
+
 #ifdef __cplusplus
 }
 #endif

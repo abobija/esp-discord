@@ -242,28 +242,3 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
 
     return ESP_OK;
 }
-
-char* dcapi_urlencode(const char* str) {
-    if(!str) { return NULL; }
-    static char hex[] = "0123456789abcdef";
-    size_t _len = strlen(str);
-    char* buf = malloc(_len * 3 + 1);
-    if(!buf) { return NULL; }
-    char* pbuf = buf;
-
-    for(size_t i = 0; i < _len; i++) {
-        if (isalnum(str[i]) || strchr(".-_~", str[i])) {
-            *pbuf++ = str[i];
-        } else if (str[i] == ' ') {
-            *pbuf++ = '+';
-        } else {
-            *pbuf++ = '%';
-            *pbuf++ = hex[(str[i] >> 4) & 15];
-            *pbuf++ = hex[str[i] & 15];
-        }
-    }
-
-    *pbuf = '\0';
-
-    return buf;
-}
