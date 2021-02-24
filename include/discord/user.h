@@ -1,5 +1,5 @@
-#ifndef _DISCORD_MODELS_USER_H_
-#define _DISCORD_MODELS_USER_H_
+#ifndef _DISCORD_USER_H_
+#define _DISCORD_USER_H_
 
 #ifdef __cplusplus
 extern "C" {

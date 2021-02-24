@@ -1,4 +1,4 @@
-#include "discord/members.h"
+#include "discord/member.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "discord/utils.h"
@@ -27,4 +27,19 @@ discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, ch
     dcapi_response_free(client, res);
 
     return member;
+}
+
+void discord_member_free(discord_member_t* member) {
+    if(!member)
+        return;
+
+    free(member->nick);
+    free(member->permissions);
+    if(member->roles) {
+        for(uint8_t i = 0; i < member->_roles_len; i++) {
+            free(member->roles[i]);
+        }
+        free(member->roles);
+    }
+    free(member);
 }

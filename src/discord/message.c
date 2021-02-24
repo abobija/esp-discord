@@ -1,7 +1,7 @@
-#include "discord/utils.h"
-#include "discord/messages.h"
+#include "discord/message.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
+#include "discord/utils.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -62,4 +62,17 @@ esp_err_t discord_message_react(discord_handle_t client, discord_message_t* mess
     free(_emoji);
 
     return err;
+}
+
+void discord_message_free(discord_message_t* message) {
+    if(message == NULL)
+        return;
+
+    free(message->id);
+    free(message->content);
+    free(message->channel_id);
+    discord_user_free(message->author);
+    free(message->guild_id);
+    discord_member_free(message->member);
+    free(message);
 }

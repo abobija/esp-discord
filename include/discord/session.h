@@ -1,7 +1,7 @@
-#ifndef _DISCORD_MODELS_SESSION_H_
-#define _DISCORD_MODELS_SESSION_H_
+#ifndef _DISCORD_SESSION_H_
+#define _DISCORD_SESSION_H_
 
-#include "discord/models/user.h"
+#include "discord/user.h"
 
 #ifdef __cplusplus
 extern "C" {

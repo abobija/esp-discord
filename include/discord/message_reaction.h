@@ -1,7 +1,7 @@
-#ifndef _DISCORD_MODELS_MESSAGE_REACTION_H_
-#define _DISCORD_MODELS_MESSAGE_REACTION_H_
+#ifndef _DISCORD_MESSAGE_REACTION_H_
+#define _DISCORD_MESSAGE_REACTION_H_
 
-#include "discord/models/emoji.h"
+#include "discord/emoji.h"
 
 #ifdef __cplusplus
 extern "C" {

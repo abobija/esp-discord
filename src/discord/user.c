@@ -1,8 +1,8 @@
-#include "discord/models/user.h"
+#include "discord/user.h"
 #include "esp_heap_caps.h"
 
 void discord_user_free(discord_user_t* user) {
-    if(user == NULL)
+    if(!user)
         return;
 
     free(user->id);

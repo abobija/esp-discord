@@ -1,5 +1,5 @@
-#ifndef _DISCORD_MODELS_EMOJI_H_
-#define _DISCORD_MODELS_EMOJI_H_
+#ifndef _DISCORD_EMOJI_H_
+#define _DISCORD_EMOJI_H_
 
 #ifdef __cplusplus
 extern "C" {

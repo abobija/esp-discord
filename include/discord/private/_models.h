@@ -3,12 +3,12 @@
 
 #include "cJSON.h"
 #include "discord.h"
-#include "discord/models/session.h"
-#include "discord/models/user.h"
-#include "discord/models/member.h"
-#include "discord/models/message.h"
-#include "discord/models/message_reaction.h"
-#include "discord/models/role.h"
+#include "discord/session.h"
+#include "discord/user.h"
+#include "discord/member.h"
+#include "discord/message.h"
+#include "discord/message_reaction.h"
+#include "discord/role.h"
 
 #ifdef __cplusplus
 extern "C" {

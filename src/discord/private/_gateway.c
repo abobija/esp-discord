@@ -1,6 +1,6 @@
 #include "discord/utils.h"
 #include "discord/private/_gateway.h"
-#include "discord/models/message.h"
+#include "discord/message.h"
 #include "esp_transport_ws.h"
 
 DISCORD_LOG_DEFINE_BASE();

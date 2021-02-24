@@ -3,16 +3,13 @@ idf_component_register(
          src/discord/private/_models.c
          src/discord/private/_gateway.c
          src/discord/private/_api.c
-         src/discord/models/user.c
-         src/discord/models/session.c
-         src/discord/models/member.c
-         src/discord/models/message.c
-         src/discord/models/emoji.c
-         src/discord/models/message_reaction.c
-         src/discord/models/role.c
-         src/discord/messages.c
-         src/discord/members.c
-         src/discord/roles.c
+         src/discord/user.c
+         src/discord/session.c
+         src/discord/member.c
+         src/discord/message.c
+         src/discord/emoji.c
+         src/discord/message_reaction.c
+         src/discord/role.c
          src/discord.c
     INCLUDE_DIRS include
     REQUIRES json esp_websocket_client esp_http_client

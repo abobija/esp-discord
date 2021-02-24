@@ -1,4 +1,4 @@
-#include "discord/roles.h"
+#include "discord/role.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "discord/utils.h"
@@ -27,4 +27,25 @@ discord_role_t** discord_role_get_all(discord_handle_t client, char* guild_id, u
     dcapi_response_free(client, res);
 
     return roles;
+}
+
+void discord_role_free(discord_role_t* role) {
+    if(!role)
+        return;
+
+    free(role->id);
+    free(role->name);
+    free(role->permissions);
+    free(role);
+}
+
+void discord_role_list_free(discord_role_t** roles, uint8_t len) {
+    if(!roles)
+        return;
+    
+    for(uint8_t i = 0; i < len; i++) {
+        discord_role_free(roles[i]);
+    }
+
+    free(roles);
 }
