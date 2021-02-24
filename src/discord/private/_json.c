@@ -244,7 +244,7 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
         member->_roles_len = cJSON_GetArraySize(_roles);
         member->roles = calloc(member->_roles_len, sizeof(char*));
 
-        for(uint8_t i = 0; i < member->_roles_len; i++) {
+        for(discord_role_len_t i = 0; i < member->_roles_len; i++) {
             cJSON* _role = cJSON_GetArrayItem(_roles, i);
             member->roles[i] = _role->valuestring;
             _role->valuestring = NULL;
@@ -328,16 +328,16 @@ discord_role_t* discord_role_deserialize(const char* json, size_t length) {
     return role;
 }
 
-discord_role_t** discord_role_list_deserialize(const char* json, size_t length, uint8_t* roles_len) {
+discord_role_t** discord_role_list_deserialize(const char* json, size_t length, discord_role_len_t* roles_len) {
     cJSON* cjson = _discord_model_parse(json, length);
 
     if(!cJSON_IsArray(cjson))
         return NULL;
 
-    uint8_t _roles_len = cJSON_GetArraySize(cjson);
+    discord_role_len_t _roles_len = cJSON_GetArraySize(cjson);
     discord_role_t** roles = calloc(_roles_len, sizeof(discord_role_t*));
 
-    for(uint8_t i = 0; i < _roles_len; i++) {
+    for(discord_role_len_t i = 0; i < _roles_len; i++) {
         roles[i] = discord_role_from_cjson(cJSON_GetArrayItem(cjson, i));
     }
 

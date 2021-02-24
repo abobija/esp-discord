@@ -6,7 +6,7 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_role_t* discord_role_ctor(char* id, char* name, uint8_t position, char* permissions) {
+discord_role_t* discord_role_ctor(char* id, char* name, discord_role_len_t position, char* permissions) {
     discord_role_t* role = calloc(1, sizeof(discord_role_t));
 
     role->id = id;
@@ -17,7 +17,7 @@ discord_role_t* discord_role_ctor(char* id, char* name, uint8_t position, char* 
     return role;
 }
 
-discord_role_t** discord_role_get_all(discord_handle_t client, char* guild_id, uint8_t* roles_len) {
+discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild_id, discord_role_len_t* roles_len) {
     if(!client || !guild_id || !roles_len) {
         DISCORD_LOGE("Invalid args");
         return NULL;
@@ -51,13 +51,31 @@ void discord_role_free(discord_role_t* role) {
     free(role);
 }
 
-void discord_role_list_free(discord_role_t** roles, uint8_t len) {
+void discord_role_list_free(discord_role_t** roles, discord_role_len_t len) {
     if(!roles)
         return;
     
-    for(uint8_t i = 0; i < len; i++) {
+    for(discord_role_len_t i = 0; i < len; i++) {
         discord_role_free(roles[i]);
     }
 
     free(roles);
+}
+
+bool discord_role_is_in_id_list(discord_role_t* role, char** role_ids, discord_role_len_t role_ids_len) {
+    for(discord_role_len_t i = 0; i < role_ids_len; i++) {
+        if(discord_streq(role_ids[i], role->id)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static int dc_role_cmp(const void* role1, const void* role2) {
+    return (*(discord_role_t**) role1)->position - (*(discord_role_t**) role2)->position;
+}
+
+void discord_role_sort_list(discord_role_t** roles, discord_role_len_t len) {
+    qsort(roles, len, sizeof(discord_role_t*), dc_role_cmp);
 }
