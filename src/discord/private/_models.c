@@ -289,25 +289,6 @@ void discord_identify_free(discord_identify_t* identify) {
     free(identify);
 }
 
-discord_session_t* discord_session_ctor(char* id, discord_user_t* user) {
-    discord_session_t* session = calloc(1, sizeof(discord_session_t));
-
-    session->session_id = id;
-    session->user = user;
-
-    return session;
-}
-
-discord_session_t* discord_session_clone(discord_session_t* session) {
-    if(!session)
-        return NULL;
-
-    return discord_session_ctor(
-        STRDUP(session->session_id),
-        discord_user_clone(session->user)
-    );
-}
-
 discord_session_t* discord_session_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
@@ -322,29 +303,6 @@ discord_session_t* discord_session_from_cjson(cJSON* root) {
     _id->valuestring = NULL;
 
     return session;
-}
-
-discord_user_t* discord_user_ctor(char* id, bool bot, char* username, char* discriminator) {
-    discord_user_t* user = calloc(1, sizeof(discord_user_t));
-
-    user->id = id;
-    user->bot = bot;
-    user->username = username;
-    user->discriminator = discriminator;
-
-    return user;
-}
-
-discord_user_t* discord_user_clone(discord_user_t* user) {
-    if(!user)
-        return NULL;
-
-    return discord_user_ctor(
-        STRDUP(user->id),
-        user->bot,
-        STRDUP(user->username),
-        STRDUP(user->discriminator)
-    );
 }
 
 discord_user_t* discord_user_from_cjson(cJSON* root) {
@@ -380,17 +338,6 @@ cJSON* discord_user_to_cjson(discord_user_t* user) {
     cJSON_AddBoolToObject(root, "bot", user->bot);
 
     return root;
-}
-
-discord_member_t* discord_member_ctor(char* nick, char* permissions, char** roles, uint8_t roles_len) {
-    discord_member_t* member = calloc(1, sizeof(discord_member_t));
-
-    member->nick = nick;
-    member->permissions = permissions;
-    member->roles = roles;
-    member->_roles_len = roles_len;
-
-    return member;
 }
 
 discord_member_t* discord_member_from_cjson(cJSON* root) {
@@ -448,17 +395,6 @@ discord_member_t* discord_member_deserialize(const char* json, size_t length) {
     cJSON_Delete(cjson);
 
     return member;
-}
-
-discord_role_t* discord_role_ctor(char* id, char* name, uint8_t position, char* permissions) {
-    discord_role_t* role = calloc(1, sizeof(discord_role_t));
-
-    role->id = id;
-    role->name = name;
-    role->position = position;
-    role->permissions = permissions;
-
-    return role;
 }
 
 discord_role_t* discord_role_from_cjson(cJSON* root) {
@@ -531,19 +467,6 @@ discord_role_t** discord_role_list_deserialize(const char* json, size_t length, 
     return roles;
 }
 
-discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member) {
-    discord_message_t* message = calloc(1, sizeof(discord_message_t));
-
-    message->id = id;
-    message->content = content;
-    message->channel_id = channel_id;
-    message->author = author;
-    message->guild_id = guild_id;
-    message->member = member;
-
-    return message;
-}
-
 discord_message_t* discord_message_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
@@ -606,14 +529,6 @@ discord_message_t* discord_message_deserialize(const char* json, size_t length) 
     return msg;
 }
 
-discord_emoji_t* discord_emoji_ctor(char* name) {
-    discord_emoji_t* emoji = calloc(1, sizeof(discord_emoji_t));
-
-    emoji->name = name;
-
-    return emoji;
-}
-
 discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
@@ -630,17 +545,6 @@ discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
     _name->valuestring = NULL;
 
     return emoji;
-}
-
-discord_message_reaction_t* discord_message_reaction_ctor(char* user_id, char* message_id, char* channel_id, discord_emoji_t* emoji) {
-    discord_message_reaction_t* react = calloc(1, sizeof(discord_message_reaction_t));
-
-    react->user_id = user_id;
-    react->message_id = message_id;
-    react->channel_id = channel_id;
-    react->emoji = emoji;
-
-    return react;
 }
 
 discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {

@@ -14,6 +14,7 @@ typedef struct {
     uint8_t _roles_len;
 } discord_member_t;
 
+discord_member_t* discord_member_ctor(char* nick, char* permissions, char** roles, uint8_t roles_len);
 discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, char* user_id);
 void discord_member_free(discord_member_t* member);
 

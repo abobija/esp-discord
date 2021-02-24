@@ -5,6 +5,19 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member) {
+    discord_message_t* message = calloc(1, sizeof(discord_message_t));
+
+    message->id = id;
+    message->content = content;
+    message->channel_id = channel_id;
+    message->author = author;
+    message->guild_id = guild_id;
+    message->member = member;
+
+    return message;
+}
+
 static discord_message_t* _discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err, bool _return) {
     if(!client || !message || !message->content || !message->channel_id) {
         DISCORD_LOGE("Invalid args");

@@ -12,6 +12,8 @@ typedef struct {
     discord_user_t* user;
 } discord_session_t;
 
+discord_session_t* discord_session_ctor(char* id, discord_user_t* user);
+discord_session_t* discord_session_clone(discord_session_t* session);
 void discord_session_free(discord_session_t* id);
 
 #ifdef __cplusplus
