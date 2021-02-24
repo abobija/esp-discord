@@ -1,5 +1,6 @@
 #include "discord/utils.h"
 #include "discord/private/_gateway.h"
+#include "discord/private/_json.h"
 #include "discord/message.h"
 #include "esp_transport_ws.h"
 

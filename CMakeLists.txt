@@ -3,6 +3,7 @@ idf_component_register(
          src/discord/private/_models.c
          src/discord/private/_gateway.c
          src/discord/private/_api.c
+         src/discord/private/_json.c
          src/discord/user.c
          src/discord/session.c
          src/discord/member.c

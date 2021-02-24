@@ -1,6 +1,7 @@
 #include "discord/message.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
+#include "discord/private/_json.h"
 #include "discord/utils.h"
 
 DISCORD_LOG_DEFINE_BASE();
