@@ -16,3 +16,5 @@ idf_component_register(
     INCLUDE_DIRS include
     REQUIRES json esp_websocket_client esp_http_client
 )
+
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

@@ -30,17 +30,6 @@ static discord_event_t discord_model_event_by_name(const char* name) {
     return DISCORD_EVENT_UNKNOWN;
 }
 
-cJSON* discord_model_parse(const char* json, size_t length) {
-    cJSON* cjson = cJSON_ParseWithLength(json, length);
-    
-    if(!cjson) {
-        DISCORD_LOGW("JSON parsing (syntax?) error");
-        return NULL;
-    }
-
-    return cjson;
-}
-
 cJSON* discord_payload_to_cjson(discord_payload_t* payload) {
     if(!payload)
         return NULL;
@@ -69,15 +58,9 @@ cJSON* discord_payload_to_cjson(discord_payload_t* payload) {
     return root;
 }
 
-discord_payload_t* discord_payload_deserialize(const char* json, size_t length) {
-    cJSON* cjson = discord_model_parse(json, length);
-
-    if(!cjson)
-        return NULL;
-
-    discord_payload_t* pl = discord_payload_ctor(
-        cJSON_GetObjectItem(cjson, "op")->valueint,
-        NULL
+discord_payload_t* discord_payload_from_cjson(cJSON* cjson) {
+    discord_payload_t* pl = discord_ctor(discord_payload_t,
+        .op = cJSON_GetObjectItem(cjson, "op")->valueint
     );
 
     cJSON* s = cJSON_GetObjectItem(cjson, "s");
@@ -92,7 +75,7 @@ discord_payload_t* discord_payload_deserialize(const char* json, size_t length) 
 
     switch(pl->op) {
         case DISCORD_OP_HELLO:
-            pl->d = discord_hello_ctor(cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
+            pl->d = discord_ctor(discord_hello_t, .heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
             break;
 
         case DISCORD_OP_DISPATCH:
@@ -108,8 +91,6 @@ discord_payload_t* discord_payload_deserialize(const char* json, size_t length) 
             DISCORD_LOGW("Cannot recognize payload type. Unable to set payload data.");
             break;
     }
-
-    cJSON_Delete(cjson);
 
     return pl;
 }
@@ -251,19 +232,6 @@ cJSON* discord_member_to_cjson(discord_member_t* member) {
     if(member->permissions) cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(member->permissions));
 
     return root;
-}
-
-discord_member_t* discord_member_deserialize(const char* json, size_t length) {
-    return discord_json_deserialize(member, json, length);
-    cJSON* cjson = discord_model_parse(json, length);
-
-    if(!cjson)
-        return NULL;
-
-    discord_member_t* member = discord_member_from_cjson(cjson);
-    cJSON_Delete(cjson);
-
-    return member;
 }
 
 discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {

@@ -20,16 +20,22 @@ extern "C" {
 
 #define discord_json_serialize(obj) discord_json_serialize_(obj, discord_ ##obj ##_to_cjson)
 
-#define discord_json_deserialize_(type, json, length, from_cjson_fnc) \
-    ({ type* obj = NULL; cJSON* cjson = discord_model_parse(json, length); if(cjson) { obj = from_cjson_fnc(cjson); cJSON_Delete(cjson); } obj; })
+#define discord_json_deserialize_(type, json, length, from_cjson_fnc) ({ \
+        type* obj = NULL; \
+        cJSON* cjson = cJSON_ParseWithLength(json, length); \
+        if(cjson) { obj = from_cjson_fnc(cjson); cJSON_Delete(cjson); } \
+        else { DISCORD_LOGW("JSON parsing (syntax?) error"); } \
+        obj; \
+    })
 
 #define discord_json_deserialize(obj_name, json, length) \
     discord_json_deserialize_(discord_ ##obj_name ##_t, json, length, discord_ ##obj_name ##_from_cjson)
 
 #define discord_json_list_deserialize_(type, json, length, out_length, from_cjson_fnc) ({ \
-        cJSON* cjson = discord_model_parse(json, length); \
+        cJSON* cjson = cJSON_ParseWithLength(json, length); \
         type** list = NULL; \
-        if(cJSON_IsArray(cjson)) { \
+        if(!cjson) { DISCORD_LOGW("JSON parsing (syntax?) error"); } \
+        else if(cJSON_IsArray(cjson)) { \
             int _len = cJSON_GetArraySize(cjson); \
             list = calloc(_len, sizeof(type*)); \
             if(list) { \
@@ -44,10 +50,8 @@ extern "C" {
 #define discord_json_list_deserialize(obj_name, json, length, out_length) \
     discord_json_list_deserialize_(discord_ ##obj_name ##_t, json, length, out_length, discord_ ##obj_name ##_from_cjson)
 
-cJSON* discord_model_parse(const char* json, size_t length);
-
 cJSON* discord_payload_to_cjson(discord_payload_t* payload);
-discord_payload_t* discord_payload_deserialize(const char* json, size_t length);
+discord_payload_t* discord_payload_from_cjson(cJSON* cjson);
 
 discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e, cJSON* cjson);
 

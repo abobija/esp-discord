@@ -92,7 +92,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websock
             return ESP_OK;
         }
 
-        discord_payload_t* payload = discord_payload_deserialize(client->gw_buffer, client->gw_buffer_len);
+        discord_payload_t* payload = discord_json_deserialize(payload, client->gw_buffer, client->gw_buffer_len);
 
         if(!payload) {
             DISCORD_LOGE("Fail to deserialize payload");
@@ -360,9 +360,9 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
         client->heartbeater.received_ack = false;
         int s = client->last_sequence_number;
 
-        return dcgw_send(client, discord_payload_ctor(
-            DISCORD_OP_HEARTBEAT,
-            (discord_heartbeat_t*) &s
+        return dcgw_send(client, discord_ctor(discord_payload_t,
+            .op = DISCORD_OP_HEARTBEAT,
+            .d = (discord_heartbeat_t*) &s
         ));
     }
 
@@ -372,12 +372,16 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
 esp_err_t dcgw_identify(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
-    return dcgw_send(client, discord_payload_ctor(
-        DISCORD_OP_IDENTIFY,
-        discord_identify_ctor_(
-            client->config->token,
-            client->config->intents,
-            discord_identify_properties_ctor_("freertos", "esp-idf", CONFIG_IDF_TARGET)
+    return dcgw_send(client, discord_ctor(discord_payload_t,
+        .op = DISCORD_OP_IDENTIFY,
+        .d = discord_ctor(discord_identify_t,
+            .token = strdup(client->config->token),
+            .intents = client->config->intents,
+            .properties = discord_ctor(discord_identify_properties_t,
+                .$os = strdup("freertos"),
+                .$browser = strdup("esp-idf"),
+                .$device = strdup(CONFIG_IDF_TARGET)
+            )
         )
     ));
 }
@@ -407,7 +411,18 @@ static esp_err_t dcgw_dispatch(discord_handle_t client, discord_payload_t* paylo
             client->session->session_id
         );
 
-        discord_session_t* session_clone = discord_session_clone(client->session);
+        discord_session_t* _s = client->session;
+
+        discord_session_t* session_clone = discord_ctor(discord_session_t,
+            .session_id = strdup(_s->session_id),
+            .user = discord_ctor(discord_user_t,
+                .id = strdup(_s->user->id),
+                .bot = _s->user->bot,
+                .username = strdup(_s->user->username),
+                .discriminator = strdup(_s->user->discriminator)
+            )
+        );
+
         DISCORD_EVENT_FIRE(DISCORD_EVENT_CONNECTED, session_clone);
         discord_session_free(session_clone);
 

@@ -7,17 +7,6 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_payload_t* discord_payload_ctor(int op, discord_payload_data_t d) {
-    discord_payload_t* pl = calloc(1, sizeof(discord_payload_t));
-
-    pl->op = op;
-    pl->d = d;
-    pl->s = DISCORD_NULL_SEQUENCE_NUMBER;
-    pl->t = DISCORD_EVENT_NONE;
-
-    return pl;
-}
-
 void discord_payload_free(discord_payload_t* payload) {
     if(!payload)
         return;
@@ -71,29 +60,11 @@ void discord_dispatch_event_data_free(discord_payload_t* payload) {
     }
 }
 
-discord_hello_t* discord_hello_ctor(int heartbeat_interval) {
-    discord_hello_t* hello = calloc(1, sizeof(discord_hello_t));
-
-    hello->heartbeat_interval = heartbeat_interval;
-
-    return hello;
-}
-
 void discord_hello_free(discord_hello_t* hello) {
     if(!hello)
         return;
 
     free(hello);
-}
-
-discord_identify_properties_t* discord_identify_properties_ctor_(const char* $os, const char* $browser, const char* $device) {
-    discord_identify_properties_t* props = calloc(1, sizeof(discord_identify_properties_t));
-
-    props->$os = strdup($os);
-    props->$browser = strdup($browser);
-    props->$device = strdup($device);
-
-    return props;
 }
 
 void discord_identify_properties_free(discord_identify_properties_t* properties) {
@@ -104,16 +75,6 @@ void discord_identify_properties_free(discord_identify_properties_t* properties)
     free(properties->$browser);
     free(properties->$device);
     free(properties);
-}
-
-discord_identify_t* discord_identify_ctor_(const char* token, int intents, discord_identify_properties_t* properties) {
-    discord_identify_t* identify = calloc(1, sizeof(discord_identify_t));
-
-    identify->token = strdup(token);
-    identify->intents = intents;
-    identify->properties = properties;
-
-    return identify;
 }
 
 void discord_identify_free(discord_identify_t* identify) {
