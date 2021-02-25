@@ -30,7 +30,7 @@ static discord_event_t discord_model_event_by_name(const char* name) {
     return DISCORD_EVENT_UNKNOWN;
 }
 
-static cJSON* _discord_model_parse(const char* json, size_t length) {
+cJSON* discord_model_parse(const char* json, size_t length) {
     cJSON* cjson = cJSON_ParseWithLength(json, length);
     
     if(!cjson) {
@@ -70,7 +70,7 @@ cJSON* discord_payload_to_cjson(discord_payload_t* payload) {
 }
 
 discord_payload_t* discord_payload_deserialize(const char* json, size_t length) {
-    cJSON* cjson = _discord_model_parse(json, length);
+    cJSON* cjson = discord_model_parse(json, length);
 
     if(!cjson)
         return NULL;
@@ -112,14 +112,6 @@ discord_payload_t* discord_payload_deserialize(const char* json, size_t length) 
     cJSON_Delete(cjson);
 
     return pl;
-}
-
-char* discord_payload_serialize(discord_payload_t* payload) {
-    cJSON* cjson = discord_payload_to_cjson(payload);
-    char* payload_raw = cJSON_PrintUnformatted(cjson);
-    cJSON_Delete(cjson);
-
-    return payload_raw;
 }
 
 discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e, cJSON* cjson) {
@@ -262,7 +254,8 @@ cJSON* discord_member_to_cjson(discord_member_t* member) {
 }
 
 discord_member_t* discord_member_deserialize(const char* json, size_t length) {
-    cJSON* cjson = _discord_model_parse(json, length);
+    return discord_json_deserialize(member, json, length);
+    cJSON* cjson = discord_model_parse(json, length);
 
     if(!cjson)
         return NULL;
@@ -337,20 +330,8 @@ cJSON* discord_role_to_cjson(discord_role_t* role) {
     return root;
 }
 
-discord_role_t* discord_role_deserialize(const char* json, size_t length) {
-    cJSON* cjson = _discord_model_parse(json, length);
-
-    if(!cjson)
-        return NULL;
-
-    discord_role_t* role = discord_role_from_cjson(cjson);
-    cJSON_Delete(cjson);
-
-    return role;
-}
-
 discord_role_t** discord_role_list_deserialize(const char* json, size_t length, discord_role_len_t* roles_len) {
-    cJSON* cjson = _discord_model_parse(json, length);
+    cJSON* cjson = discord_model_parse(json, length);
 
     if(!cJSON_IsArray(cjson))
         return NULL;
@@ -418,27 +399,6 @@ cJSON* discord_message_to_cjson(discord_message_t* msg) {
     if(msg->member) cJSON_AddItemToObject(root, "member", discord_member_to_cjson(msg->member));
 
     return root;
-}
-
-
-char* discord_message_serialize(discord_message_t* msg) {
-    cJSON* cjson = discord_message_to_cjson(msg);
-    char* payload_raw = cJSON_PrintUnformatted(cjson);
-    cJSON_Delete(cjson);
-
-    return payload_raw;
-}
-
-discord_message_t* discord_message_deserialize(const char* json, size_t length) {
-    cJSON* cjson = _discord_model_parse(json, length);
-
-    if(!cjson)
-        return NULL;
-
-    discord_message_t* msg = discord_message_from_cjson(cjson);
-    cJSON_Delete(cjson);
-
-    return msg;
 }
 
 discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {

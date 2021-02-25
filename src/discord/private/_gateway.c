@@ -212,8 +212,8 @@ esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
         DISCORD_LOGW("Gateway is locked");
         return ESP_FAIL;
     }
-
-    char* payload_raw = discord_payload_serialize(payload);
+    
+    char* payload_raw = discord_json_serialize(payload);
 
     discord_payload_free(payload);
 

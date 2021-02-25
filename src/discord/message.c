@@ -16,7 +16,7 @@ static discord_message_t* _discord_message_send_(discord_handle_t client, discor
     discord_api_response_t* res = dcapi_post(
         client,
         discord_strcat("/channels/", message->channel_id, "/messages"),
-        discord_message_serialize(message),
+        discord_json_serialize(message),
         _return
     );
 
@@ -28,7 +28,7 @@ static discord_message_t* _discord_message_send_(discord_handle_t client, discor
         if(res->data_len <= 0) {
             DISCORD_LOGW("Message sent but cannot return");
         } else {
-            sent_message = discord_message_deserialize(res->data, res->data_len);
+            sent_message = discord_json_deserialize(message, res->data, res->data_len);
         }
     }
     

@@ -15,12 +15,21 @@
 extern "C" {
 #endif
 
+#define discord_json_serialize_(obj, to_cjson_fnc) \
+    ({ cJSON* cjson = to_cjson_fnc(obj); char* json = cJSON_PrintUnformatted(cjson); cJSON_Delete(cjson); json; })
+
+#define discord_json_serialize(obj) discord_json_serialize_(obj, discord_ ##obj ##_to_cjson)
+
+#define discord_json_deserialize_(type, json, length, from_cjson_fnc) \
+    ({ type* obj = NULL; cJSON* cjson = discord_model_parse(json, length); if(cjson) { obj = from_cjson_fnc(cjson); cJSON_Delete(cjson); } obj; })
+
+#define discord_json_deserialize(obj_name, json, length) \
+    discord_json_deserialize_(discord_ ##obj_name ##_t, json, length, discord_ ##obj_name ##_from_cjson)
+
+cJSON* discord_model_parse(const char* json, size_t length);
+
 cJSON* discord_payload_to_cjson(discord_payload_t* payload);
 discord_payload_t* discord_payload_deserialize(const char* json, size_t length);
-/**
- * @brief Serialize payload to JSON string
- */
-char* discord_payload_serialize(discord_payload_t* payload);
 
 discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e, cJSON* cjson);
 
@@ -37,19 +46,15 @@ cJSON* discord_user_to_cjson(discord_user_t* user);
 
 discord_member_t* discord_member_from_cjson(cJSON* root);
 cJSON* discord_member_to_cjson(discord_member_t* member);
-discord_member_t* discord_member_deserialize(const char* json, size_t length);
 
 discord_attachment_t* discord_attachment_from_cjson(cJSON* root);
 
 discord_role_t* discord_role_from_cjson(cJSON* root);
 cJSON* discord_role_to_cjson(discord_role_t* role);
-discord_role_t* discord_role_deserialize(const char* json, size_t length);
 discord_role_t** discord_role_list_deserialize(const char* json, size_t length, uint8_t* roles_len);
 
 discord_message_t* discord_message_from_cjson(cJSON* root);
 cJSON* discord_message_to_cjson(discord_message_t* msg);
-char* discord_message_serialize(discord_message_t* msg);
-discord_message_t* discord_message_deserialize(const char* json, size_t length);
 
 discord_emoji_t* discord_emoji_from_cjson(cJSON* root);
 

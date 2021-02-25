@@ -22,7 +22,7 @@ discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, ch
     );
 
     if(dcapi_response_is_success(res) && res->data_len > 0) {
-        member = discord_member_deserialize(res->data, res->data_len);
+        member = discord_json_deserialize(member, res->data, res->data_len);
     }
 
     dcapi_response_free(client, res);
