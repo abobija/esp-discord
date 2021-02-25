@@ -47,12 +47,7 @@ void discord_member_free(discord_member_t* member) {
 
     free(member->nick);
     free(member->permissions);
-    if(member->roles) {
-        for(discord_role_len_t i = 0; i < member->_roles_len; i++) {
-            free(member->roles[i]);
-        }
-        free(member->roles);
-    }
+    discord_list_free(member->roles, member->_roles_len, free);
     free(member);
 }
 

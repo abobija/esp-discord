@@ -1,12 +1,15 @@
 #ifndef _DISCORD_UTILS_H_
 #define _DISCORD_UTILS_H_
 
+#include "stdint.h"
+#include "stdbool.h"
+#include "stddef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "stdint.h"
-#include "stdbool.h"
+#define discord_list_free(list, len, free_fnc) if(list) { for(size_t i = 0; i < len; i++) { free_fnc(list[i]); list[i] = NULL; } free(list); }
 
 /**
  * Concatenate optional number of strings. User need to release the resulting string with a free function

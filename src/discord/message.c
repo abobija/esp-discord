@@ -83,18 +83,13 @@ esp_err_t discord_message_react(discord_handle_t client, discord_message_t* mess
 void discord_message_free(discord_message_t* message) {
     if(message == NULL)
         return;
-
+    
     free(message->id);
     free(message->content);
     free(message->channel_id);
     discord_user_free(message->author);
     free(message->guild_id);
     discord_member_free(message->member);
-    if(message->attachments) {
-        for(uint8_t i = 0; i < message->_attachments_len; i++) {
-            discord_attachment_free(message->attachments[i]);
-        }
-        free(message->attachments);
-    }
+    discord_list_free(message->attachments, message->_attachments_len, discord_attachment_free);
     free(message);
 }
