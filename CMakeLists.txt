@@ -11,6 +11,7 @@ idf_component_register(
          src/discord/emoji.c
          src/discord/message_reaction.c
          src/discord/role.c
+         src/discord/attachment.c
          src/discord.c
     INCLUDE_DIRS include
     REQUIRES json esp_websocket_client esp_http_client

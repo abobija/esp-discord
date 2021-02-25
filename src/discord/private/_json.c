@@ -240,8 +240,7 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
 
     cJSON* _roles = cJSON_GetObjectItem(root, "roles");
 
-    if(cJSON_IsArray(_roles)) {
-        member->_roles_len = cJSON_GetArraySize(_roles);
+    if(cJSON_IsArray(_roles) && ((member->_roles_len = cJSON_GetArraySize(_roles)) > 0)) {
         member->roles = calloc(member->_roles_len, sizeof(char*));
 
         for(discord_role_len_t i = 0; i < member->_roles_len; i++) {
@@ -276,6 +275,32 @@ discord_member_t* discord_member_deserialize(const char* json, size_t length) {
     cJSON_Delete(cjson);
 
     return member;
+}
+
+discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _id = cJSON_GetObjectItem(root, "id");
+    cJSON* _fname = cJSON_GetObjectItem(root, "filename");
+    cJSON* _ctype = cJSON_GetObjectItem(root, "content_type");
+    cJSON* _url = cJSON_GetObjectItem(root, "url");
+
+    discord_attachment_t* attachment = discord_attachment_ctor(
+        _id->valuestring,
+        _fname->valuestring,
+        _ctype->valuestring,
+        cJSON_GetObjectItem(root, "size")->valueint,
+        _url->valuestring
+    );
+
+    _id->valuestring =
+    _fname->valuestring =
+    _ctype->valuestring =
+    _url->valuestring =
+    NULL;
+
+    return attachment;
 }
 
 discord_role_t* discord_role_from_cjson(cJSON* root) {
@@ -363,7 +388,9 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
         _cid->valuestring,
         discord_user_from_cjson(cJSON_GetObjectItem(root, "author")),
         _gid ? _gid->valuestring : NULL,
-        discord_member_from_cjson(cJSON_GetObjectItem(root, "member"))
+        discord_member_from_cjson(cJSON_GetObjectItem(root, "member")),
+        NULL,
+        0
     );
 
     _content->valuestring =
@@ -372,6 +399,16 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
 
     if(_id) _id->valuestring = NULL;
     if(_gid) _gid->valuestring = NULL;
+
+    cJSON* _attachments = cJSON_GetObjectItem(root, "attachments");
+
+    if(cJSON_IsArray(_attachments) && ((message->_attachments_len = cJSON_GetArraySize(_attachments)) > 0)) {
+        message->attachments = calloc(message->_attachments_len, sizeof(discord_attachment_t*));
+
+        for(uint8_t i = 0; i < message->_attachments_len; i++) {
+            message->attachments[i] = discord_attachment_from_cjson(cJSON_GetArrayItem(_attachments, i));
+        }
+    }
 
     return message;
 }

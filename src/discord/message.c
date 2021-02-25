@@ -6,7 +6,7 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member) {
+discord_message_t* discord_message_ctor(char* id, char* content, char* channel_id, discord_user_t* author, char* guild_id, discord_member_t* member, discord_attachment_t** attachments, uint8_t attachments_len) {
     discord_message_t* message = calloc(1, sizeof(discord_message_t));
 
     message->id = id;
@@ -15,6 +15,8 @@ discord_message_t* discord_message_ctor(char* id, char* content, char* channel_i
     message->author = author;
     message->guild_id = guild_id;
     message->member = member;
+    message->attachments = attachments;
+    message->_attachments_len = attachments_len;
 
     return message;
 }
@@ -88,5 +90,11 @@ void discord_message_free(discord_message_t* message) {
     discord_user_free(message->author);
     free(message->guild_id);
     discord_member_free(message->member);
+    if(message->attachments) {
+        for(uint8_t i = 0; i < message->_attachments_len; i++) {
+            discord_attachment_free(message->attachments[i]);
+        }
+        free(message->attachments);
+    }
     free(message);
 }
