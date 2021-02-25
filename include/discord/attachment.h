@@ -15,7 +15,6 @@ typedef struct {
     char* url;
 } discord_attachment_t;
 
-discord_attachment_t* discord_attachment_ctor(char* id, char* filename, char* content_type, size_t size, char* url);
 void discord_attachment_free(discord_attachment_t* attachment);
 
 #ifdef __cplusplus

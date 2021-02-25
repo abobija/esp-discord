@@ -16,7 +16,6 @@ typedef struct {
     char* permissions;
 } discord_role_t;
 
-discord_role_t* discord_role_ctor(char* id, char* name, discord_role_len_t position, char* permissions);
 discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild_id, discord_role_len_t* roles_len);
 void discord_role_free(discord_role_t* role);
 void discord_role_list_free(discord_role_t** roles, discord_role_len_t len);

@@ -1,27 +1,17 @@
 #include "discord/private/_discord.h"
 #include "discord/user.h"
 #include "esp_heap_caps.h"
-
-discord_user_t* discord_user_ctor(char* id, bool bot, char* username, char* discriminator) {
-    discord_user_t* user = calloc(1, sizeof(discord_user_t));
-
-    user->id = id;
-    user->bot = bot;
-    user->username = username;
-    user->discriminator = discriminator;
-
-    return user;
-}
+#include "discord/utils.h"
 
 discord_user_t* discord_user_clone(discord_user_t* user) {
     if(!user)
         return NULL;
 
-    return discord_user_ctor(
-        STRDUP(user->id),
-        user->bot,
-        STRDUP(user->username),
-        STRDUP(user->discriminator)
+    return discord_ctor(discord_user_t,
+        .id = STRDUP(user->id),
+        .bot = user->bot,
+        .username = STRDUP(user->username),
+        .discriminator = STRDUP(user->discriminator)
     );
 }
 

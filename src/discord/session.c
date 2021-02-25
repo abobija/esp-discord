@@ -1,23 +1,15 @@
 #include "discord/session.h"
 #include "string.h"
 #include "esp_heap_caps.h"
-
-discord_session_t* discord_session_ctor(char* id, discord_user_t* user) {
-    discord_session_t* session = calloc(1, sizeof(discord_session_t));
-
-    session->session_id = id;
-    session->user = user;
-
-    return session;
-}
+#include "discord/utils.h"
 
 discord_session_t* discord_session_clone(discord_session_t* session) {
     if(!session)
         return NULL;
 
-    return discord_session_ctor(
-        strdup(session->session_id),
-        discord_user_clone(session->user)
+    return discord_ctor(discord_session_t,
+        .session_id = strdup(session->session_id),
+        .user = discord_user_clone(session->user)
     );
 }
 

@@ -14,7 +14,6 @@ typedef struct {
     discord_emoji_t* emoji;
 } discord_message_reaction_t;
 
-discord_message_reaction_t* discord_message_reaction_ctor(char* user_id, char* message_id, char* channel_id, discord_emoji_t* emoji);
 void discord_message_reaction_free(discord_message_reaction_t* reaction);
 
 #ifdef __cplusplus

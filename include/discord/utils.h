@@ -9,10 +9,25 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Universal struct (type) constructor
+ * @param type Struct type name (ex: person_t)
+ * @param ... Struct attributes (ex: .id = 2, .name = strdup("John"))
+ * @return Pointer to dynamically alocated struct (type)
+ */
+#define discord_ctor(type, ...) ({ type* obj = calloc(1, sizeof(type)); if(obj) { *obj = (type){ __VA_ARGS__ }; } obj; })
+
+/**
+ * @brief Free the list (array of pointers)
+ * @param list Double pointer to list
+ * @param len Number of the items in the list
+ * @param free_fnc Function for freeing the list item
+ * @return void
+ */ 
 #define discord_list_free(list, len, free_fnc) if(list) { for(size_t i = 0; i < len; i++) { free_fnc(list[i]); list[i] = NULL; } free(list); }
 
 /**
- * Concatenate optional number of strings. User need to release the resulting string with a free function
+ * @brief Concatenate optional number of strings. User need to release the resulting string with a free function
  * @return Pointer to result string or NULL on failure
  */
 #define discord_strcat(...) _discord_strcat(__VA_ARGS__, NULL)

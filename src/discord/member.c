@@ -6,17 +6,6 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_member_t* discord_member_ctor(char* nick, char* permissions, char** roles, discord_role_len_t roles_len) {
-    discord_member_t* member = calloc(1, sizeof(discord_member_t));
-
-    member->nick = nick;
-    member->permissions = permissions;
-    member->roles = roles;
-    member->_roles_len = roles_len;
-
-    return member;
-}
-
 discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, char* user_id) {
     if(!client || !guild_id || !user_id) {
         DISCORD_LOGE("Invalid args");

@@ -20,7 +20,6 @@ typedef struct {
     char* name;
 } discord_emoji_t;
 
-discord_emoji_t* discord_emoji_ctor(char* name);
 void discord_emoji_free(discord_emoji_t* emoji);
 
 #ifdef __cplusplus

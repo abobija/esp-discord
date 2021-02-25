@@ -176,9 +176,9 @@ discord_session_t* discord_session_from_cjson(cJSON* root) {
 
     cJSON* _id = cJSON_GetObjectItem(root, "session_id");
 
-    discord_session_t* session = discord_session_ctor(
-        _id->valuestring,
-        discord_user_from_cjson(cJSON_GetObjectItem(root, "user"))
+    discord_session_t* session = discord_ctor(discord_session_t,
+        .session_id = _id->valuestring,
+        .user = discord_user_from_cjson(cJSON_GetObjectItem(root, "user"))
     );
 
     _id->valuestring = NULL;
@@ -195,11 +195,11 @@ discord_user_t* discord_user_from_cjson(cJSON* root) {
     cJSON* _username = cJSON_GetObjectItem(root, "username");
     cJSON* _discriminator = cJSON_GetObjectItem(root, "discriminator");
 
-    discord_user_t* user = discord_user_ctor(
-        _id->valuestring,
-        _bot && _bot->valueint,
-        _username->valuestring,
-        _discriminator->valuestring
+    discord_user_t* user = discord_ctor(discord_user_t,
+        .id = _id->valuestring,
+        .bot = _bot && _bot->valueint,
+        .username = _username->valuestring,
+        .discriminator = _discriminator->valuestring
     );
 
     _id->valuestring =
@@ -228,11 +228,9 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
     cJSON* _nick = cJSON_GetObjectItem(root, "nick");
     cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
 
-    discord_member_t* member = discord_member_ctor(
-        _nick ? _nick->valuestring : NULL,
-        _permissions ? _permissions->valuestring : NULL,
-        NULL,
-        0
+    discord_member_t* member = discord_ctor(discord_member_t,
+        .nick = _nick ? _nick->valuestring : NULL,
+        .permissions = _permissions ? _permissions->valuestring : NULL
     );
 
     if(_nick) _nick->valuestring = NULL;
@@ -286,12 +284,12 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
     cJSON* _ctype = cJSON_GetObjectItem(root, "content_type");
     cJSON* _url = cJSON_GetObjectItem(root, "url");
 
-    discord_attachment_t* attachment = discord_attachment_ctor(
-        _id->valuestring,
-        _fname->valuestring,
-        _ctype->valuestring,
-        cJSON_GetObjectItem(root, "size")->valueint,
-        _url->valuestring
+    discord_attachment_t* attachment = discord_ctor(discord_attachment_t,
+        .id = _id->valuestring,
+        .filename = _fname->valuestring,
+        .content_type = _ctype->valuestring,
+        .size = cJSON_GetObjectItem(root, "size")->valueint,
+        .url = _url->valuestring
     );
 
     _id->valuestring =
@@ -312,11 +310,11 @@ discord_role_t* discord_role_from_cjson(cJSON* root) {
     cJSON* _pos = cJSON_GetObjectItem(root, "position");
     cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
 
-    discord_role_t* role = discord_role_ctor(
-        _id->valuestring,
-        _name->valuestring,
-        _pos->valueint,
-        _permissions->valuestring
+    discord_role_t* role = discord_ctor(discord_role_t,
+        .id = _id->valuestring,
+        .name = _name->valuestring,
+        .position = _pos->valueint,
+        .permissions = _permissions->valuestring
     );
 
     _id->valuestring =
@@ -382,15 +380,13 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
     cJSON* _gid = cJSON_GetObjectItem(root, "guild_id");
 
-    discord_message_t* message = discord_message_ctor(
-        _id ? _id->valuestring : NULL,
-        _content->valuestring,
-        _cid->valuestring,
-        discord_user_from_cjson(cJSON_GetObjectItem(root, "author")),
-        _gid ? _gid->valuestring : NULL,
-        discord_member_from_cjson(cJSON_GetObjectItem(root, "member")),
-        NULL,
-        0
+    discord_message_t* message = discord_ctor(discord_message_t,
+        .id = _id ? _id->valuestring : NULL,
+        .content = _content->valuestring,
+        .channel_id = _cid->valuestring,
+        .author = discord_user_from_cjson(cJSON_GetObjectItem(root, "author")),
+        .guild_id = _gid ? _gid->valuestring : NULL,
+        .member = discord_member_from_cjson(cJSON_GetObjectItem(root, "member"))
     );
 
     _content->valuestring =
@@ -458,7 +454,7 @@ discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
         return NULL;
     }
 
-    discord_emoji_t* emoji = discord_emoji_ctor(_name->valuestring);
+    discord_emoji_t* emoji = discord_ctor(discord_emoji_t, .name = _name->valuestring);
 
     _name->valuestring = NULL;
 
@@ -473,11 +469,11 @@ discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {
     cJSON* _mid = cJSON_GetObjectItem(root, "message_id");
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
 
-    discord_message_reaction_t* react = discord_message_reaction_ctor(
-        _uid->valuestring,
-        _mid->valuestring,
-        _cid->valuestring,
-        discord_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
+    discord_message_reaction_t* react = discord_ctor(discord_message_reaction_t,
+        .user_id = _uid->valuestring,
+        .message_id = _mid->valuestring,
+        .channel_id = _cid->valuestring,
+        .emoji = discord_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
     );
 
     _uid->valuestring =
