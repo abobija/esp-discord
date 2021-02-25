@@ -330,26 +330,6 @@ cJSON* discord_role_to_cjson(discord_role_t* role) {
     return root;
 }
 
-discord_role_t** discord_role_list_deserialize(const char* json, size_t length, discord_role_len_t* roles_len) {
-    cJSON* cjson = discord_model_parse(json, length);
-
-    if(!cJSON_IsArray(cjson))
-        return NULL;
-
-    discord_role_len_t _roles_len = cJSON_GetArraySize(cjson);
-    discord_role_t** roles = calloc(_roles_len, sizeof(discord_role_t*));
-
-    for(discord_role_len_t i = 0; i < _roles_len; i++) {
-        roles[i] = discord_role_from_cjson(cJSON_GetArrayItem(cjson, i));
-    }
-
-    *roles_len = _roles_len;
-    
-    cJSON_Delete(cjson);
-    
-    return roles;
-}
-
 discord_message_t* discord_message_from_cjson(cJSON* root) {
     if(!root)
         return NULL;

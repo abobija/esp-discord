@@ -6,8 +6,8 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild_id, discord_role_len_t* roles_len) {
-    if(!client || !guild_id || !roles_len) {
+discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild_id, discord_role_len_t* out_length) {
+    if(!client || !guild_id || !out_length) {
         DISCORD_LOGE("Invalid args");
         return NULL;
     }
@@ -20,9 +20,9 @@ discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild
         NULL,
         true
     );
-
+    
     if(dcapi_response_is_success(res) && res->data_len > 0) {
-        roles = discord_role_list_deserialize(res->data, res->data_len, roles_len);
+        roles = discord_json_list_deserialize(role, res->data, res->data_len, out_length);
     }
 
     dcapi_response_free(client, res);
