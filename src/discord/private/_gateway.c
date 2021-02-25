@@ -215,6 +215,8 @@ esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
 
     char* payload_raw = discord_payload_serialize(payload);
 
+    discord_payload_free(payload);
+
     DISCORD_LOGD("%s", payload_raw);
 
     int sent_bytes = esp_websocket_client_send_text(client->ws, payload_raw, strlen(payload_raw), 5000 / portTICK_PERIOD_MS); // 5sec timeout

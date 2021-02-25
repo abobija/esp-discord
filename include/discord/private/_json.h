@@ -18,7 +18,7 @@ extern "C" {
 cJSON* discord_payload_to_cjson(discord_payload_t* payload);
 discord_payload_t* discord_payload_deserialize(const char* json, size_t length);
 /**
- * @brief Serialize payload to JSON string. WARNING: Payload will be automatically freed.
+ * @brief Serialize payload to JSON string
  */
 char* discord_payload_serialize(discord_payload_t* payload);
 

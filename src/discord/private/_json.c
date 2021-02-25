@@ -119,8 +119,6 @@ char* discord_payload_serialize(discord_payload_t* payload) {
     char* payload_raw = cJSON_PrintUnformatted(cjson);
     cJSON_Delete(cjson);
 
-    discord_payload_free(payload); // free after parsing bcs strings are added to cjson by reference
-
     return payload_raw;
 }
 
