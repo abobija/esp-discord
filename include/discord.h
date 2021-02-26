@@ -97,6 +97,8 @@ typedef struct {
     discord_event_data_ptr_t ptr;
 } discord_event_data_t;
 
+typedef void(*discord_download_handler_t)(const void* data, size_t length, size_t downloaded, size_t total);
+
 discord_handle_t discord_create(const discord_config_t* config);
 /**
  * @brief Cannot be called from event handler

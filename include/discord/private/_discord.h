@@ -124,6 +124,10 @@ struct discord {
     int api_buffer_size;
     bool api_buffer_record;
     esp_err_t api_buffer_record_status;
+    bool api_download_mode;
+    discord_download_handler_t api_download_handler;
+    size_t api_download_content_length;
+    size_t api_downloaded_length;
     discord_heartbeater_t heartbeater;
     discord_session_t* session;
     int last_sequence_number;

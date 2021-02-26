@@ -18,15 +18,15 @@ esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
 }
 
 void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
-    if(res == NULL)
+    if(!res)
         return;
 
     if(res->data || res->data_len > 0) { // if buffer was attached to result
         client->api_buffer_size = 0;
+        res->data = NULL; // do not free() res->data because it holds addr of internal api buffer
+        res->data_len = 0;
     }
-
-    res->data = NULL; // do not free() res->data because it holds addr of internal api buffer
-    res->data_len = 0;
+    
     free(res);
 }
 
@@ -47,25 +47,52 @@ static esp_err_t dcapi_flush_http(discord_handle_t client, bool record) {
 static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     discord_handle_t client = (discord_handle_t) evt->user_data;
 
-    if(evt->event_id == HTTP_EVENT_ON_DATA && evt->data_len > 0 && client->api_buffer_record && client->api_buffer) {
-        DISCORD_LOGD("Buffering received chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
+    if(evt->event_id != HTTP_EVENT_ON_DATA || evt->data_len <= 0 || !client->api_buffer_record)
+        return ESP_OK;
 
-        if(client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
-            DISCORD_LOGW("Response chunk cannot fit into api buffer");
-            client->api_buffer_record_status = ESP_FAIL;
-            client->api_buffer_size = 0;
-            return ESP_FAIL;
-        }
+    DISCORD_LOGD("Buffering chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
 
+    if(client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
+        DISCORD_LOGW("Chunk cannot fit into api buffer");
+        client->api_buffer_record_status = ESP_FAIL;
+        client->api_buffer_size = 0;
+        return ESP_FAIL;
+    }
+
+    memcpy(client->api_buffer + client->api_buffer_size, evt->data, evt->data_len);
+    client->api_buffer_size += evt->data_len;
+
+    return ESP_OK;
+}
+
+static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
+    if(evt->event_id != HTTP_EVENT_ON_DATA)
+        return ESP_OK;
+
+    discord_handle_t client = (discord_handle_t) evt->user_data;
+
+    if(client->api_buffer_record && client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
+        DISCORD_LOGW("Chunk cannot fit into api buffer");
+        client->api_buffer_record_status = ESP_FAIL;
+        client->api_buffer_size = 0;
+        return ESP_FAIL;
+    }
+
+    client->api_downloaded_length += evt->data_len;
+
+    DISCORD_LOGD("on_download (data_len=%d [%d/%d])", evt->data_len, client->api_downloaded_length, client->api_download_content_length);
+
+    if(client->api_buffer_record) {
         memcpy(client->api_buffer + client->api_buffer_size, evt->data, evt->data_len);
-
         client->api_buffer_size += evt->data_len;
+    } else {
+        client->api_download_handler(evt->data, evt->data_len, client->api_downloaded_length, client->api_download_content_length);
     }
 
     return ESP_OK;
 }
 
-static esp_err_t dcapi_init_lazy(discord_handle_t client) {
+static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const char* url) {
     if(client->http != NULL)
         return ESP_OK;
 
@@ -76,11 +103,13 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client) {
         return ESP_FAIL;
     }
 
+    client->api_download_mode = download;
+
     esp_http_client_config_t config = {
-        .url = DISCORD_API_URL,
+        .url = download ? url : DISCORD_API_URL,
         .is_async = false,
-        .keep_alive_enable = true,
-        .event_handler = dcapi_on_http_event,
+        .keep_alive_enable = !download,
+        .event_handler = download ? dcapi_on_download : dcapi_on_http_event,
         .user_data = client,
         .timeout_ms = client->config->api_timeout_ms
     };
@@ -95,20 +124,23 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client) {
         return ESP_FAIL;
     }
 
-    char* auth = discord_strcat("Bot ", client->config->token);
-    esp_http_client_set_header(client->http, "Authorization", auth);
-    free(auth);
-
     esp_http_client_set_header(client->http, "User-Agent", "DiscordBot (ESP-IDF, 1.0.0.0)");
-    esp_http_client_set_header(client->http, "Content-Type", "application/json");
 
-    return client->http ? ESP_OK : ESP_FAIL;
+    if(!download) {
+        char* auth = discord_strcat("Bot ", client->config->token);
+        esp_http_client_set_header(client->http, "Authorization", auth);
+        free(auth);
+
+        esp_http_client_set_header(client->http, "Content-Type", "application/json");
+    }
+
+    return ESP_OK;
 }
 
 static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_client_method_t method, char* uri, char* data, bool stream_response, bool free_uri_and_data) {
     DISCORD_LOG_FOO();
 
-    if(dcapi_init_lazy(client) != ESP_OK) { // will just return ESP_OK if already initialized
+    if(dcapi_init_lazy(client, false, NULL) != ESP_OK) { // will just return ESP_OK if already initialized
         DISCORD_LOGW("Cannot initialize API");
         return NULL;
     }
@@ -159,10 +191,10 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
         return NULL;
     }
 
-    discord_api_response_t* res = calloc(1, sizeof(discord_api_response_t));
-
-    res->code = esp_http_client_get_status_code(http);
-    res->data_len = 0;
+    discord_api_response_t* res = discord_ctor(discord_api_response_t,
+        .code = esp_http_client_get_status_code(http),
+        .data_len = 0
+    );
 
     bool is_error = ! dcapi_response_is_success(res);
 
@@ -190,6 +222,66 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     }
 
     xSemaphoreGive(client->api_lock);
+
+    return res;
+}
+
+discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url, discord_download_handler_t download_handler) {
+    if(client->api_download_mode && xSemaphoreTake(client->api_lock, client->config->api_timeout_ms / portTICK_PERIOD_MS) != pdTRUE) {
+        DISCORD_LOGW("Api is locked");
+        return NULL;
+    }
+
+    dcapi_destroy(client); // destroy live http_client instance (if exist)
+
+    if(dcapi_init_lazy(client, true, url) != ESP_OK) { // create new instance for download
+        DISCORD_LOGW("Cannot initialize API");
+        return NULL;
+    }
+
+    esp_http_client_handle_t http = client->http;
+
+    client->api_buffer_record = true;
+    client->api_buffer_record_status = ESP_OK;
+    client->api_download_handler = download_handler;
+
+    if(esp_http_client_open(http, 0) != ESP_OK) {
+        DISCORD_LOGW("Failed to open connection");
+        xSemaphoreGive(client->api_lock);
+        dcapi_destroy(client);
+        return NULL;
+    }
+
+    if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
+        DISCORD_LOGW("Fail to fetch headers");
+        dcapi_flush_http(client, false);
+        xSemaphoreGive(client->api_lock);
+        dcapi_destroy(client);
+        return NULL;
+    }
+
+    discord_api_response_t* res = discord_ctor(discord_api_response_t);
+
+    res->code = esp_http_client_get_status_code(http);
+
+    if(dcapi_response_is_success(res)) {
+        if(esp_http_client_is_chunked_response(http)) {
+            esp_http_client_get_chunk_length(http, (int*) &client->api_download_content_length);
+        } else {
+            client->api_download_content_length = esp_http_client_get_content_length(http);
+        }
+
+        if(client->api_buffer_size > 0) {
+            client->api_download_handler(client->api_buffer, client->api_buffer_size, client->api_downloaded_length, client->api_download_content_length);
+            client->api_buffer_size = 0;
+        }
+
+        dcapi_flush_http(client, false);
+    }
+
+    client->api_download_mode = false;
+    xSemaphoreGive(client->api_lock);
+    dcapi_destroy(client); // destroy http_client, new one will be created on next request
 
     return res;
 }
@@ -231,6 +323,11 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
         client->api_lock = NULL;
     }
 
+    client->api_download_mode = false;
+    client->api_download_handler = NULL;
+    client->api_download_content_length = 0;
+    client->api_downloaded_length = 0;
+
     if(client->api_buffer != NULL) {
         free(client->api_buffer);
         client->api_buffer = NULL;
@@ -240,6 +337,8 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
     client->api_buffer_record = false;
 
     if(client->http) {
+        dcapi_flush_http(client, false);
+        esp_http_client_close(client->http);
         esp_http_client_cleanup(client->http);
         client->http = NULL;
     }
