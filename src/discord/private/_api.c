@@ -65,6 +65,18 @@ static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     return ESP_OK;
 }
 
+static void dcapi_download_handler_fire(discord_handle_t client, void* data, size_t length) {
+    discord_download_info_t info = {
+        .data = data,
+        .length = length,
+        .offset = client->api_download_offset,
+        .total_length = client->api_download_total
+    };
+
+    client->api_download_handler(&info);
+    client->api_download_offset += length;
+}
+
 static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
     if(evt->event_id != HTTP_EVENT_ON_DATA)
         return ESP_OK;
@@ -78,15 +90,13 @@ static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
         return ESP_FAIL;
     }
 
-    client->api_downloaded_length += evt->data_len;
-
-    DISCORD_LOGD("on_download (data_len=%d [%d/%d])", evt->data_len, client->api_downloaded_length, client->api_download_content_length);
+    DISCORD_LOGD("on_download (data_len=%d [%d/%d])", evt->data_len, client->api_download_offset + evt->data_len, client->api_download_total);
 
     if(client->api_buffer_record) {
         memcpy(client->api_buffer + client->api_buffer_size, evt->data, evt->data_len);
         client->api_buffer_size += evt->data_len;
     } else {
-        client->api_download_handler(evt->data, evt->data_len, client->api_downloaded_length, client->api_download_content_length);
+        dcapi_download_handler_fire(client, evt->data, evt->data_len);
     }
 
     return ESP_OK;
@@ -266,14 +276,13 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
 
     if(dcapi_response_is_success(res)) {
         if(esp_http_client_is_chunked_response(http)) {
-            esp_http_client_get_chunk_length(http, (int*) &client->api_download_content_length);
+            esp_http_client_get_chunk_length(http, (int*) &client->api_download_total);
         } else {
-            client->api_download_content_length = esp_http_client_get_content_length(http);
+            client->api_download_total = esp_http_client_get_content_length(http);
         }
 
         if(client->api_buffer_size > 0) {
-            client->api_download_handler(client->api_buffer, client->api_buffer_size, client->api_downloaded_length, client->api_download_content_length);
-            client->api_buffer_size = 0;
+            dcapi_download_handler_fire(client, client->api_buffer, client->api_buffer_size);
         }
 
         dcapi_flush_http(client, false);
@@ -325,8 +334,8 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
 
     client->api_download_mode = false;
     client->api_download_handler = NULL;
-    client->api_download_content_length = 0;
-    client->api_downloaded_length = 0;
+    client->api_download_offset = 0;
+    client->api_download_total = 0;
 
     if(client->api_buffer != NULL) {
         free(client->api_buffer);

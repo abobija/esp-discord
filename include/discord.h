@@ -97,7 +97,14 @@ typedef struct {
     discord_event_data_ptr_t ptr;
 } discord_event_data_t;
 
-typedef void(*discord_download_handler_t)(const void* data, size_t length, size_t downloaded, size_t total);
+typedef struct {
+    const void* data;
+    size_t length;
+    size_t offset;
+    size_t total_length;
+} discord_download_info_t;
+
+typedef void(*discord_download_handler_t)(discord_download_info_t* info);
 
 discord_handle_t discord_create(const discord_config_t* config);
 /**
