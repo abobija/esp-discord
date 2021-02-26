@@ -20,7 +20,7 @@ extern "C" {
 
 #define discord_json_serialize(obj) discord_json_serialize_(obj, discord_ ##obj ##_to_cjson)
 
-#define discord_json_deserialize_(type, json, length, from_cjson_fnc) ({ \
+#define discord_json_deserialize(type, from_cjson_fnc, json, length) ({ \
         type* obj = NULL; \
         cJSON* cjson = cJSON_ParseWithLength(json, length); \
         if(cjson) { obj = from_cjson_fnc(cjson); cJSON_Delete(cjson); } \
@@ -28,10 +28,10 @@ extern "C" {
         obj; \
     })
 
-#define discord_json_deserialize(obj_name, json, length) \
-    discord_json_deserialize_(discord_ ##obj_name ##_t, json, length, discord_ ##obj_name ##_from_cjson)
+#define discord_json_deserialize_(obj_name, json, length) \
+    discord_json_deserialize(discord_ ##obj_name ##_t, discord_ ##obj_name ##_from_cjson, json, length)
 
-#define discord_json_list_deserialize_(type, json, length, out_length, from_cjson_fnc) ({ \
+#define discord_json_list_deserialize(type, from_cjson_fnc, json, length, out_length) ({ \
         cJSON* cjson = cJSON_ParseWithLength(json, length); \
         type** list = NULL; \
         if(!cjson) { DISCORD_LOGW("JSON parsing (syntax?) error"); } \
@@ -47,8 +47,8 @@ extern "C" {
         list; \
     })
 
-#define discord_json_list_deserialize(obj_name, json, length, out_length) \
-    discord_json_list_deserialize_(discord_ ##obj_name ##_t, json, length, out_length, discord_ ##obj_name ##_from_cjson)
+#define discord_json_list_deserialize_(obj_name, json, length, out_length) \
+    discord_json_list_deserialize(discord_ ##obj_name ##_t, discord_ ##obj_name ##_from_cjson, json, length, out_length)
 
 cJSON* discord_payload_to_cjson(discord_payload_t* payload);
 discord_payload_t* discord_payload_from_cjson(cJSON* cjson);

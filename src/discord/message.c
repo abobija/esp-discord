@@ -28,7 +28,7 @@ static discord_message_t* _discord_message_send_(discord_handle_t client, discor
         if(res->data_len <= 0) {
             DISCORD_LOGW("Message sent but cannot return");
         } else {
-            sent_message = discord_json_deserialize(message, res->data, res->data_len);
+            sent_message = discord_json_deserialize_(message, res->data, res->data_len);
         }
     }
     

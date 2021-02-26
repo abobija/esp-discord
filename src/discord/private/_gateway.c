@@ -32,8 +32,10 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_handle_t client, d
             case DISCORD_EVENT_MESSAGE_UPDATED: {
                     discord_message_t* msg = (discord_message_t*) payload->d;
 
-                    // ignore our messages
-                    if(!msg || !msg->author || discord_streq(msg->author->id, client->session->user->id)) {
+                    if(!msg ||
+                        !msg->author ||
+                        !(msg->type == DISCORD_MESSAGE_DEFAULT || msg->type == DISCORD_MESSAGE_REPLY) || // ignore if not default or reply type
+                        discord_streq(msg->author->id, client->session->user->id)) { // ignore our messages
                         return false;
                     }
                 }
@@ -80,7 +82,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websock
     memcpy(client->gw_buffer + data->payload_offset, data->data_ptr, data->data_len);
 
     if((client->gw_buffer_len = data->data_len + data->payload_offset) >= data->payload_len) {
-        DISCORD_LOGD("Buffering done.");
+        DISCORD_LOGD("Buffering done");
 
         // append null terminator
         client->gw_buffer[client->gw_buffer_len] = '\0';
@@ -92,7 +94,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websock
             return ESP_OK;
         }
 
-        discord_payload_t* payload = discord_json_deserialize(payload, client->gw_buffer, client->gw_buffer_len);
+        discord_payload_t* payload = discord_json_deserialize_(payload, client->gw_buffer, client->gw_buffer_len);
 
         if(!payload) {
             DISCORD_LOGE("Fail to deserialize payload");
@@ -104,6 +106,7 @@ static esp_err_t dcgw_buffer_websocket_data(discord_handle_t client, esp_websock
         }
         
         if(! dcgw_whether_payload_should_go_into_queue(client, payload)) {
+            DISCORD_LOGD("Payload ignored");
             discord_payload_free(payload);
         } else if(xQueueSend(client->queue, &payload, 5000 / portTICK_PERIOD_MS) != pdPASS) { // 5sec timeout
             DISCORD_LOGW("Fail to queue the payload");

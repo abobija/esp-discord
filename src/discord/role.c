@@ -22,7 +22,7 @@ discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild
     );
     
     if(dcapi_response_is_success(res) && res->data_len > 0) {
-        roles = discord_json_list_deserialize(role, res->data, res->data_len, out_length);
+        roles = discord_json_list_deserialize_(role, res->data, res->data_len, out_length);
     }
 
     dcapi_response_free(client, res);

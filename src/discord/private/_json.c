@@ -309,6 +309,7 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
 
     discord_message_t* message = discord_ctor(discord_message_t,
         .id = _id ? _id->valuestring : NULL,
+        .type = (discord_message_type_t) cJSON_GetObjectItem(root, "type")->valueint,
         .content = _content->valuestring,
         .channel_id = _cid->valuestring,
         .author = discord_user_from_cjson(cJSON_GetObjectItem(root, "author")),
