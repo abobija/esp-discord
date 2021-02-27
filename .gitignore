@@ -1,4 +1,5 @@
 /build
+/cert
 sdkconfig.old
 sdkconfig
 .vscode

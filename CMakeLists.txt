@@ -1,3 +1,27 @@
+set(CERTS "")
+
+if(NOT CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY)
+    list(APPEND CERTS cert/gateway.pem cert/api.pem)
+
+    if(NOT EXISTS ${COMPONENT_DIR}/cert/gateway.pem OR NOT EXISTS ${COMPONENT_DIR}/cert/api.pem)
+        string(CONCAT certs_missing_message
+            "\n ****************************************************************************"
+            "\n Discord certificates missing. To generate certs please run next script:"
+            "\n ${COMPONENT_DIR}/certgen.sh"
+            "\n "
+            "\n Or enable next option in \"idf.py menuconfig\":"
+            "\n     Component Config"
+            "\n         -> ESP-TLS"
+            "\n         -> Allow potentially insecure options"
+            "\n         -> Skip server certificate verification by default"
+            "\n ****************************************************************************"
+        )
+
+        string(ASCII 27 ESCAPE)
+        message(FATAL_ERROR "${ESCAPE}[33m ${certs_missing_message} ${ESCAPE}[0m")
+    endif()
+endif()
+
 idf_component_register(
     SRCS src/discord/utils.c
          src/discord/private/_models.c
@@ -15,6 +39,7 @@ idf_component_register(
          src/discord.c
     INCLUDE_DIRS include
     REQUIRES json esp_websocket_client esp_http_client
+    EMBED_TXTFILES ${CERTS}
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

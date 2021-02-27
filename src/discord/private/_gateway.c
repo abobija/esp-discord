@@ -173,11 +173,13 @@ esp_err_t dcgw_init(discord_handle_t client) {
     if(!(client->gw_lock = xSemaphoreCreateMutex()) ||
        !(client->queue = xQueueCreate(client->config->queue_size, sizeof(discord_payload_t*)))) {
         DISCORD_LOGE("Fail to create mutex/queue");
+        dcgw_destroy(client);
         return ESP_FAIL;
     }
 
     if(!(client->gw_buffer = malloc(client->config->gateway_buffer_size + 1))) {
         DISCORD_LOGE("Fail to allocate buffer");
+        dcgw_destroy(client);
         return ESP_FAIL;
     }
 
@@ -188,9 +190,17 @@ esp_err_t dcgw_init(discord_handle_t client) {
     client->gw_buffer_len = 0;
     client->state = DISCORD_STATE_INIT;
 
+#ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+    extern const uint8_t gateway_crt[] asm("_binary_gateway_pem_start");
+#endif
+    
     esp_websocket_client_config_t ws_cfg = {
         .uri = DISCORD_GW_URL,
-        .buffer_size = 512
+        .buffer_size = 512,
+#ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+        .cert_pem = (const char*) gateway_crt,
+#endif
+        .task_stack = 5 * 1024
     };
 
     if(!(client->ws = esp_websocket_client_init(&ws_cfg))) {

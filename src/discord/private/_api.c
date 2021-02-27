@@ -118,13 +118,20 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
 
     client->api_download_mode = download;
 
+#ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+    extern const uint8_t api_crt[] asm("_binary_api_pem_start");
+#endif
+
     esp_http_client_config_t config = {
         .url = download ? url : DISCORD_API_URL,
         .is_async = false,
         .keep_alive_enable = !download,
         .event_handler = download ? dcapi_on_download : dcapi_on_http_event,
         .user_data = client,
-        .timeout_ms = client->config->api_timeout_ms
+        .timeout_ms = client->config->api_timeout_ms,
+#ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
+        .cert_pem = (const char*) api_crt
+#endif
     };
 
     client->api_buffer_record_status = ESP_OK;
