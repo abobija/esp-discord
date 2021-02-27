@@ -1,3 +1,5 @@
+# esp-discord :robot:
+
 ```
    __    ___  _ _                         
  /'__`\/',__)( '_`\                       
@@ -12,9 +14,13 @@
 
 ```
 
-C library for making Discord Bot on the ESP32, packaged as ESP-IDF component
+## Description
 
-For now next option needs to be enabled:
+C library for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component.
+
+## Info
+
+For now, next option needs to be enabled:
 
 ```
 Component Config
@@ -22,3 +28,12 @@ Component Config
     -> Allow potentially insecure options
     -> Skip server certificate verification by default
 ```
+
+## Author
+
+GitHub: [abobija](https://github.com/abobija)<br>
+Homepage: [abobija.com](https://abobija.com)
+
+## License
+
+[MIT](LICENSE)
