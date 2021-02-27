@@ -1,4 +1,4 @@
-# esp-discord :robot:
+# :robot:
 
 ```
    __    ___  _ _                         
