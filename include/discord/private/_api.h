@@ -22,10 +22,12 @@ typedef struct {
     int data_len;
 } discord_api_response_t;
 
+typedef bool(*api_predownload_approver_t)(size_t content_len);
+
 bool dcapi_response_is_success(discord_api_response_t* res);
 esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res);
 void dcapi_response_free(discord_handle_t client, discord_api_response_t* res);
-discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url, discord_download_handler_t download_handler);
+discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url, api_predownload_approver_t approver, discord_download_handler_t download_handler);
 /**
  * GET request
  * 

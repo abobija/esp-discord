@@ -21,7 +21,7 @@ void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
     if(!res)
         return;
 
-    if(res->data || res->data_len > 0) { // if buffer was attached to result
+    if(res->data || res->data_len > 0) {
         client->api_buffer_size = 0;
         res->data = NULL; // do not free() res->data because it holds addr of internal api buffer
         res->data_len = 0;
@@ -83,6 +83,9 @@ static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
 
     discord_handle_t client = (discord_handle_t) evt->user_data;
 
+    if(!client->api_download_mode)
+        return ESP_OK;
+    
     if(client->api_buffer_record && client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
         DISCORD_LOGW("Chunk cannot fit into api buffer");
         client->api_buffer_record_status = ESP_FAIL;
@@ -202,8 +205,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     }
 
     discord_api_response_t* res = discord_ctor(discord_api_response_t,
-        .code = esp_http_client_get_status_code(http),
-        .data_len = 0
+        .code = esp_http_client_get_status_code(http)
     );
 
     bool is_error = ! dcapi_response_is_success(res);
@@ -236,7 +238,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     return res;
 }
 
-discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url, discord_download_handler_t download_handler) {
+discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url, api_predownload_approver_t approver, discord_download_handler_t download_handler) {
     if(client->api_download_mode && xSemaphoreTake(client->api_lock, client->config->api_timeout_ms / portTICK_PERIOD_MS) != pdTRUE) {
         DISCORD_LOGW("Api is locked");
         return NULL;
@@ -270,9 +272,9 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
         return NULL;
     }
 
-    discord_api_response_t* res = discord_ctor(discord_api_response_t);
-
-    res->code = esp_http_client_get_status_code(http);
+    discord_api_response_t* res = discord_ctor(discord_api_response_t,
+        .code = esp_http_client_get_status_code(http)
+    );
 
     if(dcapi_response_is_success(res)) {
         if(esp_http_client_is_chunked_response(http)) {
@@ -281,7 +283,11 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
             client->api_download_total = esp_http_client_get_content_length(http);
         }
 
-        if(client->api_buffer_size > 0) {
+        if(! approver(client->api_download_total)) {
+            DISCORD_LOGD("Download not approved");
+            client->api_download_mode = false;
+            res->code = ESP_FAIL;
+        } else if(client->api_buffer_size > 0) {
             dcapi_download_handler_fire(client, client->api_buffer, client->api_buffer_size);
         }
 
