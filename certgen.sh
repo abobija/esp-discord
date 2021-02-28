@@ -5,18 +5,18 @@ discord_cert_gen() {
 }
 
 discord_certs() {
-	local DIRNAME=$(dirname "${BASH_SOURCE}")
-    local CRT_DIR="${DIRNAME}/cert"
-	
-    mkdir "${CRT_DIR}" 2> /dev/null
+    local DIRNAME=$(dirname "${BASH_SOURCE}")
+    local CERT_DIR="${DIRNAME}/cert"
+    
+    mkdir "${CERT_DIR}" 2> /dev/null
     
     echo "Generating gateway certificate..."
-    discord_cert_gen gateway.discord.gg "${CRT_DIR}/gateway.pem"
+    discord_cert_gen gateway.discord.gg "${CERT_DIR}/gateway.pem"
 
     if [[ $? == 0 ]]; then
         echo "Generated."
         echo "Generating api certificate..."
-        discord_cert_gen discord.com "${CRT_DIR}/api.pem"
+        discord_cert_gen discord.com "${CERT_DIR}/api.pem"
     fi
 
     if [[ $? == 0 ]]; then
