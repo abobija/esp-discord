@@ -12,18 +12,16 @@ discord_certs() {
     
     echo "Generating gateway certificate..."
     discord_cert_gen gateway.discord.gg "${CERT_DIR}/gateway.pem"
+    if [[ $? != 0 ]]; then return $?; fi
+    echo "Generated."
 
-    if [[ $? == 0 ]]; then
-        echo "Generated."
-        echo "Generating api certificate..."
-        discord_cert_gen discord.com "${CERT_DIR}/api.pem"
-    fi
-
-    if [[ $? == 0 ]]; then
-        echo "Generated."
-    fi
+    echo "Generating api certificate..."
+    discord_cert_gen discord.com "${CERT_DIR}/api.pem"
+    if [[ $? != 0 ]]; then return $?; fi
+    echo "Generated."
 
     echo "DONE."
+    return 0
 }
 
 discord_certs
