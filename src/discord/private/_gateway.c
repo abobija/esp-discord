@@ -391,8 +391,8 @@ esp_err_t dcgw_identify(discord_handle_t client) {
             .token = strdup(client->config->token),
             .intents = client->config->intents,
             .properties = discord_ctor(discord_identify_properties_t,
-                .$os = strdup("freertos"),
-                .$browser = strdup("esp-idf"),
+                .$os = discord_strcat("esp-idf (", esp_get_idf_version(), ")"),
+                .$browser = strdup("esp-discord (" DISCORD_VER_STRING ")"),
                 .$device = strdup(CONFIG_IDF_TARGET)
             )
         )

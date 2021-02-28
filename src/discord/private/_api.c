@@ -144,8 +144,10 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
         return ESP_FAIL;
     }
 
-    esp_http_client_set_header(client->http, "User-Agent", "DiscordBot (ESP-IDF, 1.0.0.0)");
-
+    char* user_agent = discord_strcat("DiscordBot (esp-discord, " DISCORD_VER_STRING ") esp-idf/", esp_get_idf_version());
+    esp_http_client_set_header(client->http, "User-Agent", user_agent);
+    free(user_agent);
+    
     if(!download) {
         char* auth = discord_strcat("Bot ", client->config->token);
         esp_http_client_set_header(client->http, "Authorization", auth);

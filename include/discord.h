@@ -8,6 +8,12 @@
 extern "C" {
 #endif
 
+#define DISCORD_VER_MAJOR 1
+#define DISCORD_VER_MINOR 0
+#define DISCORD_VER_STR_(x) #x
+#define DISCORD_VER_STR(x) DISCORD_VER_STR_(x)
+#define DISCORD_VER_STRING DISCORD_VER_STR(DISCORD_VER_MAJOR) "." DISCORD_VER_STR(DISCORD_VER_MINOR)
+
 // intents
 
 #define DISCORD_INTENT_GUILDS                    (1 << 0)
