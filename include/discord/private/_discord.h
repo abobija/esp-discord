@@ -132,7 +132,6 @@ struct discord {
     discord_heartbeater_t heartbeater;
     discord_session_t* session;
     int last_sequence_number;
-    bool gw_needs_restart;
     char* gw_buffer;
     int gw_buffer_len;
     discord_gateway_close_reason_t close_reason;

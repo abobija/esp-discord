@@ -75,6 +75,7 @@ static void dc_task(void* arg) {
     DISCORD_LOG_FOO();
 
     discord_handle_t client = (discord_handle_t) arg;
+    bool restart = false;
     bool is_shutted_down = false;
 
     xEventGroupClearBits(client->bits, DISCORD_STOPPED_BIT);
@@ -94,15 +95,15 @@ static void dc_task(void* arg) {
                     );
 
                     if(client->close_code == DISCORD_CLOSEOP_AUTHENTICATION_FAILED) {
-                        dc_shutdown(client);             // shutdown only on invalid token
+                        dc_shutdown(client);     // shutdown only on invalid token
                         is_shutted_down = true;
                     } else {
-                        client->gw_needs_restart = true; // restart in any other case
+                        restart = true;          // restart in any other case
                     }
                     
                     client->close_code = DISCORD_CLOSEOP_NO_CODE;
                 } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
-                    client->gw_needs_restart = true;
+                    restart = true;
                 } else {
                     DISCORD_LOGW("Disconnection requested but not handled");
                     dc_shutdown(client);
@@ -129,8 +130,8 @@ static void dc_task(void* arg) {
             dcapi_destroy(client);
             dcgw_close(client, client->state == DISCORD_STATE_ERROR ? DISCORD_CLOSE_REASON_ERROR : client->close_reason); // do not modify reason if no error
 
-            if(client->gw_needs_restart || client->state == DISCORD_STATE_ERROR) {
-                client->gw_needs_restart = false;
+            if(restart || client->state == DISCORD_STATE_ERROR) {
+                restart = false;
                 DISCORD_LOGI("Restarting discord in 10 sec...");
                 vTaskDelay(10000 / portTICK_PERIOD_MS);
                 DISCORD_EVENT_FIRE(DISCORD_EVENT_RECONNECTING, NULL);

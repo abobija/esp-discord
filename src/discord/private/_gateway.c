@@ -183,7 +183,6 @@ esp_err_t dcgw_init(discord_handle_t client) {
         return ESP_FAIL;
     }
 
-    client->gw_needs_restart = false;
     dcgw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
@@ -310,7 +309,6 @@ esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t rea
 esp_err_t dcgw_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
-    client->gw_needs_restart = false;
     dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
