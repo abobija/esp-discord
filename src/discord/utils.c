@@ -56,14 +56,34 @@ char* _discord_strcat(const char* str, ...) {
 }
 
 bool discord_strsw(const char* str1, const char* str2) {
-    if(! str1 || ! str2) {
+    if(!str1 || !str2) {
         return false;
     }
 
     size_t i = 0;
     for(; str2[i] && str1[i] && str2[i] == str1[i]; i++);
     
-    return i > 0 && ! str2[i];
+    return i > 0 && !str2[i];
+}
+
+bool discord_strew(const char* str1, const char* str2) {
+	if(!str1 || !str2)
+		return false;
+	
+	size_t len1 = strlen(str1);
+
+	if(len1 == 0)
+		return false;
+
+	int diff = len1 - strlen(str2);
+    
+	if(diff < 0 || diff == len1) // str2 is bigger or empty
+		return false;
+	
+	int i = len1 - 1;
+	for(; (i - diff) >= 0 && str1[i] == str2[i - diff]; i--);
+
+	return i < diff;
 }
 
 bool discord_streq(const char* str1, const char* str2) {
