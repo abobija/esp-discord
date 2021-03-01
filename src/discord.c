@@ -75,7 +75,6 @@ static void dc_task(void* arg) {
     DISCORD_LOG_FOO();
 
     discord_handle_t client = (discord_handle_t) arg;
-    bool restart_gw = false;
     bool is_shutted_down = false;
 
     xEventGroupClearBits(client->bits, DISCORD_STOPPED_BIT);
@@ -88,29 +87,28 @@ static void dc_task(void* arg) {
 
             case DISCORD_STATE_DISCONNECTED:
                 if(DISCORD_CLOSE_REASON_NOT_REQUESTED == client->close_reason) {
-                    if(client->close_code == DISCORD_CLOSEOP_NO_CODE) {
-                        DISCORD_LOGE("Connection closed with unknown reason");
-                    } else {
-                        DISCORD_LOGE("Connection closed with code %d: %s", client->close_code, dcgw_get_close_desc(client));
-                        client->close_code = DISCORD_CLOSEOP_NO_CODE;
-                    }
+                    DISCORD_LOGE(
+                        "Connection closed (code=%d, desc=%s)",
+                        client->close_code,
+                        client->close_code == DISCORD_CLOSEOP_NO_CODE ? "NULL" : dcgw_get_close_desc(client)
+                    );
 
-                    dc_shutdown(client);
-                    is_shutted_down = true;
+                    if(client->close_code == DISCORD_CLOSEOP_AUTHENTICATION_FAILED) {
+                        dc_shutdown(client);             // shutdown only on invalid token
+                        is_shutted_down = true;
+                    } else {
+                        client->gw_needs_restart = true; // restart in any other case
+                    }
+                    
+                    client->close_code = DISCORD_CLOSEOP_NO_CODE;
                 } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
-                    restart_gw = true;
+                    client->gw_needs_restart = true;
                 } else {
                     DISCORD_LOGW("Disconnection requested but not handled");
                     dc_shutdown(client);
                     is_shutted_down = true;
                 }
 
-                break;
-            
-            case DISCORD_STATE_ERROR:
-                DISCORD_LOGE("Unhandled error occurred. Disconnecting...");
-                dc_shutdown(client);
-                is_shutted_down = true;
                 break;
 
             default: // ignore other states
@@ -127,17 +125,23 @@ static void dc_task(void* arg) {
             if(xQueueReceive(client->queue, &payload, 1000 / portTICK_PERIOD_MS) == pdPASS) { // poll every 1 sec
                 dcgw_handle_payload(client, payload);
             }
-        } else if(DISCORD_STATE_DISCONNECTED == client->state && restart_gw) {
-            restart_gw = false;
-            DISCORD_LOGD("Restarting gateway...");
-            DISCORD_EVENT_FIRE(DISCORD_EVENT_RECONNECTING, NULL);
-            dcgw_start(client);
+        } else if(client->state <= DISCORD_STATE_DISCONNECTED) {
+            dcapi_destroy(client);
+            dcgw_close(client, client->state == DISCORD_STATE_ERROR ? DISCORD_CLOSE_REASON_ERROR : client->close_reason); // do not modify reason if no error
+
+            if(client->gw_needs_restart || client->state == DISCORD_STATE_ERROR) {
+                client->gw_needs_restart = false;
+                DISCORD_LOGI("Restarting discord in 10 sec...");
+                vTaskDelay(10000 / portTICK_PERIOD_MS);
+                DISCORD_EVENT_FIRE(DISCORD_EVENT_RECONNECTING, NULL);
+                dcgw_start(client);
+            }
         } else {
             vTaskDelay(125 / portTICK_PERIOD_MS);
         }
     }
 
-    if(! is_shutted_down) {
+    if(!is_shutted_down) {
         dc_shutdown(client);
     }
     

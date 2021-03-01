@@ -60,7 +60,8 @@ typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
     DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED,
     DISCORD_CLOSE_REASON_LOGOUT,
-    DISCORD_CLOSE_REASON_DESTROY
+    DISCORD_CLOSE_REASON_DESTROY,
+    DISCORD_CLOSE_REASON_ERROR
 } discord_gateway_close_reason_t;
 
 enum {
@@ -131,6 +132,7 @@ struct discord {
     discord_heartbeater_t heartbeater;
     discord_session_t* session;
     int last_sequence_number;
+    bool gw_needs_restart;
     char* gw_buffer;
     int gw_buffer_len;
     discord_gateway_close_reason_t close_reason;

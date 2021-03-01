@@ -183,6 +183,7 @@ esp_err_t dcgw_init(discord_handle_t client) {
         return ESP_FAIL;
     }
 
+    client->gw_needs_restart = false;
     dcgw_heartbeat_stop(client);
     client->last_sequence_number = DISCORD_NULL_SEQUENCE_NUMBER;
     client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
@@ -200,7 +201,8 @@ esp_err_t dcgw_init(discord_handle_t client) {
 #ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
         .cert_pem = (const char*) gateway_crt,
 #endif
-        .task_stack = 5 * 1024
+        .task_stack = 5 * 1024,
+        .disable_auto_reconnect = true
     };
 
     if(!(client->ws = esp_websocket_client_init(&ws_cfg))) {
@@ -227,7 +229,6 @@ esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
     }
     
     char* payload_raw = discord_json_serialize(payload);
-
     discord_payload_free(payload);
 
     DISCORD_LOGD("%s", payload_raw);
@@ -237,6 +238,7 @@ esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
 
     if(sent_bytes == ESP_FAIL) {
         DISCORD_LOGW("Fail to send data to gateway");
+        client->state = DISCORD_STATE_ERROR;
         xSemaphoreGive(client->gw_lock);
         return ESP_FAIL;
     }
@@ -251,7 +253,7 @@ char* dcgw_get_close_desc(discord_handle_t client) {
 }
 
 bool dcgw_is_open(discord_handle_t client) {
-    return client->running && client->state >= DISCORD_STATE_OPEN;
+    return client->state >= DISCORD_STATE_OPEN;
 }
 
 esp_err_t dcgw_open(discord_handle_t client) {
@@ -276,11 +278,9 @@ esp_err_t dcgw_start(discord_handle_t client) {
         return ESP_OK;
     }
     
+    client->close_reason = DISCORD_CLOSE_REASON_NOT_REQUESTED;
     esp_err_t err = esp_websocket_client_start(client->ws);
-
-    if(err == ESP_OK) {
-        client->state = DISCORD_STATE_OPEN;
-    }
+    client->state = err == ESP_OK ? DISCORD_STATE_OPEN : DISCORD_STATE_ERROR;
     
     return err;
 }
@@ -310,6 +310,7 @@ esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t rea
 esp_err_t dcgw_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
+    client->gw_needs_restart = false;
     dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
     esp_websocket_client_destroy(client->ws);
     client->ws = NULL;
