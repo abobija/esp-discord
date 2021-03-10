@@ -127,6 +127,12 @@ esp_err_t discord_logout(discord_handle_t client);
  */
 esp_err_t discord_destroy(discord_handle_t client);
 
+/**
+ * @brief Get time in miliseconds since boot
+ * @return number of miliseconds since esp_timer_init was called (this normally happens early during application startup)
+ */
+uint64_t discord_tick_ms();
+
 #ifdef __cplusplus
 }
 #endif

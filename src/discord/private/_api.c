@@ -1,7 +1,8 @@
-#include "discord/utils.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "esp_http_client.h"
+#include "cutils.h"
+#include "estr.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -144,12 +145,12 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
         return ESP_FAIL;
     }
 
-    char* user_agent = discord_strcat("DiscordBot (esp-discord, " DISCORD_VER_STRING ") esp-idf/", esp_get_idf_version());
+    char* user_agent = estr_cat("DiscordBot (esp-discord, " DISCORD_VER_STRING ") esp-idf/", esp_get_idf_version());
     esp_http_client_set_header(client->http, "User-Agent", user_agent);
     free(user_agent);
     
     if(!download) {
-        char* auth = discord_strcat("Bot ", client->config->token);
+        char* auth = estr_cat("Bot ", client->config->token);
         esp_http_client_set_header(client->http, "Authorization", auth);
         free(auth);
 
@@ -177,7 +178,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     client->api_buffer_record = true; // always record first chunk which comes with headers because maybe will need to record error
     client->api_buffer_record_status = ESP_OK;
 
-    char* url = discord_strcat(DISCORD_API_URL, uri);
+    char* url = estr_cat(DISCORD_API_URL, uri);
     if(free_uri_and_data) { free(uri); }
     esp_http_client_set_url(http, url);
     free(url);
@@ -213,7 +214,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
         return NULL;
     }
 
-    discord_api_response_t* res = discord_ctor(discord_api_response_t,
+    discord_api_response_t* res = cu_ctor(discord_api_response_t,
         .code = esp_http_client_get_status_code(http)
     );
 
@@ -281,7 +282,7 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
         return NULL;
     }
 
-    discord_api_response_t* res = discord_ctor(discord_api_response_t,
+    discord_api_response_t* res = cu_ctor(discord_api_response_t,
         .code = esp_http_client_get_status_code(http)
     );
 

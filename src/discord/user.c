@@ -1,7 +1,6 @@
 #include "discord/private/_discord.h"
 #include "discord/user.h"
 #include "esp_heap_caps.h"
-#include "discord/utils.h"
 
 void discord_user_free(discord_user_t* user) {
     if(!user)

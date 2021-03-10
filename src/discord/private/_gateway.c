@@ -1,8 +1,9 @@
-#include "discord/utils.h"
 #include "discord/private/_gateway.h"
 #include "discord/private/_json.h"
 #include "discord/message.h"
 #include "esp_transport_ws.h"
+#include "cutils.h"
+#include "estr.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -35,7 +36,7 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_handle_t client, d
                     if(!msg ||
                         !msg->author ||
                         !(msg->type == DISCORD_MESSAGE_DEFAULT || msg->type == DISCORD_MESSAGE_REPLY) || // ignore if not default or reply type
-                        discord_streq(msg->author->id, client->session->user->id)) { // ignore our messages
+                        estr_eq(msg->author->id, client->session->user->id)) { // ignore our messages
                         return false;
                     }
                 }
@@ -46,7 +47,7 @@ static bool dcgw_whether_payload_should_go_into_queue(discord_handle_t client, d
                     discord_message_reaction_t* react = (discord_message_reaction_t*) payload->d;
 
                     // ignore our reactions
-                    if(!react || !react->emoji || discord_streq(react->user_id, client->session->user->id)) {
+                    if(!react || !react->emoji || estr_eq(react->user_id, client->session->user->id)) {
                         return false;
                     }
                 }
@@ -372,7 +373,7 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
         client->heartbeater.received_ack = false;
         int s = client->last_sequence_number;
 
-        return dcgw_send(client, discord_ctor(discord_payload_t,
+        return dcgw_send(client, cu_ctor(discord_payload_t,
             .op = DISCORD_OP_HEARTBEAT,
             .d = (discord_heartbeat_t*) &s
         ));
@@ -384,13 +385,13 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
 esp_err_t dcgw_identify(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
-    return dcgw_send(client, discord_ctor(discord_payload_t,
+    return dcgw_send(client, cu_ctor(discord_payload_t,
         .op = DISCORD_OP_IDENTIFY,
-        .d = discord_ctor(discord_identify_t,
+        .d = cu_ctor(discord_identify_t,
             .token = strdup(client->config->token),
             .intents = client->config->intents,
-            .properties = discord_ctor(discord_identify_properties_t,
-                .$os = discord_strcat("esp-idf (", esp_get_idf_version(), ")"),
+            .properties = cu_ctor(discord_identify_properties_t,
+                .$os = estr_cat("esp-idf (", esp_get_idf_version(), ")"),
                 .$browser = strdup("esp-discord (" DISCORD_VER_STRING ")"),
                 .$device = strdup(CONFIG_IDF_TARGET)
             )
@@ -425,9 +426,9 @@ static esp_err_t dcgw_dispatch(discord_handle_t client, discord_payload_t* paylo
 
         discord_session_t* _s = client->session;
 
-        discord_session_t* session_clone = discord_ctor(discord_session_t,
+        discord_session_t* session_clone = cu_ctor(discord_session_t,
             .session_id = strdup(_s->session_id),
-            .user = discord_ctor(discord_user_t,
+            .user = cu_ctor(discord_user_t,
                 .id = strdup(_s->user->id),
                 .bot = _s->user->bot,
                 .username = strdup(_s->user->username),

@@ -26,7 +26,7 @@ if(NOT CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY)
 endif()
 
 idf_component_register(
-    SRCS src/discord/utils.c
+    SRCS cutils/src/estr.c
          src/discord/private/_models.c
          src/discord/private/_gateway.c
          src/discord/private/_api.c
@@ -40,7 +40,7 @@ idf_component_register(
          src/discord/role.c
          src/discord/attachment.c
          src/discord.c
-    INCLUDE_DIRS include
+    INCLUDE_DIRS include cutils/include
     REQUIRES json esp_websocket_client esp_http_client
     EMBED_TXTFILES ${CERTS}
 )

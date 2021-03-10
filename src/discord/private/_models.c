@@ -3,7 +3,6 @@
 #include "esp_log.h"
 #include "discord/private/_discord.h"
 #include "discord/private/_models.h"
-#include "discord/utils.h"
 
 DISCORD_LOG_DEFINE_BASE();
 

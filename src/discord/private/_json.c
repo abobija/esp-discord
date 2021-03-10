@@ -2,7 +2,8 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "discord/private/_discord.h"
-#include "discord/utils.h"
+#include "cutils.h"
+#include "estr.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -22,7 +23,7 @@ static discord_event_t discord_model_event_by_name(const char* name) {
     size_t map_len = sizeof(discord_event_name_map) / sizeof(discord_event_name_map[0]);
 
     for(size_t i = 0; i < map_len; i++) {
-        if(discord_streq(name, discord_event_name_map[i].name)) {
+        if(estr_eq(name, discord_event_name_map[i].name)) {
             return discord_event_name_map[i].event;
         }
     }
@@ -59,7 +60,7 @@ cJSON* discord_payload_to_cjson(discord_payload_t* payload) {
 }
 
 discord_payload_t* discord_payload_from_cjson(cJSON* cjson) {
-    discord_payload_t* pl = discord_ctor(discord_payload_t,
+    discord_payload_t* pl = cu_ctor(discord_payload_t,
         .op = cJSON_GetObjectItem(cjson, "op")->valueint
     );
 
@@ -75,7 +76,7 @@ discord_payload_t* discord_payload_from_cjson(cJSON* cjson) {
 
     switch(pl->op) {
         case DISCORD_OP_HELLO:
-            pl->d = discord_ctor(discord_hello_t, .heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
+            pl->d = cu_ctor(discord_hello_t, .heartbeat_interval = cJSON_GetObjectItem(d, "heartbeat_interval")->valueint);
             break;
 
         case DISCORD_OP_DISPATCH:
@@ -147,7 +148,7 @@ discord_session_t* discord_session_from_cjson(cJSON* root) {
 
     cJSON* _id = cJSON_GetObjectItem(root, "session_id");
 
-    discord_session_t* session = discord_ctor(discord_session_t,
+    discord_session_t* session = cu_ctor(discord_session_t,
         .session_id = _id->valuestring,
         .user = discord_user_from_cjson(cJSON_GetObjectItem(root, "user"))
     );
@@ -166,7 +167,7 @@ discord_user_t* discord_user_from_cjson(cJSON* root) {
     cJSON* _username = cJSON_GetObjectItem(root, "username");
     cJSON* _discriminator = cJSON_GetObjectItem(root, "discriminator");
 
-    discord_user_t* user = discord_ctor(discord_user_t,
+    discord_user_t* user = cu_ctor(discord_user_t,
         .id = _id->valuestring,
         .bot = _bot && _bot->valueint,
         .username = _username->valuestring,
@@ -199,7 +200,7 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
     cJSON* _nick = cJSON_GetObjectItem(root, "nick");
     cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
 
-    discord_member_t* member = discord_ctor(discord_member_t,
+    discord_member_t* member = cu_ctor(discord_member_t,
         .nick = _nick ? _nick->valuestring : NULL,
         .permissions = _permissions ? _permissions->valuestring : NULL
     );
@@ -243,7 +244,7 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
     cJSON* _ctype = cJSON_GetObjectItem(root, "content_type");
     cJSON* _url = cJSON_GetObjectItem(root, "url");
 
-    discord_attachment_t* attachment = discord_ctor(discord_attachment_t,
+    discord_attachment_t* attachment = cu_ctor(discord_attachment_t,
         .id = _id->valuestring,
         .filename = _fname->valuestring,
         .content_type = _ctype->valuestring,
@@ -269,7 +270,7 @@ discord_role_t* discord_role_from_cjson(cJSON* root) {
     cJSON* _pos = cJSON_GetObjectItem(root, "position");
     cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
 
-    discord_role_t* role = discord_ctor(discord_role_t,
+    discord_role_t* role = cu_ctor(discord_role_t,
         .id = _id->valuestring,
         .name = _name->valuestring,
         .position = _pos->valueint,
@@ -307,7 +308,7 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
     cJSON* _gid = cJSON_GetObjectItem(root, "guild_id");
 
-    discord_message_t* message = discord_ctor(discord_message_t,
+    discord_message_t* message = cu_ctor(discord_message_t,
         .id = _id ? _id->valuestring : NULL,
         .type = (discord_message_type_t) cJSON_GetObjectItem(root, "type")->valueint,
         .content = _content->valuestring,
@@ -361,7 +362,7 @@ discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
         return NULL;
     }
 
-    discord_emoji_t* emoji = discord_ctor(discord_emoji_t, .name = _name->valuestring);
+    discord_emoji_t* emoji = cu_ctor(discord_emoji_t, .name = _name->valuestring);
 
     _name->valuestring = NULL;
 
@@ -376,7 +377,7 @@ discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {
     cJSON* _mid = cJSON_GetObjectItem(root, "message_id");
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
 
-    discord_message_reaction_t* react = discord_ctor(discord_message_reaction_t,
+    discord_message_reaction_t* react = cu_ctor(discord_message_reaction_t,
         .user_id = _uid->valuestring,
         .message_id = _mid->valuestring,
         .channel_id = _cid->valuestring,

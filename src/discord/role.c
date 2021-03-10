@@ -2,7 +2,7 @@
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "discord/private/_json.h"
-#include "discord/utils.h"
+#include "estr.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -16,7 +16,7 @@ discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild
 
     discord_api_response_t* res = dcapi_get(
         client,
-        discord_strcat("/guilds/", guild_id, "/roles"),
+        estr_cat("/guilds/", guild_id, "/roles"),
         NULL,
         true
     );
@@ -40,20 +40,9 @@ void discord_role_free(discord_role_t* role) {
     free(role);
 }
 
-void discord_role_list_free(discord_role_t** roles, discord_role_len_t len) {
-    if(!roles)
-        return;
-    
-    for(discord_role_len_t i = 0; i < len; i++) {
-        discord_role_free(roles[i]);
-    }
-
-    free(roles);
-}
-
 bool discord_role_is_in_id_list(discord_role_t* role, char** role_ids, discord_role_len_t role_ids_len) {
     for(discord_role_len_t i = 0; i < role_ids_len; i++) {
-        if(discord_streq(role_ids[i], role->id)) {
+        if(estr_eq(role_ids[i], role->id)) {
             return true;
         }
     }

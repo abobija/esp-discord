@@ -2,7 +2,8 @@
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "discord/private/_json.h"
-#include "discord/utils.h"
+#include "cutils.h"
+#include "estr.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -15,7 +16,7 @@ static discord_message_t* _discord_message_send_(discord_handle_t client, discor
 
     discord_api_response_t* res = dcapi_post(
         client,
-        discord_strcat("/channels/", message->channel_id, "/messages"),
+        estr_cat("/channels/", message->channel_id, "/messages"),
         discord_json_serialize(message),
         _return
     );
@@ -58,8 +59,8 @@ esp_err_t discord_message_react(discord_handle_t client, discord_message_t* mess
         return ESP_FAIL;
     }
 
-    char* _emoji = discord_url_encode(emoji);
-    esp_err_t err = dcapi_put_(client, discord_strcat("/channels/", message->channel_id, "/messages/", message->id, "/reactions/", _emoji, "/@me"), NULL);
+    char* _emoji = estr_url_encode(emoji);
+    esp_err_t err = dcapi_put_(client, estr_cat("/channels/", message->channel_id, "/messages/", message->id, "/reactions/", _emoji, "/@me"), NULL);
     free(_emoji);
 
     return err;
@@ -101,6 +102,6 @@ void discord_message_free(discord_message_t* message) {
     discord_user_free(message->author);
     free(message->guild_id);
     discord_member_free(message->member);
-    discord_list_free(message->attachments, message->_attachments_len, discord_attachment_free);
+    cu_list_freex(message->attachments, message->_attachments_len, discord_attachment_free);
     free(message);
 }

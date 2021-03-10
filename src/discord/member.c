@@ -2,7 +2,8 @@
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
 #include "discord/private/_json.h"
-#include "discord/utils.h"
+#include "cutils.h"
+#include "estr.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -16,7 +17,7 @@ discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, ch
 
     discord_api_response_t* res = dcapi_get(
         client,
-        discord_strcat("/guilds/", guild_id, "/members/", user_id),
+        estr_cat("/guilds/", guild_id, "/members/", user_id),
         NULL,
         true
     );
@@ -36,7 +37,7 @@ void discord_member_free(discord_member_t* member) {
 
     free(member->nick);
     free(member->permissions);
-    discord_list_free(member->roles, member->_roles_len, free);
+    cu_list_free(member->roles, member->_roles_len);
     free(member);
 }
 
@@ -91,7 +92,7 @@ bool discord_member_has_permissions(discord_handle_t client, discord_member_t* m
     }
     
     bool res = discord_member_has_permissions_(client, member, roles, len, permissions, err);
-    discord_role_list_free(roles, len);
+    cu_list_tfreex(roles, discord_role_len_t, len, discord_role_free);
 
     return res;
 }

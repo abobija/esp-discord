@@ -285,3 +285,7 @@ esp_err_t discord_destroy(discord_handle_t client) {
 
     return ESP_OK;
 }
+
+uint64_t discord_tick_ms() {
+    return esp_timer_get_time() / 1000;
+}
