@@ -22,9 +22,9 @@ C library for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://gi
 
 This directory is an ESP-IDF component. Clone it (or add it as submodule) into `components` directory of the project. Dont forget to put `--recursive` clone flag to clone submodules as well.
 
-- Clone<br>```git clone --recursive https://github.com/abobija/esp-discord.git```
+- Clone<br>`git clone --recursive https://github.com/abobija/esp-discord.git`
 
-- Add as submodule<br>```git submodule add https://github.com/abobija/esp-discord && git submodule update --init --recursive```
+- Add as submodule<br>`git submodule add https://github.com/abobija/esp-discord && git submodule update --init --recursive`
 
 ## SSL server verification
 
@@ -34,7 +34,7 @@ By default esp-discord will perform server verification in order to establish se
 
 ### Skip server verification (test/dev purposes)
 
-If you want to run discord bot in testing/development mode, you can skip server verification by setting [CONFIG_ESP_TLS_INSECURE](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#config-esp-tls-insecure) and [CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#config-esp-tls-skip-server-cert-verify) in ESP-TLS menuconfig. In that case esp-discord will not require certificates, and there will be no need to run [`certgen.sh`](certgen.sh) script.
+If you want to run discord bot in testing/development mode, you can skip server verification by setting [CONFIG_ESP_TLS_INSECURE](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#config-esp-tls-insecure) and [CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/kconfig.html#config-esp-tls-skip-server-cert-verify) in ESP-TLS menuconfig. Anyway, you need to first run [`certgen.sh`](certgen.sh) script to be able to access menuconfig.
 
 ## Author
 

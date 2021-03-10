@@ -1,22 +1,18 @@
 set(CERTS "")
 
-if(NOT CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY)
+if(NOT CMAKE_BUILD_EARLY_EXPANSION AND EXISTS config AND NOT CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY)
     list(APPEND CERTS cert/gateway.pem cert/api.pem)
 
     if(NOT EXISTS ${COMPONENT_DIR}/cert/gateway.pem OR NOT EXISTS ${COMPONENT_DIR}/cert/api.pem)
         string(CONCAT certs_missing_message
             "\n ****************************************************************************"
+            "\n "
             "\n Discord certificates missing. To generate certs please run next script:"
             "\n ${COMPONENT_DIR}/certgen.sh"
             "\n "
-            "\n On Windows, script should be automatically open in Git-Bash by double-click on it."
-            "\n If not, open Git-Bash manually (on Windows) and run script."
+            "\n On Windows script should be automatically open in Git-Bash by double-click on it."
+            "\n If not, open Git-Bash (on Windows) and run script manually."
             "\n "
-            "\n Or, to skip certification, enable next option in \"idf.py menuconfig\":"
-            "\n     Component Config"
-            "\n         -> ESP-TLS"
-            "\n         -> Allow potentially insecure options"
-            "\n         -> Skip server certificate verification by default"
             "\n ****************************************************************************"
         )
 
