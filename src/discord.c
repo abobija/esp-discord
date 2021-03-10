@@ -8,6 +8,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
+#include "cutils.h"
 
 #define _dc_default(val, default) (val > 0 ? val : default)
 
@@ -18,16 +19,23 @@ DISCORD_LOG_DEFINE_BASE();
 ESP_EVENT_DEFINE_BASE(DISCORD_EVENTS);
 
 static discord_config_t* dc_config_copy(const discord_config_t* config) {
-    discord_config_t* clone = calloc(1, sizeof(discord_config_t));
+    discord_config_t* clone = cu_ctor(discord_config_t,
+        .intents = config->intents,
+        .gateway_buffer_size = _dc_default(config->gateway_buffer_size, DISCORD_DEFAULT_GW_BUFFER_SIZE),
+        .api_buffer_size = _dc_default(config->api_buffer_size, DISCORD_DEFAULT_API_BUFFER_SIZE),
+        .api_timeout_ms = _dc_default(config->api_timeout_ms, DISCORD_DEFAULT_API_TIMEOUT_MS),
+        .queue_size = _dc_default(config->queue_size, DISCORD_DEFAULT_QUEUE_SIZE),
+        .task_stack_size = _dc_default(config->task_stack_size, DISCORD_DEFAULT_TASK_STACK_SIZE),
+        .task_priority = _dc_default(config->task_priority, DISCORD_DEFAULT_TASK_PRIORITY)
+    );
 
-    clone->token = config->token ? strdup(config->token) : NULL;
-    clone->intents = config->intents;
-    clone->gateway_buffer_size = _dc_default(config->gateway_buffer_size, DISCORD_DEFAULT_GW_BUFFER_SIZE);
-    clone->api_buffer_size = _dc_default(config->api_buffer_size, DISCORD_DEFAULT_API_BUFFER_SIZE);
-    clone->api_timeout_ms = _dc_default(config->api_timeout_ms, DISCORD_DEFAULT_API_TIMEOUT_MS);
-    clone->queue_size = _dc_default(config->queue_size, DISCORD_DEFAULT_QUEUE_SIZE);
-    clone->task_stack_size = _dc_default(config->task_stack_size, DISCORD_DEFAULT_TASK_STACK_SIZE);
-    clone->task_priority = _dc_default(config->task_priority, DISCORD_DEFAULT_TASK_PRIORITY);
+    if(config->token) {
+        clone->token = strdup(config->token);
+    } else {
+#ifdef CONFIG_DISCORD_TOKEN
+        clone->token = strdup(CONFIG_DISCORD_TOKEN);
+#endif
+    }
 
     return clone;
 }
@@ -157,6 +165,25 @@ discord_handle_t discord_create(const discord_config_t* config) {
 
     discord_handle_t client = calloc(1, sizeof(struct discord));
 
+    client->config = dc_config_copy(config);
+
+    if(!client->config->token) {
+        DISCORD_LOGE(
+            "Fail to create Discord."
+            " Token has not been set."
+            " Token can be set in menuconfig under Components -> Discord -> Token."
+            " Or manually, token can be supplied via config structure."
+        );
+
+        discord_destroy(client);
+        return NULL;
+    }
+
+    if(!client->config) {
+        free(client);
+        return NULL;
+    }
+
     esp_event_loop_args_t event_args = {
         .queue_size = 1,
         .task_name = NULL // no task will be created
@@ -176,7 +203,6 @@ discord_handle_t discord_create(const discord_config_t* config) {
         return NULL;
     }
 
-    client->config = dc_config_copy(config);
     client->event_handler = &dc_dispatch_event;
 
     if(dcgw_init(client) != ESP_OK) {
