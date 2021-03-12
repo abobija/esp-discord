@@ -146,15 +146,20 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
     }
 
     char* user_agent = estr_cat("DiscordBot (esp-discord, " DISCORD_VER_STRING ") esp-idf/", esp_get_idf_version());
+    // todo: memcheck
     esp_http_client_set_header(client->http, "User-Agent", user_agent);
+    // todo: error check
     free(user_agent);
     
     if(!download) {
         char* auth = estr_cat("Bot ", client->config->token);
+        // todo: memcheck
         esp_http_client_set_header(client->http, "Authorization", auth);
+        // todo: error check
         free(auth);
 
         esp_http_client_set_header(client->http, "Content-Type", "application/json");
+        // todo: error check
     }
 
     return ESP_OK;
@@ -179,11 +184,14 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     client->api_buffer_record_status = ESP_OK;
 
     char* url = estr_cat(DISCORD_API_URL, uri);
+    // todo: memcheck
     if(free_uri_and_data) { free(uri); }
     esp_http_client_set_url(http, url);
+    // todo: error check
     free(url);
 
     esp_http_client_set_method(http, method);
+    // todo: error check
 
     int len = data ? strlen(data) : 0;
 
@@ -285,6 +293,8 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
     discord_api_response_t* res = cu_ctor(discord_api_response_t,
         .code = esp_http_client_get_status_code(http)
     );
+
+    // todo: memcheck
 
     if(dcapi_response_is_success(res)) {
         if(esp_http_client_is_chunked_response(http)) {

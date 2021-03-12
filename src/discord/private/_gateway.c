@@ -373,6 +373,7 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
         client->heartbeater.received_ack = false;
         int s = client->last_sequence_number;
 
+        // todo: memcheck
         return dcgw_send(client, cu_ctor(discord_payload_t,
             .op = DISCORD_OP_HEARTBEAT,
             .d = (discord_heartbeat_t*) &s
@@ -385,6 +386,7 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
 esp_err_t dcgw_identify(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
+    // todo: memchecks
     return dcgw_send(client, cu_ctor(discord_payload_t,
         .op = DISCORD_OP_IDENTIFY,
         .d = cu_ctor(discord_identify_t,
@@ -435,6 +437,8 @@ static esp_err_t dcgw_dispatch(discord_handle_t client, discord_payload_t* paylo
                 .discriminator = strdup(_s->user->discriminator)
             )
         );
+
+        // todo: memcheck
 
         DISCORD_EVENT_FIRE(DISCORD_EVENT_CONNECTED, session_clone);
         discord_session_free(session_clone);

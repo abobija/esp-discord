@@ -29,11 +29,15 @@ static discord_config_t* dc_config_copy(const discord_config_t* config) {
         .task_priority = _dc_default(config->task_priority, DISCORD_DEFAULT_TASK_PRIORITY)
     );
 
+    // todo: memcheck
+
     if(config->token) {
         clone->token = strdup(config->token);
+        // todo: memcheck
     } else {
 #ifdef CONFIG_DISCORD_TOKEN
         clone->token = strdup(CONFIG_DISCORD_TOKEN);
+        // todo: memcheck
 #endif
     }
 
@@ -163,9 +167,16 @@ static void dc_task(void* arg) {
 discord_handle_t discord_create(const discord_config_t* config) {
     DISCORD_LOG_FOO();
 
-    discord_handle_t client = calloc(1, sizeof(struct discord));
+    discord_handle_t client = cu_tctor(discord_handle_t, struct discord,
+        .config = dc_config_copy(config)
+    );
 
-    client->config = dc_config_copy(config);
+    // todo: memcheck
+
+    if(!client->config) {
+        free(client);
+        return NULL;
+    }
 
     if(!client->config->token) {
         DISCORD_LOGE(
@@ -176,11 +187,6 @@ discord_handle_t discord_create(const discord_config_t* config) {
         );
 
         discord_destroy(client);
-        return NULL;
-    }
-
-    if(!client->config) {
-        free(client);
         return NULL;
     }
 

@@ -64,6 +64,8 @@ discord_payload_t* discord_payload_from_cjson(cJSON* cjson) {
         .op = cJSON_GetObjectItem(cjson, "op")->valueint
     );
 
+    // todo: memcheck
+
     cJSON* s = cJSON_GetObjectItem(cjson, "s");
 
     pl->s = cJSON_IsNumber(s) ? s->valueint : DISCORD_NULL_SEQUENCE_NUMBER;
@@ -119,12 +121,14 @@ discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e,
 cJSON* discord_heartbeat_to_cjson(discord_heartbeat_t* heartbeat) {
     int hb = *((int*) (heartbeat));
 
+    // todo: memcheck
     return hb == DISCORD_NULL_SEQUENCE_NUMBER ? cJSON_CreateNull() : cJSON_CreateNumber(hb);
 }
 
 cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* properties) {
     cJSON* root = cJSON_CreateObject();
 
+    // todo: memchecks
     cJSON_AddItemToObject(root, "$os", cJSON_CreateStringReference(properties->$os));
     cJSON_AddItemToObject(root, "$browser", cJSON_CreateStringReference(properties->$browser));
     cJSON_AddItemToObject(root, "$device", cJSON_CreateStringReference(properties->$device));
@@ -135,6 +139,7 @@ cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* prope
 cJSON* discord_identify_to_cjson(discord_identify_t* identify) {
     cJSON* root = cJSON_CreateObject();
 
+    // todo: memchecks
     cJSON_AddItemToObject(root, "token", cJSON_CreateStringReference(identify->token));
     cJSON_AddNumberToObject(root, "intents", identify->intents);
     cJSON_AddItemToObject(root, "properties", discord_identify_properties_to_cjson(identify->properties));
@@ -152,6 +157,8 @@ discord_session_t* discord_session_from_cjson(cJSON* root) {
         .session_id = _id->valuestring,
         .user = discord_user_from_cjson(cJSON_GetObjectItem(root, "user"))
     );
+
+    // todo: memcheck
 
     _id->valuestring = NULL;
 
@@ -174,6 +181,8 @@ discord_user_t* discord_user_from_cjson(cJSON* root) {
         .discriminator = _discriminator->valuestring
     );
 
+    // todo: memcheck
+
     _id->valuestring =
     _username->valuestring =
     _discriminator->valuestring =
@@ -190,6 +199,8 @@ cJSON* discord_user_to_cjson(discord_user_t* user) {
     cJSON_AddItemToObject(root, "discriminator", cJSON_CreateStringReference(user->discriminator));
     cJSON_AddBoolToObject(root, "bot", user->bot);
 
+    // todo: memchecks
+
     return root;
 }
 
@@ -205,6 +216,8 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
         .permissions = _permissions ? _permissions->valuestring : NULL
     );
 
+    // todo: memcheck
+
     if(_nick) _nick->valuestring = NULL;
     if(_permissions) _permissions->valuestring = NULL;
 
@@ -212,6 +225,8 @@ discord_member_t* discord_member_from_cjson(cJSON* root) {
 
     if(cJSON_IsArray(_roles) && ((member->_roles_len = cJSON_GetArraySize(_roles)) > 0)) {
         member->roles = calloc(member->_roles_len, sizeof(char*));
+
+        // todo: memcheck
 
         for(discord_role_len_t i = 0; i < member->_roles_len; i++) {
             cJSON* _role = cJSON_GetArrayItem(_roles, i);
@@ -232,6 +247,8 @@ cJSON* discord_member_to_cjson(discord_member_t* member) {
     if(member->nick) cJSON_AddItemToObject(root, "nick", cJSON_CreateStringReference(member->nick));
     if(member->permissions) cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(member->permissions));
 
+    // todo: memchecks
+
     return root;
 }
 
@@ -251,6 +268,8 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
         .size = cJSON_GetObjectItem(root, "size")->valueint,
         .url = _url->valuestring
     );
+
+    // todo: memcheck
 
     _id->valuestring =
     _fname->valuestring =
@@ -277,6 +296,8 @@ discord_role_t* discord_role_from_cjson(cJSON* root) {
         .permissions = _permissions->valuestring
     );
 
+    // todo: memcheck
+
     _id->valuestring =
     _name->valuestring =
     _permissions->valuestring =
@@ -295,6 +316,8 @@ cJSON* discord_role_to_cjson(discord_role_t* role) {
     cJSON_AddItemToObject(root, "name", cJSON_CreateStringReference(role->name));
     cJSON_AddNumberToObject(root, "position", role->position);
     cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(role->permissions));
+
+    // todo: memchecks
 
     return root;
 }
@@ -318,6 +341,8 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
         .member = discord_member_from_cjson(cJSON_GetObjectItem(root, "member"))
     );
 
+    // todo: memchecks
+
     _content->valuestring =
     _cid->valuestring =
     NULL;
@@ -329,6 +354,8 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
 
     if(cJSON_IsArray(_attachments) && ((message->_attachments_len = cJSON_GetArraySize(_attachments)) > 0)) {
         message->attachments = calloc(message->_attachments_len, sizeof(discord_attachment_t*));
+
+        // todo: memcheck
 
         for(uint8_t i = 0; i < message->_attachments_len; i++) {
             message->attachments[i] = discord_attachment_from_cjson(cJSON_GetArrayItem(_attachments, i));
@@ -348,6 +375,8 @@ cJSON* discord_message_to_cjson(discord_message_t* msg) {
     if(msg->guild_id) cJSON_AddItemToObject(root, "guild_id", cJSON_CreateStringReference(msg->guild_id));
     if(msg->member) cJSON_AddItemToObject(root, "member", discord_member_to_cjson(msg->member));
 
+    // todo: memchecks
+
     return root;
 }
 
@@ -363,6 +392,8 @@ discord_emoji_t* discord_emoji_from_cjson(cJSON* root) {
     }
 
     discord_emoji_t* emoji = cu_ctor(discord_emoji_t, .name = _name->valuestring);
+
+    // todo: memcheck
 
     _name->valuestring = NULL;
 
@@ -383,6 +414,8 @@ discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {
         .channel_id = _cid->valuestring,
         .emoji = discord_emoji_from_cjson(cJSON_GetObjectItem(root, "emoji"))
     );
+
+    // todo: memcheck
 
     _uid->valuestring =
     _mid->valuestring =
