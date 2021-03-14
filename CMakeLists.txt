@@ -23,9 +23,6 @@ endif()
 
 idf_component_register(
     SRCS cutils/src/estr.c
-         cutils/src/xlist.c
-         cutils/src/wxp.c
-         cutils/src/cmder.c
          src/discord/private/_models.c
          src/discord/private/_gateway.c
          src/discord/private/_api.c
