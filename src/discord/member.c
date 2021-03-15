@@ -7,23 +7,24 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, char* user_id) {
-    if(!client || !guild_id || !user_id) {
+esp_err_t discord_member_get(discord_handle_t client, char* guild_id, char* user_id, discord_member_t** out_member) {
+    if(! client || ! guild_id || ! user_id || ! out_member) {
         DISCORD_LOGE("Invalid args");
-        return NULL;
+        return ESP_ERR_INVALID_ARG;
     }
 
+    esp_err_t err = ESP_OK;
     discord_member_t* member = NULL;
     discord_api_response_t* res = NULL;
     
-    if(dcapi_get(
+    if((err = dcapi_get(
         client,
         estr_cat("/guilds/", guild_id, "/members/", user_id),
         NULL,
         true,
         &res
-    ) != ESP_OK) {
-        return NULL;
+    )) != ESP_OK) {
+        return err;
     }
 
     if(dcapi_response_is_success(res) && res->data_len > 0) {
@@ -32,28 +33,11 @@ discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, ch
 
     dcapi_response_free(client, res);
 
-    return member;
+    *out_member = member;
+    return err;
 }
 
-void discord_member_free(discord_member_t* member) {
-    if(!member)
-        return;
-
-    free(member->nick);
-    free(member->permissions);
-    cu_list_free(member->roles, member->_roles_len);
-    free(member);
-}
-
-bool discord_member_has_permissions_(discord_handle_t client, discord_member_t* member, discord_role_t** roles, discord_role_len_t roles_len, uint64_t permissions, esp_err_t* err) {
-    if(!client || !member || !roles || roles_len <= 0) {
-        DISCORD_LOGE("Invalid args");
-        if(err) *err = ESP_ERR_INVALID_ARG;
-        return false;
-    }
-
-    if(err) *err = ESP_OK;
-
+static bool dc_member_permissions_calc(discord_handle_t client, discord_member_t* member, discord_role_t** roles, discord_role_len_t roles_len, uint64_t permissions) {
     discord_role_sort_list(roles, roles_len);
 
     uint64_t o_ring = strtoull(roles[0]->permissions, NULL, 10); // @everyone permissions
@@ -79,11 +63,10 @@ bool discord_member_has_permissions_(discord_handle_t client, discord_member_t* 
     return (o_ring & permissions) == permissions;
 }
 
-bool discord_member_has_permissions(discord_handle_t client, discord_member_t* member, char* guild_id, uint64_t permissions, esp_err_t* err) {
-    if(!client || !member || !guild_id) {
+esp_err_t discord_member_has_permissions(discord_handle_t client, discord_member_t* member, char* guild_id, uint64_t permissions, bool* out_result) {
+    if(! client || ! member || ! guild_id || ! out_result) {
         DISCORD_LOGE("Invalid args");
-        if(err) *err = ESP_ERR_INVALID_ARG;
-        return false;
+        return ESP_ERR_INVALID_ARG;
     }
 
     discord_role_len_t len;
@@ -91,14 +74,14 @@ bool discord_member_has_permissions(discord_handle_t client, discord_member_t* m
 
     if(!roles) {
         DISCORD_LOGW("Fail to fetch");
-        if(err) *err = ESP_FAIL;
-        return false;
+        return ESP_FAIL;
     }
     
-    bool res = discord_member_has_permissions_(client, member, roles, len, permissions, err);
+    bool res = dc_member_permissions_calc(client, member, roles, len, permissions);
     cu_list_tfreex(roles, discord_role_len_t, len, discord_role_free);
 
-    return res;
+    *out_result = res;
+    return ESP_OK;
 }
 
 esp_err_t discord_member_has_role_name(discord_handle_t client, discord_member_t* member, const char* guild_id, const char* role_name, bool* out_result) {
@@ -141,4 +124,14 @@ esp_err_t discord_member_has_role_name(discord_handle_t client, discord_member_t
 
     *out_result = result;
     return ESP_OK;
+}
+
+void discord_member_free(discord_member_t* member) {
+    if(!member)
+        return;
+
+    free(member->nick);
+    free(member->permissions);
+    cu_list_free(member->roles, member->_roles_len);
+    free(member);
 }
