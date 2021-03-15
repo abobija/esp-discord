@@ -330,11 +330,12 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
     cJSON* _content = cJSON_GetObjectItem(root, "content");
     cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
     cJSON* _gid = cJSON_GetObjectItem(root, "guild_id");
+    cJSON* _type = cJSON_GetObjectItem(root, "type");
 
     discord_message_t* message = cu_ctor(discord_message_t,
         .id = _id ? _id->valuestring : NULL,
-        .type = (discord_message_type_t) cJSON_GetObjectItem(root, "type")->valueint,
-        .content = _content->valuestring,
+        .type = (discord_message_type_t) (_type ? _type->valueint : DISCORD_MESSAGE_UNDEFINED),
+        .content = _content ? _content->valuestring : NULL,
         .channel_id = _cid->valuestring,
         .author = discord_user_from_cjson(cJSON_GetObjectItem(root, "author")),
         .guild_id = _gid ? _gid->valuestring : NULL,
@@ -343,10 +344,9 @@ discord_message_t* discord_message_from_cjson(cJSON* root) {
 
     // todo: memchecks
 
-    _content->valuestring =
-    _cid->valuestring =
-    NULL;
+    _cid->valuestring = NULL;
 
+    if(_content) _content->valuestring = NULL;
     if(_id) _id->valuestring = NULL;
     if(_gid) _gid->valuestring = NULL;
 
