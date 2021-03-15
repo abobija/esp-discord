@@ -256,17 +256,21 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
     return res;
 }
 
-discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url, api_predownload_approver_t approver, discord_download_handler_t download_handler) {
+esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response) {
+    if(! client || ! url ||  ! download_handler || ! out_response) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    
     if(client->api_download_mode && xSemaphoreTake(client->api_lock, client->config->api_timeout_ms / portTICK_PERIOD_MS) != pdTRUE) {
         DISCORD_LOGW("Api is locked");
-        return NULL;
+        return ESP_FAIL;
     }
 
     dcapi_destroy(client); // destroy live http_client instance (if exist)
 
     if(dcapi_init_lazy(client, true, url) != ESP_OK) { // create new instance for download
         DISCORD_LOGW("Cannot initialize API");
-        return NULL;
+        return ESP_FAIL;
     }
 
     esp_http_client_handle_t http = client->http;
@@ -279,7 +283,7 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
         DISCORD_LOGW("Failed to open connection");
         xSemaphoreGive(client->api_lock);
         dcapi_destroy(client);
-        return NULL;
+        return ESP_FAIL;
     }
 
     if(esp_http_client_fetch_headers(http) == ESP_FAIL) {
@@ -287,7 +291,7 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
         dcapi_flush_http(client, false);
         xSemaphoreGive(client->api_lock);
         dcapi_destroy(client);
-        return NULL;
+        return ESP_FAIL;
     }
 
     discord_api_response_t* res = cu_ctor(discord_api_response_t,
@@ -303,14 +307,7 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
             client->api_download_total = esp_http_client_get_content_length(http);
         }
 
-        if(! approver(client->api_download_total)) {
-            DISCORD_LOGD("Download not approved");
-            client->api_download_mode = false;
-            res->code = ESP_FAIL;
-        } else if(client->api_buffer_size > 0) {
-            dcapi_download_handler_fire(client, client->api_buffer, client->api_buffer_size);
-        }
-
+        dcapi_download_handler_fire(client, client->api_buffer, client->api_buffer_size);
         dcapi_flush_http(client, false);
     }
 
@@ -318,7 +315,8 @@ discord_api_response_t* dcapi_download_(discord_handle_t client, const char* url
     xSemaphoreGive(client->api_lock);
     dcapi_destroy(client); // destroy http_client, new one will be created on next request
 
-    return res;
+    *out_response = res;
+    return ESP_OK;
 }
 
 discord_api_response_t* dcapi_get(discord_handle_t client, char* uri, char* data, bool stream) {
@@ -349,7 +347,7 @@ esp_err_t dcapi_put_(discord_handle_t client, char* uri, char* data) {
     return err;
 }
 
-esp_err_t dcapi_destroy(discord_handle_t client) {
+void dcapi_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     if(client->api_lock) {
@@ -377,6 +375,4 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
         esp_http_client_cleanup(client->http);
         client->http = NULL;
     }
-
-    return ESP_OK;
 }

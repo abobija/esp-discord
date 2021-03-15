@@ -66,12 +66,6 @@ esp_err_t discord_message_react(discord_handle_t client, discord_message_t* mess
     return err;
 }
 
-static size_t _downloading_attachment_size;
-
-static bool dc_message_attachment_download_approver(size_t content_length) {
-    return _downloading_attachment_size == content_length;
-}
-
 esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler) {
     if(!client || !message || !message->attachments) {
         DISCORD_LOGE("Invalid args");
@@ -84,9 +78,11 @@ esp_err_t discord_message_download_attachment(discord_handle_t client, discord_m
     }
 
     discord_attachment_t* attach = message->attachments[attachment_index];
-    _downloading_attachment_size = attach->size;
-    discord_api_response_t* res = dcapi_download_(client, attach->url, &dc_message_attachment_download_approver, download_handler);
-    esp_err_t err = dcapi_response_to_esp_err(res);
+
+    discord_api_response_t* res = NULL;
+    esp_err_t err = dcapi_download(client, attach->url, download_handler, &res);
+    if(err != ESP_OK) { return err; }
+    err = dcapi_response_to_esp_err(res);
     dcapi_response_free(client, res);
 
     return err;
