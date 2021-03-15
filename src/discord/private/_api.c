@@ -67,6 +67,10 @@ static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
 }
 
 static void dcapi_download_handler_fire(discord_handle_t client, void* data, size_t length) {
+    if(! client || ! client->api_download_handler) {
+        return;
+    }
+
     discord_download_info_t info = {
         .data = data,
         .length = length,

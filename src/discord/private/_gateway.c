@@ -7,15 +7,13 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-static esp_err_t dcgw_heartbeat_stop(discord_handle_t client) {
+static void dcgw_heartbeat_stop(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     client->heartbeater.running = false;
     client->heartbeater.interval = 0;
     client->heartbeater.tick_ms = 0;
     client->heartbeater.received_ack = false;
-
-    return ESP_OK;
 }
 
 static bool dcgw_whether_payload_should_go_into_queue(discord_handle_t client, discord_payload_t* payload) {
@@ -285,7 +283,7 @@ esp_err_t dcgw_start(discord_handle_t client) {
     return err;
 }
 
-esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t reason) {
+void dcgw_close(discord_handle_t client, discord_gateway_close_reason_t reason) {
     DISCORD_LOG_FOO();
 
     // do not set client status in this function
@@ -303,11 +301,9 @@ esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t rea
     client->gw_buffer_len = 0;
     dcgw_queue_flush(client);
     if(client->gw_lock) { xSemaphoreGive(client->gw_lock); }
-
-    return ESP_OK;
 }
 
-esp_err_t dcgw_destroy(discord_handle_t client) {
+void dcgw_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
 
     dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
@@ -329,8 +325,6 @@ esp_err_t dcgw_destroy(discord_handle_t client) {
     }
 
     client->state = DISCORD_STATE_UNKNOWN;
-
-    return ESP_OK;
 }
 
 void dcgw_queue_flush(discord_handle_t client) {
@@ -367,7 +361,8 @@ esp_err_t dcgw_heartbeat_send_if_expired(discord_handle_t client) {
 
         if(!client->heartbeater.received_ack) {
             DISCORD_LOGW("ACK has not been received since the last heartbeat. Reconnection will follow using IDENTIFY (RESUME is not implemented yet)");
-            return dcgw_close(client, DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED);
+            dcgw_close(client, DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED);
+            return ESP_ERR_INVALID_STATE;
         }
 
         client->heartbeater.received_ack = false;
