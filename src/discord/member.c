@@ -70,11 +70,11 @@ esp_err_t discord_member_has_permissions(discord_handle_t client, discord_member
     }
 
     discord_role_len_t len;
-    discord_role_t** roles = discord_role_get_all(client, guild_id, &len);
+    discord_role_t** roles = NULL;
+    esp_err_t err = discord_role_get_all(client, guild_id, &roles, &len);
 
-    if(!roles) {
-        DISCORD_LOGW("Fail to fetch");
-        return ESP_FAIL;
+    if(err != ESP_OK) {
+        return err;
     }
     
     bool res = dc_member_permissions_calc(client, member, roles, len, permissions);
@@ -91,11 +91,12 @@ esp_err_t discord_member_has_role_name(discord_handle_t client, discord_member_t
     }
 
     discord_role_len_t len;
-    discord_role_t** roles = discord_role_get_all(client, guild_id, &len);
+    discord_role_t** roles = NULL;
+    
+    esp_err_t err = discord_role_get_all(client, guild_id, &roles, &len);
 
-    if(!roles) {
-        DISCORD_LOGW("Fail to fetch");
-        return ESP_FAIL;
+    if(err != ESP_OK) {
+        return err;
     }
 
     discord_role_t* required_role = NULL;

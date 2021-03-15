@@ -6,32 +6,33 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild_id, discord_role_len_t* out_length) {
-    if(!client || !guild_id || !out_length) {
+esp_err_t discord_role_get_all(discord_handle_t client, const char* guild_id, discord_role_t*** out_roles, discord_role_len_t* out_length) {
+    if(! client || ! guild_id || ! out_roles || ! out_length) {
         DISCORD_LOGE("Invalid args");
-        return NULL;
+        return ESP_ERR_INVALID_ARG;
     }
 
-    discord_role_t** roles = NULL;
+    esp_err_t err = ESP_OK;
     discord_api_response_t* res = NULL;
     
-    if(dcapi_get(
+    if((err = dcapi_get(
         client,
         estr_cat("/guilds/", guild_id, "/roles"),
         NULL,
         true,
         &res
-    ) != ESP_OK) {
-        return NULL;
+    )) != ESP_OK) {
+        DISCORD_LOGE("Fail to fetch roles");
+        return err;
     }
     
     if(dcapi_response_is_success(res) && res->data_len > 0) {
-        roles = discord_json_list_deserialize_(role, res->data, res->data_len, out_length);
+        *out_roles = discord_json_list_deserialize_(role, res->data, res->data_len, out_length);
     }
 
     dcapi_response_free(client, res);
 
-    return roles;
+    return err;
 }
 
 void discord_role_free(discord_role_t* role) {

@@ -40,7 +40,7 @@ extern "C" {
             list = calloc(_len, sizeof(type*)); \
             if(list) { \
                 for(int i = 0; i < _len; i++) { list[i] = from_cjson_fnc(cJSON_GetArrayItem(cjson, i)); } \
-                if(out_length) { *out_length = _len; } \
+                if((out_length)) { *(out_length) = _len; } \
             } \
         } \
         cJSON_Delete(cjson); \
