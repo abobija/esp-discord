@@ -19,6 +19,7 @@ discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, ch
 void discord_member_free(discord_member_t* member);
 bool discord_member_has_permissions_(discord_handle_t client, discord_member_t* member, discord_role_t** roles, discord_role_len_t roles_len, uint64_t permissions, esp_err_t* err);
 bool discord_member_has_permissions(discord_handle_t client, discord_member_t* member, char* guild_id, uint64_t permissions, esp_err_t* err);
+esp_err_t discord_member_has_role_name(discord_handle_t client, discord_member_t* member, const char* guild_id, const char* role_name, bool* out_result);
 
 #ifdef __cplusplus
 }

@@ -96,3 +96,45 @@ bool discord_member_has_permissions(discord_handle_t client, discord_member_t* m
 
     return res;
 }
+
+esp_err_t discord_member_has_role_name(discord_handle_t client, discord_member_t* member, const char* guild_id, const char* role_name, bool* out_result) {
+    if(! client || ! member || ! guild_id || ! role_name || ! out_result) {
+        DISCORD_LOGE("Invalid args");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    discord_role_len_t len;
+    discord_role_t** roles = discord_role_get_all(client, guild_id, &len);
+
+    if(!roles) {
+        DISCORD_LOGW("Fail to fetch");
+        return ESP_FAIL;
+    }
+
+    discord_role_t* required_role = NULL;
+
+    for(discord_role_len_t i = 0; i < len; i++) {
+        if(estr_eq(roles[i]->name, role_name)) {
+            required_role = roles[i];
+            break;
+        }
+    }
+
+    if(required_role == NULL) { // role doesn't exist in guild
+        cu_list_tfreex(roles, discord_role_len_t, len, discord_role_free);
+        *out_result = false;
+        return ESP_OK;
+    }
+
+    // role exist in guild, check if role is assigned to member
+    bool result = false;
+    for(discord_role_len_t i = 0; i < member->_roles_len; i++) {
+        if(estr_eq(required_role->id, member->roles[i])) {
+            result = true;
+            break;
+        }
+    }
+
+    *out_result = result;
+    return ESP_OK;
+}
