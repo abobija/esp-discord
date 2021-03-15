@@ -201,8 +201,21 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
 
     int len = data ? strlen(data) : 0;
 
-    if((err = esp_http_client_open(http, len)) != ESP_OK) {
-        DISCORD_LOGW("Failed to open connection");
+    bool connection_open = false;
+    const uint8_t open_attempts = 3;
+    uint8_t open_attempt = 0;
+    
+    while(! connection_open && ++open_attempt <= open_attempts) {
+        DISCORD_LOGD("Opening connection (attempt %d)...", open_attempt);
+
+        if((err = esp_http_client_open(http, len)) == ESP_OK) {
+            connection_open = true;
+        } else {
+            DISCORD_LOGW("Fail to open connection");
+        }
+    }
+
+    if(err != ESP_OK) { // connection closed
         xSemaphoreGive(client->api_lock);
         return err;
     }
