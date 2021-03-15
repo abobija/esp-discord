@@ -7,58 +7,41 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
-static discord_message_t* _discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err, bool _return) {
-    if(!client || !message || !message->content || !message->channel_id) {
+esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message, discord_message_t** out_result) {
+    if(! client || ! message || ! message->content || ! message->channel_id) {
         DISCORD_LOGE("Invalid args");
-        *err = ESP_ERR_INVALID_ARG;
-        return NULL;
+        return ESP_ERR_INVALID_ARG;
     }
 
     discord_api_response_t* res = NULL;
     
-    esp_err_t _err = dcapi_post(
+    esp_err_t err = dcapi_post(
         client,
         estr_cat("/channels/", message->channel_id, "/messages"),
         discord_json_serialize(message),
-        _return,
+        out_result != NULL,
         &res
     );
 
-    if(_err != ESP_OK) {
-        *err = _err;
-        return NULL;
+    if(err != ESP_OK) {
+        return err;
     }
 
-    *err = dcapi_response_to_esp_err(res);
+    if(! dcapi_response_is_success(res)) {
+        dcapi_response_free(client, res);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
 
-    discord_message_t* sent_message = NULL;
-
-    if(_return && *err == ESP_OK) {
+    if(out_result) {
         if(res->data_len <= 0) {
             DISCORD_LOGW("Message sent but cannot return");
         } else {
-            sent_message = discord_json_deserialize_(message, res->data, res->data_len);
+            *out_result = discord_json_deserialize_(message, res->data, res->data_len);
         }
     }
     
     dcapi_response_free(client, res);
-
-    return sent_message;
-}
-
-discord_message_t* discord_message_send_(discord_handle_t client, discord_message_t* message, esp_err_t* err) {
-    esp_err_t _err;
-    discord_message_t* sent_message = _discord_message_send_(client, message, &_err, true);
-    if(err) *err = _err;
-
-    return sent_message;
-}
-
-esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message) {
-    esp_err_t err;
-    _discord_message_send_(client, message, &err, false);
-
-    return err;
+    return ESP_OK;
 }
 
 esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji) {
