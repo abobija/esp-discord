@@ -246,12 +246,19 @@ esp_err_t dcgw_send(discord_handle_t client, discord_payload_t* payload) {
     return ESP_OK;
 }
 
-char* dcgw_get_close_desc(discord_handle_t client) {
-    return client->close_code != DISCORD_CLOSEOP_NO_CODE ? client->gw_buffer + 2 : NULL;
+esp_err_t dcgw_get_close_desc(discord_handle_t client, char** out_description) {
+    if(! client || ! out_description) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *out_description = client->close_code != DISCORD_CLOSEOP_NO_CODE 
+        ? client->gw_buffer + 2 : NULL;
+    
+    return ESP_OK;
 }
 
 bool dcgw_is_open(discord_handle_t client) {
-    return client->state >= DISCORD_STATE_OPEN;
+    return client && client->state >= DISCORD_STATE_OPEN;
 }
 
 esp_err_t dcgw_open(discord_handle_t client) {
@@ -283,8 +290,12 @@ esp_err_t dcgw_start(discord_handle_t client) {
     return err;
 }
 
-void dcgw_close(discord_handle_t client, discord_gateway_close_reason_t reason) {
+esp_err_t dcgw_close(discord_handle_t client, discord_gateway_close_reason_t reason) {
     DISCORD_LOG_FOO();
+
+    if(! client) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     // do not set client status in this function
     // it will be automatically set in ws task
@@ -301,10 +312,16 @@ void dcgw_close(discord_handle_t client, discord_gateway_close_reason_t reason) 
     client->gw_buffer_len = 0;
     dcgw_queue_flush(client);
     if(client->gw_lock) { xSemaphoreGive(client->gw_lock); }
+
+    return ESP_OK;
 }
 
-void dcgw_destroy(discord_handle_t client) {
+esp_err_t dcgw_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
+
+    if(! client) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     dcgw_close(client, DISCORD_CLOSE_REASON_DESTROY);
     esp_websocket_client_destroy(client->ws);
@@ -325,11 +342,13 @@ void dcgw_destroy(discord_handle_t client) {
     }
 
     client->state = DISCORD_STATE_UNKNOWN;
+
+    return ESP_OK;
 }
 
-void dcgw_queue_flush(discord_handle_t client) {
+esp_err_t dcgw_queue_flush(discord_handle_t client) {
     if(!client || !client->queue) {
-        return;
+        return ESP_ERR_INVALID_ARG;
     }
     
     discord_payload_t* payload = NULL;
@@ -337,6 +356,8 @@ void dcgw_queue_flush(discord_handle_t client) {
     while(xQueueReceive(client->queue, &payload, (TickType_t) 0) == pdPASS) {
         discord_payload_free(payload);
     }
+
+    return ESP_OK;
 }
 
 static esp_err_t dcgw_heartbeat_start(discord_handle_t client, discord_hello_t* hello) {

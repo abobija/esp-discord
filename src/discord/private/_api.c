@@ -18,9 +18,9 @@ esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res) {
     return res && dcapi_response_is_success(res) ? ESP_OK : ESP_FAIL;
 }
 
-void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
-    if(!res)
-        return;
+esp_err_t dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
+    if(! client || ! res)
+        return ESP_ERR_INVALID_ARG;
 
     if(res->data || res->data_len > 0) {
         client->api_buffer_size = 0;
@@ -29,6 +29,8 @@ void dcapi_response_free(discord_handle_t client, discord_api_response_t* res) {
     }
     
     free(res);
+
+    return ESP_OK;
 }
 
 static esp_err_t dcapi_flush_http(discord_handle_t client, bool record) {
@@ -360,8 +362,12 @@ esp_err_t dcapi_put(discord_handle_t client, char* uri, char* data, bool stream,
     return dcapi_request(client, HTTP_METHOD_PUT, uri, data, stream, true, out_response);
 }
 
-void dcapi_destroy(discord_handle_t client) {
+esp_err_t dcapi_destroy(discord_handle_t client) {
     DISCORD_LOG_FOO();
+
+    if(! client) {
+        return ESP_ERR_INVALID_ARG;
+    }
 
     if(client->api_lock) {
         xSemaphoreTake(client->api_lock, portMAX_DELAY); // wait for unlock
@@ -388,4 +394,6 @@ void dcapi_destroy(discord_handle_t client) {
         esp_http_client_cleanup(client->http);
         client->http = NULL;
     }
+
+    return ESP_OK;
 }

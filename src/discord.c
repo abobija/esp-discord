@@ -100,10 +100,16 @@ static void dc_task(void* arg) {
 
             case DISCORD_STATE_DISCONNECTED:
                 if(DISCORD_CLOSE_REASON_NOT_REQUESTED == client->close_reason) {
+                    char* close_desc = NULL;
+
+                    if(client->close_code != DISCORD_CLOSEOP_NO_CODE) {
+                        dcgw_get_close_desc(client, &close_desc);
+                    }
+
                     DISCORD_LOGE(
                         "Connection closed (code=%d, desc=%s)",
                         client->close_code,
-                        client->close_code == DISCORD_CLOSEOP_NO_CODE ? "NULL" : dcgw_get_close_desc(client)
+                        client->close_code == DISCORD_CLOSEOP_NO_CODE ? "NULL" : (close_desc ? close_desc : "NULL")
                     );
 
                     if(client->close_code == DISCORD_CLOSEOP_AUTHENTICATION_FAILED) {
@@ -288,8 +294,9 @@ esp_err_t discord_logout(discord_handle_t client) {
 }
 
 esp_err_t discord_destroy(discord_handle_t client) {
-    if(!client)
+    if(! client) {
         return ESP_ERR_INVALID_ARG;
+    }
     
     DISCORD_LOG_FOO();
     
