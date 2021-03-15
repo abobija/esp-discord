@@ -51,7 +51,7 @@ esp_err_t discord_message_react(discord_handle_t client, discord_message_t* mess
     }
 
     char* _emoji = estr_url_encode(emoji);
-    esp_err_t err = dcapi_put_(client, estr_cat("/channels/", message->channel_id, "/messages/", message->id, "/reactions/", _emoji, "/@me"), NULL);
+    esp_err_t err = dcapi_put(client, estr_cat("/channels/", message->channel_id, "/messages/", message->id, "/reactions/", _emoji, "/@me"), NULL, false, NULL);
     free(_emoji);
 
     return err;

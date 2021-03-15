@@ -29,29 +29,21 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
 /**
  * GET request
  * 
- * @param uri Will be automatically freed
- * @param data Will be automatically freed
- * @param stream Stream and save http response body inside of api response?
+ * @brief data will be automatically freed
  */ 
 esp_err_t dcapi_get(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response);
 /**
  * POST request
  * 
- * @param uri Will be automatically freed
- * @param data Will be automatically freed
- * @param stream Stream and save http response body inside of api response?
+ * @brief data will be automatically freed
  */ 
 esp_err_t dcapi_post(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response);
-esp_err_t dcapi_post_(discord_handle_t client, char* uri, char* data);
 /**
  * PUT request
  * 
- * @param uri Will be automatically freed
- * @param data Will be automatically freed
- * @param stream Stream and save http response body inside of api response?
+ * @brief data will be automatically freed
  */
 esp_err_t dcapi_put(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response);
-esp_err_t dcapi_put_(discord_handle_t client, char* uri, char* data);
 
 void dcapi_destroy(discord_handle_t client);
 
