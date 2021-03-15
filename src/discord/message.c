@@ -14,12 +14,20 @@ static discord_message_t* _discord_message_send_(discord_handle_t client, discor
         return NULL;
     }
 
-    discord_api_response_t* res = dcapi_post(
+    discord_api_response_t* res = NULL;
+    
+    esp_err_t _err = dcapi_post(
         client,
         estr_cat("/channels/", message->channel_id, "/messages"),
         discord_json_serialize(message),
-        _return
+        _return,
+        &res
     );
+
+    if(_err != ESP_OK) {
+        *err = _err;
+        return NULL;
+    }
 
     *err = dcapi_response_to_esp_err(res);
 

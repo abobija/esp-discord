@@ -165,17 +165,19 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
     return ESP_OK;
 }
 
-static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_client_method_t method, char* uri, char* data, bool stream_response, bool free_uri_and_data) {
+static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method, char* uri, char* data, bool stream_response, bool free_uri_and_data, discord_api_response_t** out_response) {
     DISCORD_LOG_FOO();
 
-    if(dcapi_init_lazy(client, false, NULL) != ESP_OK) { // will just return ESP_OK if already initialized
+    esp_err_t err;
+
+    if((err = dcapi_init_lazy(client, false, NULL)) != ESP_OK) { // will just return ESP_OK if already initialized
         DISCORD_LOGW("Cannot initialize API");
-        return NULL;
+        return err;
     }
 
     if(xSemaphoreTake(client->api_lock, client->config->api_timeout_ms / portTICK_PERIOD_MS) != pdTRUE) {
         DISCORD_LOGW("Api is locked");
-        return NULL;
+        return ESP_FAIL;
     }
 
     esp_http_client_handle_t http = client->http;
@@ -195,10 +197,10 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
 
     int len = data ? strlen(data) : 0;
 
-    if(esp_http_client_open(http, len) != ESP_OK) {
+    if((err = esp_http_client_open(http, len)) != ESP_OK) {
         DISCORD_LOGW("Failed to open connection");
         xSemaphoreGive(client->api_lock);
-        return NULL;
+        return err;
     }
 
     if(data) {
@@ -207,7 +209,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
         if(esp_http_client_write(http, data, len) == ESP_FAIL) {
             DISCORD_LOGW("Fail to write data to request");
             xSemaphoreGive(client->api_lock);
-            return NULL;
+            return ESP_FAIL;
         }
 
         if(free_uri_and_data) { free(data); }
@@ -219,7 +221,7 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
         DISCORD_LOGW("Fail to fetch headers");
         dcapi_flush_http(client, false);
         xSemaphoreGive(client->api_lock);
-        return NULL;
+        return ESP_FAIL;
     }
 
     discord_api_response_t* res = cu_ctor(discord_api_response_t,
@@ -253,7 +255,8 @@ static discord_api_response_t* dcapi_request(discord_handle_t client, esp_http_c
 
     xSemaphoreGive(client->api_lock);
 
-    return res;
+    *out_response = res;
+    return ESP_OK;
 }
 
 esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response) {
@@ -319,29 +322,33 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
     return ESP_OK;
 }
 
-discord_api_response_t* dcapi_get(discord_handle_t client, char* uri, char* data, bool stream) {
-    return dcapi_request(client, HTTP_METHOD_GET, uri, data, stream, true);
+esp_err_t dcapi_get(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response) {
+    return dcapi_request(client, HTTP_METHOD_GET, uri, data, stream, true, out_response);
 }
 
-discord_api_response_t* dcapi_post(discord_handle_t client, char* uri, char* data, bool stream) {
-    return dcapi_request(client, HTTP_METHOD_POST, uri, data, stream, true);
+esp_err_t dcapi_post(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response) {
+    return dcapi_request(client, HTTP_METHOD_POST, uri, data, stream, true, out_response);
 }
 
 esp_err_t dcapi_post_(discord_handle_t client, char* uri, char* data) {
-    discord_api_response_t* res = dcapi_post(client, uri, data, false);
-    esp_err_t err = dcapi_response_to_esp_err(res);
+    discord_api_response_t* res = NULL;
+    esp_err_t err = dcapi_post(client, uri, data, false, &res);
+    if(err != ESP_OK) { return err; }
+    err = dcapi_response_to_esp_err(res);
     dcapi_response_free(client, res);
 
     return err;
 }
 
-discord_api_response_t* dcapi_put(discord_handle_t client, char* uri, char* data, bool stream) {
-    return dcapi_request(client, HTTP_METHOD_PUT, uri, data, stream, true);
+esp_err_t dcapi_put(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response) {
+    return dcapi_request(client, HTTP_METHOD_PUT, uri, data, stream, true, out_response);
 }
 
 esp_err_t dcapi_put_(discord_handle_t client, char* uri, char* data) {
-    discord_api_response_t* res = dcapi_put(client, uri, data, false);
-    esp_err_t err = dcapi_response_to_esp_err(res);
+    discord_api_response_t* res = NULL;
+    esp_err_t err = dcapi_put(client, uri, data, false, &res);
+    if(err != ESP_OK) { return err; }
+    err = dcapi_response_to_esp_err(res);
     dcapi_response_free(client, res);
 
     return err;

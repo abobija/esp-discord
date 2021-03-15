@@ -13,13 +13,17 @@ discord_role_t** discord_role_get_all(discord_handle_t client, const char* guild
     }
 
     discord_role_t** roles = NULL;
-
-    discord_api_response_t* res = dcapi_get(
+    discord_api_response_t* res = NULL;
+    
+    if(dcapi_get(
         client,
         estr_cat("/guilds/", guild_id, "/roles"),
         NULL,
-        true
-    );
+        true,
+        &res
+    ) != ESP_OK) {
+        return NULL;
+    }
     
     if(dcapi_response_is_success(res) && res->data_len > 0) {
         roles = discord_json_list_deserialize_(role, res->data, res->data_len, out_length);

@@ -14,13 +14,17 @@ discord_member_t* discord_member_get(discord_handle_t client, char* guild_id, ch
     }
 
     discord_member_t* member = NULL;
-
-    discord_api_response_t* res = dcapi_get(
+    discord_api_response_t* res = NULL;
+    
+    if(dcapi_get(
         client,
         estr_cat("/guilds/", guild_id, "/members/", user_id),
         NULL,
-        true
-    );
+        true,
+        &res
+    ) != ESP_OK) {
+        return NULL;
+    }
 
     if(dcapi_response_is_success(res) && res->data_len > 0) {
         member = discord_json_deserialize_(member, res->data, res->data_len);
