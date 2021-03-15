@@ -46,9 +46,12 @@ static bool dc_member_permissions_calc(discord_handle_t client, discord_member_t
         return true;
     }
 
+    bool in_ids = false;
     if(member->_roles_len > 0) {
         for(discord_role_len_t i = 1; i < roles_len; i++) {
-            if(! discord_role_is_in_id_list(roles[i], member->roles, member->_roles_len)) { // member does not have this role
+            discord_role_is_in_ids_list(roles[i], member->roles, member->_roles_len, &in_ids);
+            
+            if(! in_ids) { // member does not have this role
                 continue;
             }
 
