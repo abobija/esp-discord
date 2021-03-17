@@ -44,6 +44,17 @@ typedef struct {
     uint8_t _attachments_len;
 } discord_message_t;
 
+#define discord_message_dump_log(LOG_FOO, TAG, msg) \
+    LOG_FOO(TAG, "New message (content=%s, autor=%s#%s, bot=%s, channel=%s, dm=%s, guild=%s)", \
+        msg->content, \
+        msg->author->username, \
+        msg->author->discriminator, \
+        msg->author->bot ? "true" : "false", \
+        msg->channel_id, \
+        msg->guild_id ? "false" : "true", \
+        msg->guild_id ? msg->guild_id : "NULL" \
+    );
+
 esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message, discord_message_t** out_result);
 esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji);
 esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler);
