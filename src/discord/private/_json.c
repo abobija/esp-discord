@@ -317,6 +317,50 @@ cJSON* discord_guild_to_cjson(discord_guild_t* guild) {
     if(guild->permissions) {
         cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(guild->permissions));
     }
+    
+    // todo: memchecks
+
+    return root;
+}
+
+discord_channel_t* discord_channel_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _id = cJSON_GetObjectItem(root, "id");
+    cJSON* _type = cJSON_GetObjectItem(root, "type");
+    cJSON* _name = cJSON_GetObjectItem(root, "name");
+
+    discord_channel_t* channel = cu_ctor(discord_channel_t,
+        .id = _id->valuestring,
+        .type = (discord_channel_type_t) _type->valueint,
+        .name = _name == NULL ? NULL : _name->valuestring,
+    );
+
+    // todo: memcheck
+
+    _id->valuestring = NULL;
+
+    if(_name) {
+        _name->valuestring = NULL;
+    }
+    
+    return channel;
+}
+
+cJSON* discord_channel_to_cjson(discord_channel_t* channel) {
+    if(!channel)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    cJSON_AddItemToObject(root, "id", cJSON_CreateStringReference(channel->id));
+    cJSON_AddItemToObject(root, "type", cJSON_CreateNumber(channel->type));
+    
+    if(channel->name) {
+        cJSON_AddItemToObject(root, "name", cJSON_CreateStringReference(channel->name));
+    }
+
     // todo: memchecks
 
     return root;

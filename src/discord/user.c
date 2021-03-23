@@ -7,7 +7,7 @@
 DISCORD_LOG_DEFINE_BASE();
 
 esp_err_t discord_user_get_my_guilds(discord_handle_t client, discord_guild_t*** out_guilds, int* out_length) {
-    if(!client || !out_guilds) {
+    if(!client || !out_guilds || !out_length) {
         DISCORD_LOGE("Invalid args");
         return ESP_ERR_INVALID_ARG;
     }

@@ -23,10 +23,12 @@ extern "C" {
 
 #define DISCORD_GW_URL                   "wss://gateway.discord.gg/?v=8&encoding=json"
 #define DISCORD_API_URL                  "https://discord.com/api/v8"
+
+// this should go into menuconfig configuration
 #define DISCORD_DEFAULT_GW_BUFFER_SIZE   (3 * 1024)
 #define DISCORD_DEFAULT_TASK_STACK_SIZE  (6 * 1024)
 #define DISCORD_DEFAULT_TASK_PRIORITY    (4)
-#define DISCORD_DEFAULT_API_BUFFER_SIZE  (3 * 1024)
+#define DISCORD_DEFAULT_API_BUFFER_SIZE  (7 * 1024)
 #define DISCORD_DEFAULT_API_TIMEOUT_MS   (8000)
 #define DISCORD_DEFAULT_QUEUE_SIZE       (3)
 

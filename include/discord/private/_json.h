@@ -9,6 +9,7 @@
 #include "discord/message.h"
 #include "discord/message_reaction.h"
 #include "discord/guild.h"
+#include "discord/channel.h"
 #include "discord/role.h"
 #include "discord/attachment.h"
 
@@ -74,6 +75,9 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root);
 
 discord_guild_t* discord_guild_from_cjson(cJSON* root);
 cJSON* discord_guild_to_cjson(discord_guild_t* guild);
+
+discord_channel_t* discord_channel_from_cjson(cJSON* root);
+cJSON* discord_channel_to_cjson(discord_channel_t* channel);
 
 discord_role_t* discord_role_from_cjson(cJSON* root);
 cJSON* discord_role_to_cjson(discord_role_t* role);

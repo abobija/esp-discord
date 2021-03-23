@@ -53,12 +53,18 @@ static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     if(evt->event_id != HTTP_EVENT_ON_DATA || evt->data_len <= 0 || !client->api_buffer_record)
         return ESP_OK;
 
-    DISCORD_LOGD("Buffering chunk data_len=%d:\n%.*s", evt->data_len, evt->data_len, (char*) evt->data);
+    DISCORD_LOGD(
+        "Buffering chunk (data_len=%d, data=%.*s)",
+        evt->data_len, evt->data_len, (char*) evt->data
+    );
 
     if(client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
-        DISCORD_LOGW("Chunk cannot fit into api buffer");
+        DISCORD_LOGW(
+            "Chunk (size=%d) cannot fit into api buffer (current_len=%d, max_len=%d)",
+            evt->data_len, client->api_buffer_size, client->config->api_buffer_size
+        );
         client->api_buffer_record_status = ESP_FAIL;
-        client->api_buffer_size = 0;
+        //client->api_buffer_size = 0;
         return ESP_FAIL;
     }
 
@@ -94,9 +100,12 @@ static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
         return ESP_OK;
     
     if(client->api_buffer_record && client->api_buffer_size + evt->data_len > client->config->api_buffer_size) { // prevent buffer overflow
-        DISCORD_LOGW("Chunk cannot fit into api buffer");
+        DISCORD_LOGW(
+            "Chunk (size=%d) cannot fit into api buffer (current_len=%d, max_len=%d)",
+            evt->data_len, client->api_buffer_size, client->config->api_buffer_size
+        );
         client->api_buffer_record_status = ESP_FAIL;
-        client->api_buffer_size = 0;
+        //client->api_buffer_size = 0;
         return ESP_FAIL;
     }
 
@@ -259,21 +268,24 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
         if(client->api_buffer_record_status != ESP_OK) {
             DISCORD_LOGW("Fail to record response chunks");
             client->api_buffer_size = 0;
+            err = ESP_ERR_INVALID_SIZE; // required larger buffer
         } else if(! is_error) { // point response to buffer if there is no errors
             res->data = client->api_buffer;
             res->data_len = client->api_buffer_size;
         }
     }
 
-    DISCORD_LOGD("Received api response (res_code=%d, data_len=%d)", res->code, res->data_len);
+    if(err == ESP_OK) {
+        DISCORD_LOGD("Received api response (res_code=%d, data_len=%d)", res->code, res->data_len);
 
-    if(res->data_len > 0) {
-        DISCORD_LOGD("%.*s", res->data_len, res->data);
-    }
+        if(res->data_len > 0) {
+            DISCORD_LOGD("%.*s", res->data_len, res->data);
+        }
 
-    if(is_error && client->api_buffer_size > 0) {
-        DISCORD_LOGW("Error: %.*s", client->api_buffer_size, client->api_buffer); // just print raw error for now
-        client->api_buffer_size = 0;
+        if(is_error && client->api_buffer_size > 0) {
+            DISCORD_LOGW("Error: %.*s", client->api_buffer_size, client->api_buffer); // just print raw error for now
+            client->api_buffer_size = 0;
+        }
     }
 
     xSemaphoreGive(client->api_lock);
@@ -284,7 +296,7 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
         dcapi_response_free(client, res);
     }
     
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response) {

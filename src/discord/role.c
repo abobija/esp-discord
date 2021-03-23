@@ -15,13 +15,7 @@ esp_err_t discord_role_get_all(discord_handle_t client, const char* guild_id, di
     esp_err_t err = ESP_OK;
     discord_api_response_t* res = NULL;
     
-    if((err = dcapi_get(
-        client,
-        estr_cat("/guilds/", guild_id, "/roles"),
-        NULL,
-        true,
-        &res
-    )) != ESP_OK) {
+    if((err = dcapi_get(client, estr_cat("/guilds/", guild_id, "/roles"), NULL, true, &res)) != ESP_OK) {
         DISCORD_LOGE("Fail to fetch roles");
         return err;
     }
