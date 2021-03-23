@@ -33,6 +33,7 @@ idf_component_register(
          src/discord/message.c
          src/discord/emoji.c
          src/discord/message_reaction.c
+         src/discord/guild.c
          src/discord/role.c
          src/discord/attachment.c
          src/discord.c

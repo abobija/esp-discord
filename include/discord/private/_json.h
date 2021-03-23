@@ -8,6 +8,7 @@
 #include "discord/member.h"
 #include "discord/message.h"
 #include "discord/message_reaction.h"
+#include "discord/guild.h"
 #include "discord/role.h"
 #include "discord/attachment.h"
 
@@ -70,6 +71,9 @@ discord_member_t* discord_member_from_cjson(cJSON* root);
 cJSON* discord_member_to_cjson(discord_member_t* member);
 
 discord_attachment_t* discord_attachment_from_cjson(cJSON* root);
+
+discord_guild_t* discord_guild_from_cjson(cJSON* root);
+cJSON* discord_guild_to_cjson(discord_guild_t* guild);
 
 discord_role_t* discord_role_from_cjson(cJSON* root);
 cJSON* discord_role_to_cjson(discord_role_t* role);

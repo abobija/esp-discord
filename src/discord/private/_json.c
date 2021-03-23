@@ -280,6 +280,48 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
     return attachment;
 }
 
+discord_guild_t* discord_guild_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _id = cJSON_GetObjectItem(root, "id");
+    cJSON* _name = cJSON_GetObjectItem(root, "name");
+    cJSON* _permissions = cJSON_GetObjectItem(root, "permissions");
+
+    discord_guild_t* guild = cu_ctor(discord_guild_t,
+        .id = _id->valuestring,
+        .name = _name->valuestring,
+        .permissions = _permissions == NULL ? NULL : _permissions->valuestring
+    );
+
+    // todo: memcheck
+
+    _id->valuestring = _name->valuestring = NULL;
+
+    if(_permissions) {
+        _permissions->valuestring = NULL;
+    }
+    
+    return guild;
+}
+
+cJSON* discord_guild_to_cjson(discord_guild_t* guild) {
+    if(!guild)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    cJSON_AddItemToObject(root, "id", cJSON_CreateStringReference(guild->id));
+    cJSON_AddItemToObject(root, "name", cJSON_CreateStringReference(guild->name));
+    
+    if(guild->permissions) {
+        cJSON_AddItemToObject(root, "permissions", cJSON_CreateStringReference(guild->permissions));
+    }
+    // todo: memchecks
+
+    return root;
+}
+
 discord_role_t* discord_role_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
