@@ -262,6 +262,15 @@ esp_err_t discord_login(discord_handle_t client) {
     return dcgw_open(client);
 }
 
+esp_err_t discord_get_state(discord_handle_t client, discord_gateway_state_t* out_state) {
+    if(!client || !out_state) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *out_state = client->state;
+    return ESP_OK;
+}
+
 esp_err_t discord_register_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg) {
     if(!client)
         return ESP_ERR_INVALID_ARG;

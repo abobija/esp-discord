@@ -46,17 +46,6 @@ extern "C" {
 #define STRDUP(str) (str ? strdup(str) : NULL)
 
 typedef enum {
-    DISCORD_STATE_ERROR = -2,
-    DISCORD_STATE_DISCONNECTED = -1,   /*<! Disconnected from gateway */
-    DISCORD_STATE_UNKNOWN,             /*<! Not initialized */
-    DISCORD_STATE_INIT,                /*<! Initialized but not open */
-    DISCORD_STATE_OPEN,                /*<! Open and waiting to connect with gateway WebSocket server */
-    DISCORD_STATE_CONNECTING,          /*<! Connected with gateway WebSocket server and waiting to identify... */
-    DISCORD_STATE_CONNECTED,           /*<! Fully connected and identified with gateway */
-    DISCORD_STATE_DISCONNECTING        /*<! In process of disconnection from gateway */
-} discord_gateway_state_t;
-
-typedef enum {
     DISCORD_CLOSE_REASON_NOT_REQUESTED,
     DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED,
     DISCORD_CLOSE_REASON_LOGOUT,

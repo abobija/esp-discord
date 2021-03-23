@@ -66,6 +66,8 @@ extern "C" {
 #define DISCORD_PERMISSION_MANAGE_WEBHOOKS        0x20000000ULL  /*!< Allows management and editing of webhooks */
 #define DISCORD_PERMISSION_MANAGE_EMOJIS          0x40000000ULL  /*!< Allows management and editing of emojis */
 
+typedef struct discord* discord_handle_t;
+
 typedef struct {
     char* token;
     int intents;
@@ -77,7 +79,16 @@ typedef struct {
     uint8_t task_priority;
 } discord_config_t;
 
-typedef struct discord* discord_handle_t;
+typedef enum {
+    DISCORD_STATE_ERROR = -2,
+    DISCORD_STATE_DISCONNECTED = -1,   /*<! Disconnected from gateway */
+    DISCORD_STATE_UNKNOWN,             /*<! Not initialized */
+    DISCORD_STATE_INIT,                /*<! Initialized but not open */
+    DISCORD_STATE_OPEN,                /*<! Open and waiting to connect with gateway WebSocket server */
+    DISCORD_STATE_CONNECTING,          /*<! Connected with gateway WebSocket server and waiting to identify... */
+    DISCORD_STATE_CONNECTED,           /*<! Fully connected and identified with gateway */
+    DISCORD_STATE_DISCONNECTING        /*<! In process of disconnection from gateway */
+} discord_gateway_state_t;
 
 ESP_EVENT_DECLARE_BASE(DISCORD_EVENTS);
 
@@ -118,6 +129,7 @@ discord_handle_t discord_create(const discord_config_t* config);
  */
 esp_err_t discord_login(discord_handle_t client);
 esp_err_t discord_register_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg);
+esp_err_t discord_get_state(discord_handle_t client, discord_gateway_state_t* out_state);
 /**
  * @brief Cannot be called from event handler
  */
