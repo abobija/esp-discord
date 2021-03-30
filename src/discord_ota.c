@@ -123,14 +123,13 @@ static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
         goto _error;
     }
 
-    if(! ota_hndl->update_handle) {
+    if(!ota_hndl->update_handle) {
         DISCORD_LOGI("Firmware downloading...");
-    }
 
-    if(!ota_hndl->update_handle
-        && esp_ota_begin(ota_hndl->update_partition, OTA_WITH_SEQUENTIAL_WRITES, &ota_hndl->update_handle) != ESP_OK) {
-        ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_BEGIN;
-        goto _error;
+        if(esp_ota_begin(ota_hndl->update_partition, OTA_WITH_SEQUENTIAL_WRITES, &ota_hndl->update_handle) != ESP_OK) {
+            ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_BEGIN;
+            goto _error;
+        }
     }
 
     if(ota_hndl->buffer) { // first chunk is in buffer
@@ -157,6 +156,7 @@ _error:
     if(err == ESP_OK) { err = ESP_FAIL; }
     if(ota_hndl->update_handle) { 
         esp_ota_abort(ota_hndl->update_handle);
+        ota_hndl->update_handle = 0;
     }
 _continue:
     return err;
@@ -233,7 +233,13 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         goto _error;
     }
 
-    DISCORD_LOGI("New firmware has been successfully mounted. Restarting...");
+    const char* success_msg = "New firmware has been successfully mounted. Restarting...";
+    DISCORD_LOGI("%s", success_msg);
+    discord_message_send(handle, &(discord_message_t){
+        .channel_id = firmware_message->channel_id,
+        .content = (char*) success_msg
+    }, NULL);
+
     esp_restart();
 
     err = ESP_OK;
@@ -242,9 +248,15 @@ _error:
     if(err == ESP_OK) { err = ESP_FAIL; }
     if(ota_handle->update_handle) { 
         esp_ota_abort(ota_handle->update_handle);
+        ota_handle->update_handle = 0;
     }
 
-    DISCORD_LOGW("%s", discord_ota_err_string[ota_handle->error]);
+    const char* error_msg = discord_ota_err_string[ota_handle->error];
+    DISCORD_LOGW("%s", error_msg);
+    discord_message_send(handle, &(discord_message_t){
+        .channel_id = firmware_message->channel_id,
+        .content = (char*) error_msg
+    }, NULL);
 _return:
     discord_ota_free(ota_handle);
     return err;
@@ -256,5 +268,8 @@ static void discord_ota_free(discord_ota_handle_t hndl) {
     }
 
     free(hndl->buffer);
+    if(hndl->update_handle) { 
+        esp_ota_abort(hndl->update_handle);
+    }
     free(hndl);
 }
