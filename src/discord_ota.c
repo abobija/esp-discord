@@ -4,6 +4,35 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+#define DCOTA_FOREACH_ERR(ERR)                            \
+    ERR(DISCORD_OTA_OK)                                   \
+    ERR(DISCORD_OTA_ERR_SMALL_BUFFER)                     \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_READ_RUNNING_FW_DESC)     \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_READ_INVALID_FW_DESC)     \
+    ERR(DISCORD_OTA_ERR_NEW_VER_SAME_AS_INVALID_VER)      \
+    ERR(DISCORD_OTA_ERR_NEW_VER_SAME_AS_RUNNING_VER)      \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_BEGIN)                    \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_WRITE)                    \
+    ERR(DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS)   \
+    ERR(DISCORD_OTA_ERR_INVALID_FW_FILE_TYPE)             \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_FIND_UPDATE_PARTITION)    \
+    ERR(DISCORD_OTA_ERR_NEW_FW_CANNOT_FIT_INTO_PARTITION) \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_DOWNLOAD_FW)              \
+    ERR(DISCORD_OTA_ERR_IMAGE_CORRUPTED)                  \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_END)                      \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_MOUNT)                    \
+
+#define DCOTA_GENERATE_ENUM(ENUM) ENUM,
+#define DCOTA_GENERATE_STRING(STRING) #STRING,
+
+typedef enum {
+    DCOTA_FOREACH_ERR(DCOTA_GENERATE_ENUM)
+} discord_ota_err_t;
+
+static const char* discord_ota_err_string[] = {
+    DCOTA_FOREACH_ERR(DCOTA_GENERATE_STRING)
+};
+
 // Buffer required for image header
 // Once when image is checked buffer can be freed
 
@@ -15,8 +44,7 @@ typedef struct discord_ota {
     esp_ota_handle_t update_handle;
     const esp_partition_t* update_partition;
     bool image_was_checked;
-    bool image_is_valid;
-    bool error;
+    discord_ota_err_t error;
 } discord_ota_t;
 
 typedef discord_ota_t* discord_ota_handle_t;
@@ -31,8 +59,7 @@ static bool ota_image(discord_download_info_t* file, discord_ota_handle_t ota_hn
 
     // This sould not happed but for any case...
     if(ota_hndl->buffer_offset + file->length > DISCORD_OTA_BUFFER_SIZE) {
-        ota_hndl->error = true;
-        DISCORD_LOGW("Image header cannot fit into buffer");
+        ota_hndl->error = DISCORD_OTA_ERR_SMALL_BUFFER;
         return false;
     }
 
@@ -43,22 +70,21 @@ static bool ota_image(discord_download_info_t* file, discord_ota_handle_t ota_hn
     if(ota_hndl->buffer_offset > sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) { // Image header is in buffer
         esp_app_desc_t new_app;
         memcpy(&new_app, ota_hndl->buffer + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t), sizeof(esp_app_desc_t));
-        
-        //const esp_partition_t *configured = esp_ota_get_boot_partition();
+
         const esp_partition_t *running_partition = esp_ota_get_running_partition();
 
         esp_app_desc_t running_app;
         if (esp_ota_get_partition_description(running_partition, &running_app) != ESP_OK) {
-            DISCORD_LOGE("Fail to get running fw desc");
-            goto _invalid_img;
+            ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_READ_RUNNING_FW_DESC;
+            goto _checked;
         }
 
         const esp_partition_t* last_invalid_partition = esp_ota_get_last_invalid_partition();
         esp_app_desc_t last_invalid_app;
 
         if(last_invalid_partition != NULL && esp_ota_get_partition_description(last_invalid_partition, &last_invalid_app) != ESP_OK) {
-            DISCORD_LOGE("Fail to get last invalid fw desc");
-            goto _invalid_img;
+            ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_READ_INVALID_FW_DESC;
+            goto _checked;
         }
 
         DISCORD_LOGI("Firmware versions(new=%s, running=%s, last_invalid=%s)",
@@ -68,19 +94,15 @@ static bool ota_image(discord_download_info_t* file, discord_ota_handle_t ota_hn
         );
 
         if(last_invalid_partition != NULL && estr_eq(new_app.version, last_invalid_app.version)) {
-            DISCORD_LOGW("New version is the same as previously invalid one. Version of new firmware should be increased");
-            goto _invalid_img;
+            ota_hndl->error = DISCORD_OTA_ERR_NEW_VER_SAME_AS_INVALID_VER;
+            goto _checked;
         }
 
         if(estr_eq(new_app.version, running_app.version)) {
-            DISCORD_LOGW("New version is the same as running one. Version of new firmware should be increased");
-            goto _invalid_img;
+            ota_hndl->error = DISCORD_OTA_ERR_NEW_VER_SAME_AS_RUNNING_VER;
+            goto _checked;
         }
-
-        ota_hndl->image_is_valid = true;
-        goto _checked;
-_invalid_img:
-        ota_hndl->image_is_valid = false;
+        
 _checked:
         ota_hndl->image_was_checked = true;
         return true;
@@ -97,11 +119,7 @@ static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
         goto _continue;
     }
 
-    if(ota_hndl->error) { // error was happen. discarding chunks...
-        goto _error;
-    }
-
-    if(!ota_hndl->image_is_valid) { // image is checked but it's invalid
+    if(ota_hndl->error != DISCORD_OTA_OK) { // error was happen. discarding chunks...
         goto _error;
     }
 
@@ -111,13 +129,13 @@ static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
 
     if(!ota_hndl->update_handle
         && esp_ota_begin(ota_hndl->update_partition, OTA_WITH_SEQUENTIAL_WRITES, &ota_hndl->update_handle) != ESP_OK) {
-        DISCORD_LOGE("Fail to OTA begin");
+        ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_BEGIN;
         goto _error;
     }
 
     if(ota_hndl->buffer) { // first chunk is in buffer
         if(esp_ota_write(ota_hndl->update_handle, ota_hndl->buffer, ota_hndl->buffer_offset) != ESP_OK) {
-            DISCORD_LOGE("Fail to OTA write");
+            ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_WRITE;
             goto _error; 
         } else {
             // free buffer, no longer needed
@@ -130,7 +148,7 @@ static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
 
     // other chunks will be streamed directly to update partition
     if(esp_ota_write(ota_hndl->update_handle, file->data, file->length) != ESP_OK) {
-        DISCORD_LOGE("Fail to OTA write");
+        ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_WRITE;
         goto _error;
     }
     
@@ -140,7 +158,6 @@ _error:
     if(ota_hndl->update_handle) { 
         esp_ota_abort(ota_hndl->update_handle);
     }
-    ota_hndl->error = true;
 _continue:
     return err;
 }
@@ -150,11 +167,11 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err;
+    esp_err_t err = ESP_OK;
     discord_ota_handle_t ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t);
 
     if(firmware_message->_attachments_len != 1) {
-        DISCORD_LOGW("There should be (only) one attachment in message");
+        ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
         err = ESP_ERR_INVALID_ARG;
         goto _error;
     }
@@ -163,7 +180,7 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
     discord_attachment_t* firmware = firmware_message->attachments[0];
 
     if(!estr_ew(firmware->filename, ".bin")) {
-        DISCORD_LOGW("Invalid firmware file type");
+        ota_handle->error = DISCORD_OTA_ERR_INVALID_FW_FILE_TYPE;
         err = ESP_ERR_INVALID_ARG;
         goto _error;
     }
@@ -171,14 +188,12 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
     ota_handle->update_partition = esp_ota_get_next_update_partition(NULL);
 
     if(ota_handle->update_partition == NULL) {
-        DISCORD_LOGE("Fail to find update partition");
-        err = ESP_FAIL;
+        ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_FIND_UPDATE_PARTITION;
         goto _error;
     }
 
     if(firmware->size > ota_handle->update_partition->size) {
-        DISCORD_LOGE("New version of firmware cannot fit into update partition");
-        err = ESP_FAIL;
+        ota_handle->error = DISCORD_OTA_ERR_NEW_FW_CANNOT_FIT_INTO_PARTITION;
         goto _error;
     }
 
@@ -190,13 +205,12 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
     DISCORD_LOGI("Gathering new firmware informations...");
 
     if((err = discord_message_download_attachment(handle, firmware_message, 0, &download_handler, ota_handle)) != ESP_OK) {
-        DISCORD_LOGE("Fail to download new firmware");
+        ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_DOWNLOAD_FW;
         goto _error;
     }
 
-    if(ota_handle->error) {
+    if(ota_handle->error != DISCORD_OTA_OK) {
         DISCORD_LOGW("OTA terminated");
-        err = ESP_FAIL;
         goto _error;
     }
 
@@ -204,9 +218,9 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
 
     if((err = esp_ota_end(ota_handle->update_handle)) != ESP_OK) {
         if(err == ESP_ERR_OTA_VALIDATE_FAILED) {
-            DISCORD_LOGE("Image validation failed, image is corrupted");
+            ota_handle->error = DISCORD_OTA_ERR_IMAGE_CORRUPTED;
         } else {
-            DISCORD_LOGE("Fail to OTA end");
+            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_END;
         }
 
         goto _error;
@@ -215,21 +229,22 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
     DISCORD_LOGI("Mounting...");
 
     if((err = esp_ota_set_boot_partition(ota_handle->update_partition)) != ESP_OK) {
-        DISCORD_LOGE("Fail to set OTA boot partition");
+        ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_MOUNT;
         goto _error;
     }
 
-    DISCORD_LOGI("New firmware has been successfully mounted. Restarting in 10 seconds...");
-
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
+    DISCORD_LOGI("New firmware has been successfully mounted. Restarting...");
     esp_restart();
 
     err = ESP_OK;
     goto _return;
 _error:
+    if(err == ESP_OK) { err = ESP_FAIL; }
     if(ota_handle->update_handle) { 
         esp_ota_abort(ota_handle->update_handle);
     }
+
+    DISCORD_LOGW("%s", discord_ota_err_string[ota_handle->error]);
 _return:
     discord_ota_free(ota_handle);
     return err;
