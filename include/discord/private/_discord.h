@@ -118,6 +118,7 @@ struct discord {
     esp_err_t api_buffer_record_status;
     bool api_download_mode;
     discord_download_handler_t api_download_handler;
+    void* api_download_arg;
     size_t api_download_total;
     size_t api_download_offset;
     discord_heartbeater_t heartbeater;

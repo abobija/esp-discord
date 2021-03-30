@@ -86,7 +86,7 @@ static void dcapi_download_handler_fire(discord_handle_t client, void* data, siz
         .total_length = client->api_download_total
     };
 
-    client->api_download_handler(&info);
+    client->api_download_handler(&info, client->api_download_arg);
     client->api_download_offset += length;
 }
 
@@ -299,7 +299,7 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
     return err;
 }
 
-esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response) {
+esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response, void* arg) {
     if(! client || ! url ||  ! download_handler || ! out_response) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -321,6 +321,7 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
     client->api_buffer_record = true;
     client->api_buffer_record_status = ESP_OK;
     client->api_download_handler = download_handler;
+    client->api_download_arg = arg;
 
     if(esp_http_client_open(http, 0) != ESP_OK) {
         DISCORD_LOGW("Failed to open connection");
@@ -389,6 +390,7 @@ esp_err_t dcapi_destroy(discord_handle_t client) {
 
     client->api_download_mode = false;
     client->api_download_handler = NULL;
+    client->api_download_arg = NULL;
     client->api_download_offset = 0;
     client->api_download_total = 0;
 

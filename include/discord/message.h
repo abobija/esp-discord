@@ -57,7 +57,7 @@ typedef struct {
 
 esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message, discord_message_t** out_result);
 esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji);
-esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler);
+esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler, void* arg);
 void discord_message_free(discord_message_t* message);
 
 #ifdef __cplusplus

@@ -15,6 +15,15 @@ typedef struct {
     char* url;
 } discord_attachment_t;
 
+#define discord_attachment_dump_log(LOG_FOO, TAG, attachment) \
+    LOG_FOO(TAG, "attachment (id=%s, filename=%s, type=%s, size=%d, url=%s)", \
+        attachment->id, \
+        attachment->filename, \
+        attachment->content_type, \
+        attachment->size, \
+        attachment->url \
+    );
+
 void discord_attachment_free(discord_attachment_t* attachment);
 
 #ifdef __cplusplus
