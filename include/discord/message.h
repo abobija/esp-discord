@@ -45,11 +45,12 @@ typedef struct {
 } discord_message_t;
 
 #define discord_message_dump_log(LOG_FOO, TAG, msg) \
-    LOG_FOO(TAG, "New message (content=%s, autor=%s#%s, bot=%s, channel=%s, dm=%s, guild=%s)", \
+    LOG_FOO(TAG, "New message (content=%s, autor=%s#%s, bot=%s, attachments_len=%d, channel=%s, dm=%s, guild=%s)", \
         msg->content, \
         msg->author->username, \
         msg->author->discriminator, \
         msg->author->bot ? "true" : "false", \
+        msg->_attachments_len, \
         msg->channel_id, \
         msg->guild_id ? "false" : "true", \
         msg->guild_id ? msg->guild_id : "NULL" \

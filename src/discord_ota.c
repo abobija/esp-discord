@@ -156,10 +156,10 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         goto _error;
     }
 
-    // Take first attachment as new firmware
+    // Take first attachment as a new firmware
     discord_attachment_t* firmware = firmware_message->attachments[0];
 
-    if(!estr_ew(firmware->filename, ".bin") || !estr_eq(firmware->content_type, "application/octet-stream")) {
+    if(!estr_ew(firmware->filename, ".bin")) {
         DISCORD_LOGW("Invalid firmware file type");
         err = ESP_ERR_INVALID_ARG;
         goto _error;

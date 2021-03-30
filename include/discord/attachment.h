@@ -19,7 +19,7 @@ typedef struct {
     LOG_FOO(TAG, "attachment (id=%s, filename=%s, type=%s, size=%d, url=%s)", \
         attachment->id, \
         attachment->filename, \
-        attachment->content_type, \
+        attachment->content_type ? attachment->content_type : "NULL", \
         attachment->size, \
         attachment->url \
     );
