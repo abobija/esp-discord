@@ -162,7 +162,7 @@ _continue:
     return err;
 }
 
-esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message) {
+esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message, discord_ota_config_t* config) {
     if(!handle || !firmware_message) {
         return ESP_ERR_INVALID_ARG;
     }

@@ -9,7 +9,13 @@ extern "C" {
 #include "discord.h"
 #include "discord/message.h"
 
-esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message);
+typedef struct {
+    bool success_feedback_disabled;
+    bool error_feedback_disabled;
+    bool administrator_only_disabled;
+} discord_ota_config_t;
+
+esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message, discord_ota_config_t* config);
 
 #ifdef __cplusplus
 }
