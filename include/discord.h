@@ -121,7 +121,7 @@ typedef struct {
     size_t total_length;
 } discord_download_info_t;
 
-typedef void(*discord_download_handler_t)(discord_download_info_t* info, void* arg);
+typedef esp_err_t(*discord_download_handler_t)(discord_download_info_t* info, void* arg);
 
 discord_handle_t discord_create(const discord_config_t* config);
 /**

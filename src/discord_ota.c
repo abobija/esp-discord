@@ -31,6 +31,7 @@ static bool ota_image(discord_download_info_t* file, discord_ota_handle_t ota_hn
 
     // This sould not happed but for any case...
     if(ota_hndl->buffer_offset + file->length > DISCORD_OTA_BUFFER_SIZE) {
+        ota_hndl->error = true;
         DISCORD_LOGW("Image header cannot fit into buffer");
         return false;
     }
@@ -88,15 +89,16 @@ _checked:
     return false;
 }
 
-static void download_handler(discord_download_info_t* file, void* arg) {
+static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
     discord_ota_handle_t ota_hndl = (discord_ota_handle_t) arg;
-
-    if(ota_hndl->error) { // error was happen during update. discarding chunks...
-        goto _return;
-    }
+    esp_err_t err = ESP_OK;
 
     if(!ota_hndl->image_was_checked && !ota_image(file, ota_hndl)) {
-        goto _return;
+        goto _continue;
+    }
+
+    if(ota_hndl->error) { // error was happen. discarding chunks...
+        goto _error;
     }
 
     if(!ota_hndl->image_is_valid) { // image is checked but it's invalid
@@ -104,7 +106,7 @@ static void download_handler(discord_download_info_t* file, void* arg) {
     }
 
     if(! ota_hndl->update_handle) {
-        DISCORD_LOGI("Image header checked. Firmware downloading...");
+        DISCORD_LOGI("Firmware downloading...");
     }
 
     if(!ota_hndl->update_handle
@@ -116,13 +118,13 @@ static void download_handler(discord_download_info_t* file, void* arg) {
     if(ota_hndl->buffer) { // first chunk is in buffer
         if(esp_ota_write(ota_hndl->update_handle, ota_hndl->buffer, ota_hndl->buffer_offset) != ESP_OK) {
             DISCORD_LOGE("Fail to OTA write");
-            goto _error;
+            goto _error; 
         } else {
             // free buffer, no longer needed
             free(ota_hndl->buffer);
             ota_hndl->buffer = NULL;
             ota_hndl->buffer_offset = 0;
-            goto _return;
+            goto _continue;
         }
     }
 
@@ -132,14 +134,15 @@ static void download_handler(discord_download_info_t* file, void* arg) {
         goto _error;
     }
     
-    goto _return;
+    goto _continue;
 _error:
+    if(err == ESP_OK) { err = ESP_FAIL; }
     if(ota_hndl->update_handle) { 
         esp_ota_abort(ota_hndl->update_handle);
     }
     ota_hndl->error = true;
-_return:
-    return;
+_continue:
+    return err;
 }
 
 esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message) {
@@ -184,7 +187,7 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         goto _error;
     }
 
-    DISCORD_LOGI("Gathering infos about new firmware...");
+    DISCORD_LOGI("Gathering new firmware informations...");
 
     if((err = discord_message_download_attachment(handle, firmware_message, 0, &download_handler, ota_handle)) != ESP_OK) {
         DISCORD_LOGE("Fail to download new firmware");
@@ -197,7 +200,7 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         goto _error;
     }
 
-    DISCORD_LOGI("Successfully downloaded. Validating...");
+    DISCORD_LOGI("Validating...");
 
     if((err = esp_ota_end(ota_handle->update_handle)) != ESP_OK) {
         if(err == ESP_ERR_OTA_VALIDATE_FAILED) {
@@ -209,14 +212,14 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         goto _error;
     }
 
-    DISCORD_LOGI("Validated. Mounting...");
+    DISCORD_LOGI("Mounting...");
 
     if((err = esp_ota_set_boot_partition(ota_handle->update_partition)) != ESP_OK) {
         DISCORD_LOGE("Fail to set OTA boot partition");
         goto _error;
     }
 
-    DISCORD_LOGI("New firmware successfully mounted. Restarting in 10 seconds...");
+    DISCORD_LOGI("New firmware has been successfully mounted. Restarting in 10 seconds...");
 
     vTaskDelay(10000 / portTICK_PERIOD_MS);
     esp_restart();

@@ -74,9 +74,12 @@ static esp_err_t dcapi_on_http_event(esp_http_client_event_t* evt) {
     return ESP_OK;
 }
 
-static void dcapi_download_handler_fire(discord_handle_t client, void* data, size_t length) {
+/**
+ * @return ESP_OK if user has not break stream of upcoming chunks
+ */
+static esp_err_t dcapi_download_handler_fire(discord_handle_t client, void* data, size_t length) {
     if(! client || ! client->api_download_handler) {
-        return;
+        return ESP_ERR_INVALID_ARG;
     }
 
     discord_download_info_t info = {
@@ -86,8 +89,10 @@ static void dcapi_download_handler_fire(discord_handle_t client, void* data, siz
         .total_length = client->api_download_total
     };
 
-    client->api_download_handler(&info, client->api_download_arg);
+    esp_err_t err = client->api_download_handler(&info, client->api_download_arg);
     client->api_download_offset += length;
+
+    return err;
 }
 
 static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
@@ -114,8 +119,8 @@ static esp_err_t dcapi_on_download(esp_http_client_event_t* evt) {
     if(client->api_buffer_record) {
         memcpy(client->api_buffer + client->api_buffer_size, evt->data, evt->data_len);
         client->api_buffer_size += evt->data_len;
-    } else {
-        dcapi_download_handler_fire(client, evt->data, evt->data_len);
+    } else if(dcapi_download_handler_fire(client, evt->data, evt->data_len) != ESP_OK) {
+        esp_http_client_close(evt->client); // user break chunk stream
     }
 
     return ESP_OK;
@@ -351,8 +356,9 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
             client->api_download_total = esp_http_client_get_content_length(http);
         }
 
-        dcapi_download_handler_fire(client, client->api_buffer, client->api_buffer_size);
-        dcapi_flush_http(client, false);
+        if(dcapi_download_handler_fire(client, client->api_buffer, client->api_buffer_size) == ESP_OK) {
+            dcapi_flush_http(client, false);
+        }
     }
 
     client->api_download_mode = false;
