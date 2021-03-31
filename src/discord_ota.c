@@ -2,6 +2,7 @@
 #include "discord/private/_discord.h"
 #include "discord_ota.h"
 #include "discord/session.h"
+#include "nvs_flash.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -50,7 +51,7 @@ static const char* discord_ota_err_string[] = {
 
 #define DISCORD_OTA_BUFFER_SIZE 1024
 
-typedef struct discord_ota {
+struct discord_ota {
     discord_ota_config_t* config;
     void* buffer;
     int buffer_offset;
@@ -60,11 +61,90 @@ typedef struct discord_ota {
     discord_ota_err_t error;
     int download_percentage;
     int download_percentage_checkpoint;
-} discord_ota_t;
+};
 
-typedef discord_ota_t* discord_ota_handle_t;
+typedef enum {
+    DISCORD_OTA_TOKEN_FROM_CONFIG,
+    DISCORD_OTA_TOKEN_FROM_NVS
+} discord_ota_token_type;
 
-static void discord_ota_free(discord_ota_handle_t hndl);
+typedef struct {
+    esp_err_t err;
+    discord_ota_token_type type;
+    char* val;
+} discord_ota_token_t;
+
+static discord_ota_token_t discord_ota_get_token();
+static esp_err_t discord_ota_connected_handler(discord_handle_t client);
+static esp_err_t discord_ota_disconnected_handler(discord_handle_t client);
+static esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_message);
+
+static void ota_on_connected(void* handler_arg, esp_event_base_t base, int32_t event_id, void* event_data) {
+    discord_ota_connected_handler((discord_handle_t) handler_arg);
+}
+
+static void ota_on_message(void* handler_arg, esp_event_base_t base, int32_t event_id, void* event_data) {
+    discord_event_data_t* data = (discord_event_data_t*) event_data;
+    discord_message_t* msg = (discord_message_t*) data->ptr;
+    discord_ota((discord_handle_t) handler_arg, msg);
+}
+
+static void ota_on_disconnected(void* handler_arg, esp_event_base_t base, int32_t event_id, void* event_data) {
+    discord_ota_disconnected_handler((discord_handle_t) handler_arg);
+}
+
+esp_err_t discord_ota_init(discord_handle_t client, discord_ota_config_t* config) {
+    if(!client) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if(client->running || client->state >= DISCORD_STATE_OPEN) {
+        DISCORD_LOGE("Fail to init. Initialization of OTA should be done before login");
+        return ESP_ERR_INVALID_STATE;
+    }
+    
+    esp_err_t err = ESP_OK;
+    discord_ota_handle_t ota = cu_tctor(discord_ota_handle_t, struct discord_ota,
+        .config = cu_ctor(discord_ota_config_t)
+    );
+
+    client->ota = ota;
+
+    if(config) {
+        ota->config->prefix = STRDUP(config->prefix);
+        ota->config->success_feedback_disabled = config->success_feedback_disabled;
+        ota->config->error_feedback_disabled = config->error_feedback_disabled;
+        ota->config->administrator_only_disabled = config->administrator_only_disabled;
+        ota->config->channel = config->channel;
+        ota->config->multiple_ota = config->multiple_ota;
+    }
+
+    if((err = discord_register_events(client, DISCORD_EVENT_MESSAGE_RECEIVED, ota_on_message, client)) != ESP_OK) {
+        discord_ota_destroy(client);
+        return err;
+    }
+
+    if(ota->config->multiple_ota) {
+        discord_ota_token_t token = discord_ota_get_token();
+
+        if(token.err != ESP_OK) {
+            discord_ota_destroy(client);
+            return err;
+        }
+
+        free(client->config->token);
+        client->config->token = token.val;
+        token.val = NULL;
+
+        if((err = discord_register_events(client, DISCORD_EVENT_CONNECTED, ota_on_connected, client)) != ESP_OK
+            || (err = discord_register_events(client, DISCORD_EVENT_DISCONNECTED, ota_on_disconnected, client)) != ESP_OK) {
+            discord_ota_destroy(client);
+            return err;
+        }
+    }
+
+    return err;
+}
 
 // Returns true when image header is buffered and image is checked
 static bool ota_image(discord_download_info_t* file, discord_ota_handle_t ota_hndl) {
@@ -236,13 +316,21 @@ static esp_err_t ota_status_message_content(discord_ota_handle_t ota_hndl, char*
     return err;
 }
 
-esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_message, discord_ota_config_t* config) {
-    if(!client || !firmware_message) {
+/**
+ * @brief Performs Discord OTA update
+ * @param client Discord bot handle
+ * @param firmware_message Message that contains new firmware as a attachment
+ * @param config Configuration for OTA update. Provide NULL for default configurations
+ * @return ESP_OK on success
+ */
+static esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_message) {
+    if(!client || !client->ota || !firmware_message) {
         return ESP_ERR_INVALID_ARG;
     }
 
     esp_err_t err = ESP_OK;
-    discord_ota_handle_t ota_handle = NULL;
+    bool quiet = false;
+    discord_ota_handle_t ota = client->ota;
     char** cmd_pieces = NULL;
     size_t cmd_pieces_len = 0;
     char* subcmd = NULL;
@@ -250,38 +338,26 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
     if(firmware_message->author->bot) { // ignore messages from other bots
         goto _return;
     }
-    
-    ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t,
-        .config = cu_ctor(discord_ota_config_t)
-    );
 
-    if(config) {
-        ota_handle->config->prefix = STRDUP(config->prefix);
-        ota_handle->config->success_feedback_disabled = config->success_feedback_disabled;
-        ota_handle->config->error_feedback_disabled = config->error_feedback_disabled;
-        ota_handle->config->administrator_only_disabled = config->administrator_only_disabled;
-        ota_handle->config->channel = config->channel;
+    if(ota->config->prefix == NULL) {
+        ota->config->prefix = strdup(DISCORD_OTA_DEFAULT_PREFIX);
     }
 
-    if(ota_handle->config->prefix == NULL) {
-        ota_handle->config->prefix = strdup(DISCORD_OTA_DEFAULT_PREFIX);
-    }
-
-    const int prefix_len = strlen(ota_handle->config->prefix);
+    const int prefix_len = strlen(ota->config->prefix);
 
     if(prefix_len < 4) {
-        ota_handle->error = DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT;
+        ota->error = DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT;
         goto _error_quiet;
     }
 
-    if(!estr_sw(firmware_message->content, ota_handle->config->prefix)) { // message does not starts with prefix
+    if(!estr_sw(firmware_message->content, ota->config->prefix)) { // message does not starts with prefix
         goto _return; // ignore message
     }
 
     cmd_pieces = estr_split(firmware_message->content, ' ', &cmd_pieces_len);
 
     if(cmd_pieces_len != 3) {
-        ota_handle->error = DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT;
+        ota->error = DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT;
         goto _error;
     }
 
@@ -291,7 +367,7 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
 
         if(tagged_usr_wrd->type != DISCORD_MESSAGE_WORD_USER
             && tagged_usr_wrd->type != DISCORD_MESSAGE_WORD_USER_NICKNAME) {
-            ota_handle->error = DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT;
+            ota->error = DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT;
             goto _error;
         }
 
@@ -306,19 +382,19 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
     subcmd = strdup(cmd_pieces[2]);
     cu_list_free(cmd_pieces, cmd_pieces_len);
 
-    if(ota_handle->config->channel) {
-        if(ota_handle->config->channel->id) { // Channel Id has higher priority over Name
-            if(!estr_eq(ota_handle->config->channel->id, firmware_message->channel_id)) {
-                ota_handle->error = DISCORD_OTA_ERR_OTA_WRONG_CHANNEL;
+    if(ota->config->channel) {
+        if(ota->config->channel->id) { // Channel Id has higher priority over Name
+            if(!estr_eq(ota->config->channel->id, firmware_message->channel_id)) {
+                ota->error = DISCORD_OTA_ERR_OTA_WRONG_CHANNEL;
                 goto _error;
             } else {
                 goto _channel_ok;
             }
         }
 
-        if(!ota_handle->config->channel->name) {
+        if(!ota->config->channel->name) {
             // there is no channel Id nor Name
-            ota_handle->error = DISCORD_OTA_ERR_INVALID_CHANNEL_CONFIG;
+            ota->error = DISCORD_OTA_ERR_INVALID_CHANNEL_CONFIG;
             goto _error_quiet;
         }
 
@@ -330,12 +406,12 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
             &channels,
             &channels_len
         )) != ESP_OK) {
-            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_FETCH_CHANNELS;
+            ota->error = DISCORD_OTA_ERR_FAIL_TO_FETCH_CHANNELS;
             goto _error_quiet;
         }
 
         discord_channel_t* channel = discord_channel_get_from_array_by_name(
-            channels, channels_len, ota_handle->config->channel->name
+            channels, channels_len, ota->config->channel->name
         );
 
         bool channel_found = channel != NULL;
@@ -344,14 +420,14 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
         cu_list_freex(channels, channels_len, discord_channel_free);
 
         if(!correct_channel) {
-            ota_handle->error = DISCORD_OTA_ERR_OTA_WRONG_CHANNEL;
+            ota->error = DISCORD_OTA_ERR_OTA_WRONG_CHANNEL;
             goto _error;
         }
     }
 
 _channel_ok:
 
-    if(!ota_handle->config->administrator_only_disabled) {
+    if(!ota->config->administrator_only_disabled) {
         bool is_admin;
 
         DISCORD_LOGD("Checking admin permissions...");
@@ -363,12 +439,12 @@ _channel_ok:
             DISCORD_PERMISSION_ADMINISTRATOR,
             &is_admin
         )) != ESP_OK) {
-            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS;
+            ota->error = DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS;
             goto _error;
         }
 
         if(!is_admin) {
-            ota_handle->error = DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED;
+            ota->error = DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED;
             goto _error;
         }
     }
@@ -380,8 +456,8 @@ _channel_ok:
     if(estr_sw(subcmd, "status")) {
         char* msg_content = NULL;
 
-        if(ota_status_message_content(ota_handle, &msg_content) != ESP_OK) {
-            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS;
+        if(ota_status_message_content(ota, &msg_content) != ESP_OK) {
+            ota->error = DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS;
             goto _error;
         }
 
@@ -392,7 +468,7 @@ _channel_ok:
 
         free(msg_content);
     } else {
-        ota_handle->error = DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND;
+        ota->error = DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND;
         goto _error;
     }
 
@@ -401,7 +477,7 @@ _channel_ok:
 _ota_update:
 
     if(firmware_message->_attachments_len != 1) {
-        ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
+        ota->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
         err = ESP_ERR_INVALID_ARG;
         goto _error;
     }
@@ -410,47 +486,47 @@ _ota_update:
     discord_attachment_t* firmware = firmware_message->attachments[0];
 
     if(!estr_ew(firmware->filename, ".bin")) {
-        ota_handle->error = DISCORD_OTA_ERR_INVALID_FW_FILE_TYPE;
+        ota->error = DISCORD_OTA_ERR_INVALID_FW_FILE_TYPE;
         err = ESP_ERR_INVALID_ARG;
         goto _error;
     }
 
-    ota_handle->update_partition = esp_ota_get_next_update_partition(NULL);
+    ota->update_partition = esp_ota_get_next_update_partition(NULL);
 
-    if(ota_handle->update_partition == NULL) {
-        ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_FIND_UPDATE_PARTITION;
+    if(ota->update_partition == NULL) {
+        ota->error = DISCORD_OTA_ERR_FAIL_TO_FIND_UPDATE_PARTITION;
         goto _error;
     }
 
-    if(firmware->size > ota_handle->update_partition->size) {
-        ota_handle->error = DISCORD_OTA_ERR_NEW_FW_CANNOT_FIT_INTO_PARTITION;
+    if(firmware->size > ota->update_partition->size) {
+        ota->error = DISCORD_OTA_ERR_NEW_FW_CANNOT_FIT_INTO_PARTITION;
         goto _error;
     }
 
-    if(!(ota_handle->buffer = malloc(DISCORD_OTA_BUFFER_SIZE))) {
+    if(!(ota->buffer = malloc(DISCORD_OTA_BUFFER_SIZE))) {
         err = ESP_ERR_NO_MEM;
         goto _error;
     }
 
     DISCORD_LOGI("Gathering new firmware informations...");
 
-    if((err = discord_message_download_attachment(client, firmware_message, 0, &ota_download_handler, ota_handle)) != ESP_OK) {
-        ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_DOWNLOAD_FW;
+    if((err = discord_message_download_attachment(client, firmware_message, 0, &ota_download_handler, ota)) != ESP_OK) {
+        ota->error = DISCORD_OTA_ERR_FAIL_TO_DOWNLOAD_FW;
         goto _error;
     }
 
-    if(ota_handle->error != DISCORD_OTA_OK) {
+    if(ota->error != DISCORD_OTA_OK) {
         DISCORD_LOGW("OTA terminated");
         goto _error;
     }
 
     DISCORD_LOGI("Validating...");
 
-    if((err = esp_ota_end(ota_handle->update_handle)) != ESP_OK) {
+    if((err = esp_ota_end(ota->update_handle)) != ESP_OK) {
         if(err == ESP_ERR_OTA_VALIDATE_FAILED) {
-            ota_handle->error = DISCORD_OTA_ERR_IMAGE_CORRUPTED;
+            ota->error = DISCORD_OTA_ERR_IMAGE_CORRUPTED;
         } else {
-            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_END;
+            ota->error = DISCORD_OTA_ERR_FAIL_TO_END;
         }
 
         goto _error;
@@ -458,15 +534,15 @@ _ota_update:
 
     DISCORD_LOGI("Mounting...");
 
-    if((err = esp_ota_set_boot_partition(ota_handle->update_partition)) != ESP_OK) {
-        ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_MOUNT;
+    if((err = esp_ota_set_boot_partition(ota->update_partition)) != ESP_OK) {
+        ota->error = DISCORD_OTA_ERR_FAIL_TO_MOUNT;
         goto _error;
     }
 
     const char* success_msg = "New firmware mounted. Rebooting...";
     DISCORD_LOGI("%s", success_msg);
 
-    if(!ota_handle->config->success_feedback_disabled) {
+    if(!ota->config->success_feedback_disabled) {
         char* success_content = estr_cat(DISCORD_EMOJI_WHITE_CHECK_MARK " OTA success: `", success_msg, "`");
         discord_message_send(client, &(discord_message_t){
             .channel_id = firmware_message->channel_id,
@@ -480,22 +556,22 @@ _ota_update:
     err = ESP_OK;
     goto _return;
 _error_quiet:
-    ota_handle->config->error_feedback_disabled = true; // be quiet
+    quiet = true; // be quiet
 _error:
     if(err == ESP_OK) { err = ESP_FAIL; }
-    if(ota_handle->update_handle) { 
-        esp_ota_abort(ota_handle->update_handle);
-        ota_handle->update_handle = 0;
+    if(ota->update_handle) { 
+        esp_ota_abort(ota->update_handle);
+        ota->update_handle = 0;
     }
 
-    if(ota_handle->error == DISCORD_OTA_OK) {
-        ota_handle->error = DISCORD_OTA_FAIL;
+    if(ota->error == DISCORD_OTA_OK) {
+        ota->error = DISCORD_OTA_FAIL;
     }
 
-    const char* error_msg = discord_ota_err_string[ota_handle->error];
+    const char* error_msg = discord_ota_err_string[ota->error];
     DISCORD_LOGW("%s", error_msg);
 
-    if(!ota_handle->config->error_feedback_disabled) {
+    if(!quiet && !ota->config->error_feedback_disabled) {
         char* err_content = estr_cat(DISCORD_EMOJI_X " OTA error: `", error_msg, "`");
         discord_message_send(client, &(discord_message_t){
             .channel_id = firmware_message->channel_id,
@@ -504,8 +580,7 @@ _error:
         free(err_content);
     }
 _return:
-    discord_ota_free(ota_handle);
-    cu_list_free(cmd_pieces, cmd_pieces_len); // no need nullcheck
+    cu_list_free(cmd_pieces, cmd_pieces_len); // no nullcheck needed
     free(subcmd);
     return err;
 }
@@ -536,16 +611,133 @@ esp_err_t discord_ota_keep(bool keep_or_rollback) {
     return err;
 }
 
-static void discord_ota_free(discord_ota_handle_t hndl) {
-    if(hndl == NULL) {
+void discord_ota_destroy(discord_handle_t client) {
+    if(!client || !client->ota) {
         return;
     }
 
-    free(hndl->config->prefix);
-    free(hndl->config);
-    free(hndl->buffer);
-    if(hndl->update_handle) { 
-        esp_ota_abort(hndl->update_handle);
+    discord_ota_handle_t ota = client->ota;
+    if(ota->update_handle) { 
+        esp_ota_abort(ota->update_handle);
     }
-    free(hndl);
+    free(ota->config->prefix);
+    free(ota->config);
+    free(ota->buffer);
+    discord_unregister_events(client, DISCORD_EVENT_CONNECTED, ota_on_connected);
+    discord_unregister_events(client, DISCORD_EVENT_MESSAGE_RECEIVED, ota_on_message);
+    discord_unregister_events(client, DISCORD_EVENT_DISCONNECTED, ota_on_disconnected);
+    free(ota);
+    client->ota = NULL;
+}
+
+static bool token_loaded_from_nvs = false;
+
+/**
+ * @brief Read token from NVS or from Configuration. Make sure that you have initilized
+ *        NVS with nvs_flash_init() before calling this function. Token value will be
+ *        dinamically alocated and needs to be released manually with free() function
+ * @return Return token from NVS. If not exist in NVS, one from configuration will be returned
+ */
+static discord_ota_token_t discord_ota_get_token() {
+    discord_ota_token_t token = {
+        .err = ESP_OK  
+    };
+
+    nvs_handle_t nvs;
+    char* nvs_token = NULL;
+    size_t nvs_token_len = 0;
+
+    if((token.err = nvs_open(DISCORD_NVS_NAMESPACE, NVS_READONLY, &nvs)) != ESP_OK) {
+        if(token.err == ESP_ERR_NVS_NOT_FOUND) {
+            token.err = ESP_OK;
+        }
+
+        return token;
+    }
+
+    nvs_get_str(nvs, DISCORD_NVS_KEY_TOKEN, NULL, &nvs_token_len);
+
+    if(nvs_token_len > 0) {
+        nvs_token = malloc(nvs_token_len);
+        nvs_get_str(nvs, DISCORD_NVS_KEY_TOKEN, nvs_token, &nvs_token_len);
+    }
+
+    nvs_close(nvs);
+
+    if(nvs_token) {
+        token.type = DISCORD_OTA_TOKEN_FROM_NVS;
+        token.val = nvs_token;
+        token_loaded_from_nvs = true;
+    } else {
+        token.type = DISCORD_OTA_TOKEN_FROM_CONFIG;
+        token.val = strdup(CONFIG_DISCORD_TOKEN);
+    }
+
+    DISCORD_LOGI("Token loaded from %s",
+        token.type == DISCORD_OTA_TOKEN_FROM_NVS ? "NVS" : "Configuration"
+    );
+
+    return token;
+}
+
+/**
+ * @brief This function should be called in DISCORD_EVENT_CONNECTED event.
+ *        Function will copy token from Configuration to NVS.
+ *        If token is already in NVS, function will do nothing.
+ * @param client Discord bot handle
+ * @return ESP_OK on success
+ */
+static esp_err_t discord_ota_connected_handler(discord_handle_t client) {
+    if(!client) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if(token_loaded_from_nvs) {
+        return ESP_OK;
+    }
+
+    esp_err_t err = ESP_OK;
+    nvs_handle_t nvs;
+    if((err = nvs_open(DISCORD_NVS_NAMESPACE, NVS_READWRITE, &nvs)) != ESP_OK) {
+        return err;
+    }
+    nvs_set_str(nvs, DISCORD_NVS_KEY_TOKEN, CONFIG_DISCORD_TOKEN);
+    nvs_commit(nvs);
+    nvs_close(nvs);
+
+    return err;
+}
+
+/**
+ * @brief This function should be called in DISCORD_EVENT_DISCONNECTED event.
+ *        If token is invalid, function will remove them from NVS.
+ *        If token is still valid, function will do nothing.
+ * @param client Discord bot handle
+ * @return ESP_OK on success
+ */
+static esp_err_t discord_ota_disconnected_handler(discord_handle_t client) {
+    if(!client) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ESP_OK;
+    discord_close_code_t close_code;
+    discord_get_close_code(client, &close_code);
+    if(close_code != DISCORD_CLOSEOP_AUTHENTICATION_FAILED) {
+        return ESP_OK;
+    }
+
+    if(!token_loaded_from_nvs) {
+        return ESP_OK;
+    }
+
+    nvs_handle_t nvs;
+    if((err = nvs_open(DISCORD_NVS_NAMESPACE, NVS_READWRITE, &nvs)) != ESP_OK) {
+        return err;
+    }
+    nvs_erase_key(nvs, DISCORD_NVS_KEY_TOKEN);
+    nvs_commit(nvs);
+    nvs_close(nvs);
+
+    return err;
 }

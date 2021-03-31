@@ -288,6 +288,18 @@ esp_err_t discord_register_events(discord_handle_t client, discord_event_t event
     return esp_event_handler_register_with(client->event_handle, DISCORD_EVENTS, event, event_handler, event_handler_arg);
 }
 
+esp_err_t discord_unregister_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler) {
+    if(!client) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if(!client->event_handle) {
+        return ESP_OK;
+    }
+
+    return esp_event_handler_unregister_with(client->event_handle, DISCORD_EVENTS, event, event_handler);
+}
+
 esp_err_t discord_logout(discord_handle_t client) {
     if(!client)
         return ESP_ERR_INVALID_ARG;
@@ -334,6 +346,8 @@ esp_err_t discord_destroy(discord_handle_t client) {
         vEventGroupDelete(client->bits);
         client->bits = NULL;
     }
+
+    discord_ota_destroy(client);
 
     dc_config_free(client->config);
     client->config = NULL;

@@ -147,6 +147,7 @@ discord_handle_t discord_create(const discord_config_t* config);
  */
 esp_err_t discord_login(discord_handle_t client);
 esp_err_t discord_register_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler, void* event_handler_arg);
+esp_err_t discord_unregister_events(discord_handle_t client, discord_event_t event, esp_event_handler_t event_handler);
 esp_err_t discord_get_state(discord_handle_t client, discord_gateway_state_t* out_state);
 esp_err_t discord_get_close_code(discord_handle_t client, discord_close_code_t* out_code);
 /**

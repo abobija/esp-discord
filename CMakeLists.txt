@@ -41,7 +41,7 @@ idf_component_register(
          src/discord_ota.c
     INCLUDE_DIRS include cutils/include
     REQUIRES json esp_websocket_client esp_http_client
-    PRIV_REQUIRES app_update
+    PRIV_REQUIRES app_update nvs_flash
     EMBED_TXTFILES ${CERTS}
 )
 

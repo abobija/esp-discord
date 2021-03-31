@@ -16,6 +16,7 @@ extern "C" {
 #include "esp_http_client.h"
 #include "_models.h"
 #include "discord.h"
+#include "discord_ota.h"
 
 #ifndef CONFIG_IDF_TARGET
 #define CONFIG_IDF_TARGET "esp32"
@@ -33,6 +34,9 @@ extern "C" {
 #define DISCORD_DEFAULT_QUEUE_SIZE       (3)
 
 #define DISCORD_LOG_TAG "DISCORD"
+
+#define DISCORD_NVS_NAMESPACE "discord_nvs"
+#define DISCORD_NVS_KEY_TOKEN "token"
 
 #define DISCORD_LOG_DEFINE_BASE() static const char* TAG = DISCORD_LOG_TAG
 #define DISCORD_LOG(esp_log_foo, format, ...) esp_log_foo(TAG, "%s: " format, __func__, ##__VA_ARGS__)
@@ -110,6 +114,7 @@ struct discord {
     int gw_buffer_len;
     discord_gateway_close_reason_t close_reason;
     discord_close_code_t close_code;
+    discord_ota_handle_t ota;
 };
 
 #ifdef __cplusplus
