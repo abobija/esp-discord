@@ -354,7 +354,7 @@ _channel_ok:
     if(!ota_handle->config->administrator_only_disabled) {
         bool is_admin;
 
-        DISCORD_LOGI("Checking admin permissions...");
+        DISCORD_LOGD("Checking admin permissions...");
 
         if((err = discord_member_has_permissions(
             client,
