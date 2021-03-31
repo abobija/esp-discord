@@ -346,6 +346,28 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
 
 _channel_ok:
 
+    if(!ota_handle->config->administrator_only_disabled) {
+        bool is_admin;
+
+        DISCORD_LOGI("Checking admin permissions...");
+
+        if((err = discord_member_has_permissions(
+            client,
+            firmware_message->member,
+            firmware_message->guild_id,
+            DISCORD_PERMISSION_ADMINISTRATOR,
+            &is_admin
+        )) != ESP_OK) {
+            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS;
+            goto _error;
+        }
+
+        if(!is_admin) {
+            ota_handle->error = DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED;
+            goto _error;
+        }
+    }
+
     if(estr_sw(subcmd, "update")) {
         goto _ota_update;
     }
@@ -377,28 +399,6 @@ _ota_update:
         ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
         err = ESP_ERR_INVALID_ARG;
         goto _error;
-    }
-
-    if(!ota_handle->config->administrator_only_disabled) { // only admin can perform update
-        bool is_admin;
-
-        DISCORD_LOGI("Checking admin permissions...");
-
-        if((err = discord_member_has_permissions(
-            client,
-            firmware_message->member,
-            firmware_message->guild_id,
-            DISCORD_PERMISSION_ADMINISTRATOR,
-            &is_admin
-        )) != ESP_OK) {
-            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS;
-            goto _error;
-        }
-
-        if(!is_admin) {
-            ota_handle->error = DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED;
-            goto _error;
-        }
     }
 
     // Take first attachment as a new firmware
