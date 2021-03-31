@@ -26,6 +26,7 @@ DISCORD_LOG_DEFINE_BASE();
     ERR(DISCORD_OTA_ERR_INVALID_CHANNEL_CONFIG)           \
     ERR(DISCORD_OTA_ERR_FAIL_TO_FETCH_CHANNELS)           \
     ERR(DISCORD_OTA_ERR_OTA_CHANNEL_NOT_FOUND)            \
+    ERR(DISCORD_OTA_ERR_OTA_WRONG_CHANNEL)                \
     ERR(DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT)    \
 
 #define DCOTA_GENERATE_ENUM(ENUM) ENUM,
@@ -215,7 +216,8 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
     if(ota_handle->config->channel) {
         if(ota_handle->config->channel->id) { // Channel Id has higher priority over Name
             if(!estr_eq(ota_handle->config->channel->id, firmware_message->channel_id)) {
-                goto _return; // ignore message
+                ota_handle->error = DISCORD_OTA_ERR_OTA_WRONG_CHANNEL;
+                goto _error;
             } else {
                 goto _channel_ok;
             }
@@ -249,7 +251,8 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
         cu_list_freex(channels, channels_len, discord_channel_free);
 
         if(!correct_channel) {
-            goto _return; // ignore message
+            ota_handle->error = DISCORD_OTA_ERR_OTA_WRONG_CHANNEL;
+            goto _error;
         }
     }
 _channel_ok:
@@ -339,7 +342,7 @@ _channel_ok:
         goto _error;
     }
 
-    const char* success_msg = "New firmware has been successfully mounted. Rebooting...";
+    const char* success_msg = "New firmware mounted. Rebooting...";
     DISCORD_LOGI("%s", success_msg);
 
     if(!ota_handle->config->success_feedback_disabled) {

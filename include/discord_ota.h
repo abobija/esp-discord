@@ -16,7 +16,7 @@ typedef struct {
     bool success_feedback_disabled;     /*<! Disable sending feedback on failure */
     bool error_feedback_disabled;       /*<! Disable sending feedback on success */
     bool administrator_only_disabled;   /*<! Disable option that only Administrators can perform OTA update */
-    discord_channel_t* channel;         /*<! Channel in which OTA update can be performed. Id of channel has higher priority over the channel Name. Set to NULL to allow all channels. Note: Maybe you will need to increase the size of Api buffer for using this option with providing channel Name instead of Id */
+    discord_channel_t* channel;         /*<! Channel in which OTA update can be performed. Id or Name can be provided. Id has higher priority over the channel Name (if both are provided). Set to NULL to allow all channels. Note: Maybe you will need to increase the size of Api buffer for using this option with providing channel Name instead of Id */
 } discord_ota_config_t;
 
 /**
