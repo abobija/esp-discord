@@ -45,6 +45,8 @@ typedef struct discord_ota {
     const esp_partition_t* update_partition;
     bool image_was_checked;
     discord_ota_err_t error;
+    int download_percentage;
+    int download_percentage_checkpoint;
 } discord_ota_t;
 
 typedef discord_ota_t* discord_ota_handle_t;
@@ -111,7 +113,7 @@ _checked:
     return false;
 }
 
-static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
+static esp_err_t ota_download_handler(discord_download_info_t* file, void* arg) {
     discord_ota_handle_t ota_hndl = (discord_ota_handle_t) arg;
     esp_err_t err = ESP_OK;
 
@@ -124,7 +126,7 @@ static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
     }
 
     if(!ota_hndl->update_handle) {
-        DISCORD_LOGI("Firmware downloading...");
+        DISCORD_LOGI("Firmware downloading (size=%d B)...", file->total_length);
 
         if(esp_ota_begin(ota_hndl->update_partition, OTA_WITH_SEQUENTIAL_WRITES, &ota_hndl->update_handle) != ESP_OK) {
             ota_hndl->error = DISCORD_OTA_ERR_FAIL_TO_BEGIN;
@@ -143,6 +145,15 @@ static esp_err_t download_handler(discord_download_info_t* file, void* arg) {
             ota_hndl->buffer_offset = 0;
             goto _continue;
         }
+    }
+
+    const int down_size = file->offset + file->length;
+    ota_hndl->download_percentage = down_size * 100 / file->total_length;
+
+    if(ota_hndl->download_percentage - ota_hndl->download_percentage_checkpoint > 8
+        || down_size == file->total_length) {
+        DISCORD_LOGI("Downloaded %d%%", ota_hndl->download_percentage);
+        ota_hndl->download_percentage_checkpoint = ota_hndl->download_percentage;
     }
 
     // other chunks will be streamed directly to update partition
@@ -204,7 +215,7 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
 
     DISCORD_LOGI("Gathering new firmware informations...");
 
-    if((err = discord_message_download_attachment(handle, firmware_message, 0, &download_handler, ota_handle)) != ESP_OK) {
+    if((err = discord_message_download_attachment(handle, firmware_message, 0, &ota_download_handler, ota_handle)) != ESP_OK) {
         ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_DOWNLOAD_FW;
         goto _error;
     }
@@ -233,7 +244,7 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
         goto _error;
     }
 
-    const char* success_msg = "New firmware has been successfully mounted. Restarting...";
+    const char* success_msg = "New firmware has been successfully mounted. Rebooting...";
     DISCORD_LOGI("%s", success_msg);
     discord_message_send(handle, &(discord_message_t){
         .channel_id = firmware_message->channel_id,
