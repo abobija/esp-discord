@@ -44,6 +44,24 @@ typedef struct {
     uint8_t _attachments_len;
 } discord_message_t;
 
+typedef enum {
+    DISCORD_MESSAGE_WORD_DEFAULT,               /*<! Regular text */
+    DISCORD_MESSAGE_WORD_USER,                  /*<! User mention by username */
+    DISCORD_MESSAGE_WORD_USER_NICKNAME,         /*<! User mention by nickname */
+    DISCORD_MESSAGE_WORD_CHANNEL,               /*<! Channel mention */
+    DISCORD_MESSAGE_WORD_ROLE,                  /*<! Role mention */
+    DISCORD_MESSAGE_WORD_CUSTOM_EMOJI,          /*<! Custom emoji */
+    DISCORD_MESSAGE_WORD_CUSTOM_EMOJI_ANIMATED  /*<! Custom animated emoji */
+} discord_message_word_type_t;
+
+typedef struct {
+    discord_message_word_type_t type;
+	const char* name;
+	size_t name_len;
+	const char* id;
+    size_t id_len;
+} discord_message_word_t;
+
 #define discord_message_dump_log(LOG_FOO, TAG, msg) \
     LOG_FOO(TAG, "New message (content=%s, autor=%s#%s, bot=%s, attachments_len=%d, channel=%s, dm=%s, guild=%s)", \
         msg->content, \
@@ -59,6 +77,7 @@ typedef struct {
 esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message, discord_message_t** out_result);
 esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji);
 esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler, void* arg);
+esp_err_t discord_message_word_parse(const char* word, discord_message_word_t** out_word);
 void discord_message_free(discord_message_t* message);
 
 #ifdef __cplusplus

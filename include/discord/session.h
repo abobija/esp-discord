@@ -19,6 +19,7 @@ typedef struct {
         session->session_id \
     );
 
+esp_err_t discord_session_get_current(discord_handle_t client, const discord_session_t** out_session);
 void discord_session_free(discord_session_t* id);
 
 #ifdef __cplusplus

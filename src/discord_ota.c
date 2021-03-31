@@ -1,6 +1,7 @@
 #include "esp_ota_ops.h"
 #include "discord/private/_discord.h"
 #include "discord_ota.h"
+#include "discord/session.h"
 
 DISCORD_LOG_DEFINE_BASE();
 
@@ -31,6 +32,7 @@ DISCORD_LOG_DEFINE_BASE();
     ERR(DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT)    \
     ERR(DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND)               \
     ERR(DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS)     \
+    ERR(DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT)           \
 
 #define DCOTA_GENERATE_ENUM(ENUM) ENUM,
 #define DCOTA_GENERATE_STRING(STRING) #STRING,
@@ -240,6 +242,9 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
     }
 
     esp_err_t err = ESP_OK;
+    char** cmd_pieces = NULL;
+    size_t cmd_pieces_len = 0;
+    char* subcmd = NULL;
 
     discord_ota_handle_t ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t,
         .config = cu_ctor(discord_ota_config_t)
@@ -264,9 +269,37 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
         goto _error_quiet;
     }
 
-    if(!estr_sw(firmware_message->content, ota_handle->config->prefix)) {
+    if(!estr_sw(firmware_message->content, ota_handle->config->prefix)) { // message does not starts with prefix
         goto _return; // ignore message
     }
+
+    cmd_pieces = estr_split(firmware_message->content, ' ', &cmd_pieces_len);
+
+    if(cmd_pieces_len != 3) {
+        ota_handle->error = DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT;
+        goto _error;
+    }
+
+    if(!estr_eq(cmd_pieces[1], "EVERYONE")) { // not for everyone
+        discord_message_word_t* tagged_usr_wrd = NULL;
+        discord_message_word_parse(cmd_pieces[1], &tagged_usr_wrd);
+
+        if(tagged_usr_wrd->type != DISCORD_MESSAGE_WORD_USER
+            && tagged_usr_wrd->type != DISCORD_MESSAGE_WORD_USER_NICKNAME) {
+            ota_handle->error = DISCORD_OTA_ERR_INVALID_COMMAND_FORMAT;
+            goto _error;
+        }
+
+        const discord_session_t* session = NULL;
+        discord_session_get_current(client, &session);
+
+        if(!estrn_eq(session->user->id, tagged_usr_wrd->id, tagged_usr_wrd->id_len)) { // not for us
+            goto _return; // ignore message
+        }
+    }
+
+    subcmd = strdup(cmd_pieces[2]);
+    cu_list_free(cmd_pieces, cmd_pieces_len);
 
     if(ota_handle->config->channel) {
         if(ota_handle->config->channel->id) { // Channel Id has higher priority over Name
@@ -310,37 +343,35 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
             goto _error;
         }
     }
+
 _channel_ok:
 
-    // for performing ota update with provided attachment, content of the message
-    // needs to be exactly equal to prefix.
-    // if content just start with prefix but has some extra content
-    // it means that user wants to invoke ota subcommand (for example "status")...
+    if(estr_sw(subcmd, "update")) {
+        goto _ota_update;
+    }
 
-    if(!estr_eq(firmware_message->content, ota_handle->config->prefix)) { // ota subcommand
-        const char* cmd = firmware_message->content + prefix_len + 1; // jump over prefix and one white space
+    if(estr_sw(subcmd, "status")) {
+        char* msg_content = NULL;
 
-        if(estr_sw(cmd, "status")) {
-            char* msg_content = NULL;
-
-            if(ota_status_message_content(ota_handle, &msg_content) != ESP_OK) {
-                ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS;
-                goto _error;
-            }
-
-            discord_message_send(client, &(discord_message_t){
-                .channel_id = firmware_message->channel_id,
-                .content = msg_content
-            }, NULL);
-
-            free(msg_content);
-        } else {
-            ota_handle->error = DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND;
+        if(ota_status_message_content(ota_handle, &msg_content) != ESP_OK) {
+            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS;
             goto _error;
         }
 
-        goto _return;
+        discord_message_send(client, &(discord_message_t){
+            .channel_id = firmware_message->channel_id,
+            .content = msg_content
+        }, NULL);
+
+        free(msg_content);
+    } else {
+        ota_handle->error = DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND;
+        goto _error;
     }
+
+    goto _return;
+    
+_ota_update:
 
     if(firmware_message->_attachments_len != 1) {
         ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
@@ -469,6 +500,8 @@ _error:
     }
 _return:
     discord_ota_free(ota_handle);
+    cu_list_free(cmd_pieces, cmd_pieces_len); // no need nullcheck
+    free(subcmd);
     return err;
 }
 

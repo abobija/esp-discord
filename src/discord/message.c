@@ -79,6 +79,51 @@ esp_err_t discord_message_download_attachment(discord_handle_t client, discord_m
     return err;
 }
 
+esp_err_t discord_message_word_parse(const char* word, discord_message_word_t** out_word) {
+	if(!word || !out_word)
+		return ESP_ERR_INVALID_ARG;
+	
+	discord_message_word_t* _word = cu_ctor(discord_message_word_t);
+	int len = strlen(word);
+
+	if(len < 4 || word[0] != '<' || word[len - 1] != '>') {
+        goto _return;
+    }
+	
+	if(word[1] == '@') {
+		if(len > 3 && estrn_is_digit_only(_word->id = word + 2, _word->id_len = len - 3)) {
+			_word->type = DISCORD_MESSAGE_WORD_USER;
+		} else if(len > 4 && estrn_is_digit_only(_word->id = word + 3, _word->id_len = len - 4)) {
+			if(word[2] == '!') {
+				_word->type = DISCORD_MESSAGE_WORD_USER_NICKNAME;
+			} else if(word[2] == '&') {
+				_word->type = DISCORD_MESSAGE_WORD_ROLE;
+			}
+		}
+	} else if(len > 3 && word[1] == '#' && estrn_is_digit_only(_word->id = word + 2, _word->id_len = len - 3)) {
+		_word->type = DISCORD_MESSAGE_WORD_CHANNEL;
+	} else if(len > 5 && estrn_chrcnt(word + 1, ':', len - 2) == 2) {
+		if(word[1] == ':' &&
+			(_word->name_len = strchr(_word->name = word + 2, ':') - word - 2) > 0 &&
+			estrn_is_digit_only(_word->id = _word->name + _word->name_len + 1, _word->id_len = len - _word->name_len - 4)) {
+				_word->type = DISCORD_MESSAGE_WORD_CUSTOM_EMOJI;
+		} else if(len > 6 && word[1] == 'a' && word[2] == ':' &&
+			(_word->name_len = strchr(_word->name = word + 3, ':') - word - 3) > 0 &&
+			estrn_is_digit_only(_word->id = _word->name + _word->name_len + 1, _word->id_len = len - _word->name_len - 5)) {
+				_word->type = DISCORD_MESSAGE_WORD_CUSTOM_EMOJI_ANIMATED;
+		}
+	}
+
+	if(_word->type == DISCORD_MESSAGE_WORD_DEFAULT) {
+		_word->name = _word->id = NULL;
+		_word->name_len = _word->id_len = 0;
+	}
+
+_return:
+    *out_word = _word;
+	return ESP_OK;
+}
+
 void discord_message_free(discord_message_t* message) {
     if(!message)
         return;
