@@ -6,6 +6,7 @@ DISCORD_LOG_DEFINE_BASE();
 
 #define DCOTA_FOREACH_ERR(ERR)                            \
     ERR(DISCORD_OTA_OK)                                   \
+    ERR(DISCORD_OTA_FAIL)                                 \
     ERR(DISCORD_OTA_ERR_SMALL_BUFFER)                     \
     ERR(DISCORD_OTA_ERR_FAIL_TO_READ_RUNNING_FW_DESC)     \
     ERR(DISCORD_OTA_ERR_FAIL_TO_READ_INVALID_FW_DESC)     \
@@ -28,6 +29,8 @@ DISCORD_LOG_DEFINE_BASE();
     ERR(DISCORD_OTA_ERR_OTA_CHANNEL_NOT_FOUND)            \
     ERR(DISCORD_OTA_ERR_OTA_WRONG_CHANNEL)                \
     ERR(DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT)    \
+    ERR(DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND)               \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS)     \
 
 #define DCOTA_GENERATE_ENUM(ENUM) ENUM,
 #define DCOTA_GENERATE_STRING(STRING) #STRING,
@@ -181,6 +184,56 @@ _continue:
     return err;
 }
 
+static char* partition_sha256(const uint8_t* hash, int hash_len) {
+    char* sha256 = malloc(hash_len * 2 + 1);
+
+    for (int i = 0; i < hash_len; i++) {
+        sprintf(sha256 + (i * 2), "%02x", hash[i]);
+    }
+
+    sha256[hash_len * 2] = '\0';
+    return sha256;
+}
+
+static esp_err_t ota_status_message_content(discord_ota_handle_t ota_hndl, char** out_content) {
+    if(!ota_hndl || !out_content) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = ESP_OK;
+
+    const esp_partition_t *running_partition = esp_ota_get_running_partition();
+    esp_app_desc_t rapp;
+    if ((err = esp_ota_get_partition_description(running_partition, &rapp)) != ESP_OK) {
+        return err;
+    }
+    
+    char* rapp_sha = partition_sha256(rapp.app_elf_sha256, sizeof(rapp.app_elf_sha256));
+
+    char uptime[25];
+    sprintf(uptime, "%lld ms", esp_timer_get_time() / 1000);
+
+    char free_heap[15];
+    sprintf(free_heap, "%d bytes", esp_get_free_heap_size());
+
+    char* content = estr_cat(
+        "```yaml"
+        , "\nUptime: ", uptime
+        , "\nFreeHeap: ", free_heap
+        , "\nRunningApp:"
+        , "\n  Version: ", rapp.version
+        , "\n  CompileDateTime: ", rapp.date, " ", rapp.time
+        , "\n  IdfVersion: ", rapp.idf_ver
+        , "\n  Sha256: ", rapp_sha
+        , "\n```"
+    );
+
+    free(rapp_sha);
+
+    *out_content = content;
+    return err;
+}
+
 esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_message, discord_ota_config_t* config) {
     if(!client || !firmware_message) {
         return ESP_ERR_INVALID_ARG;
@@ -204,7 +257,9 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
         ota_handle->config->prefix = strdup(DISCORD_OTA_DEFAULT_PREFIX);
     }
 
-    if(strlen(ota_handle->config->prefix) < 3) {
+    const int prefix_len = strlen(ota_handle->config->prefix);
+
+    if(prefix_len < 4) {
         ota_handle->error = DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT;
         goto _error_quiet;
     }
@@ -256,6 +311,36 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
         }
     }
 _channel_ok:
+
+    // for performing ota update with provided attachment, content of the message
+    // needs to be exactly equal to prefix.
+    // if content just start with prefix but has some extra content
+    // it means that user wants to invoke ota subcommand (for example "status")...
+
+    if(!estr_eq(firmware_message->content, ota_handle->config->prefix)) { // ota subcommand
+        const char* cmd = firmware_message->content + prefix_len + 1; // jump over prefix and one white space
+
+        if(estr_sw(cmd, "status")) {
+            char* msg_content = NULL;
+
+            if(ota_status_message_content(ota_handle, &msg_content) != ESP_OK) {
+                ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CONSTRUCT_OTA_STATUS;
+                goto _error;
+            }
+
+            discord_message_send(client, &(discord_message_t){
+                .channel_id = firmware_message->channel_id,
+                .content = msg_content
+            }, NULL);
+
+            free(msg_content);
+        } else {
+            ota_handle->error = DISCORD_OTA_ERR_UNKNOWN_SUBCOMMAND;
+            goto _error;
+        }
+
+        goto _return;
+    }
 
     if(firmware_message->_attachments_len != 1) {
         ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
@@ -365,6 +450,10 @@ _error:
     if(ota_handle->update_handle) { 
         esp_ota_abort(ota_handle->update_handle);
         ota_handle->update_handle = 0;
+    }
+
+    if(ota_handle->error == DISCORD_OTA_OK) {
+        ota_handle->error = DISCORD_OTA_FAIL;
     }
 
     const char* error_msg = discord_ota_err_string[ota_handle->error];
