@@ -117,9 +117,8 @@ static void dc_task(void* arg) {
                         is_shutted_down = true;
                     } else {
                         restart = true;          // restart in any other case
+                        client->close_code = DISCORD_CLOSEOP_NO_CODE;
                     }
-                    
-                    client->close_code = DISCORD_CLOSEOP_NO_CODE;
                 } else if(DISCORD_CLOSE_REASON_HEARTBEAT_ACK_NOT_RECEIVED == client->close_reason) {
                     restart = true;
                 } else {
@@ -268,6 +267,15 @@ esp_err_t discord_get_state(discord_handle_t client, discord_gateway_state_t* ou
     }
 
     *out_state = client->state;
+    return ESP_OK;
+}
+
+esp_err_t discord_get_close_code(discord_handle_t client, discord_close_code_t* out_code) {
+    if(!client || !out_code) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *out_code = client->close_code;
     return ESP_OK;
 }
 
