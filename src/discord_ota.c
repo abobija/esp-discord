@@ -23,6 +23,9 @@ DISCORD_LOG_DEFINE_BASE();
     ERR(DISCORD_OTA_ERR_FAIL_TO_MOUNT)                    \
     ERR(DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS)  \
     ERR(DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED)       \
+    ERR(DISCORD_OTA_ERR_INVALID_CHANNEL_CONFIG)           \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_FETCH_CHANNELS)           \
+    ERR(DISCORD_OTA_ERR_OTA_CHANNEL_NOT_FOUND)            \
 
 #define DCOTA_GENERATE_ENUM(ENUM) ENUM,
 #define DCOTA_GENERATE_STRING(STRING) #STRING,
@@ -191,7 +194,50 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
         ota_handle->config->success_feedback_disabled = config->success_feedback_disabled;
         ota_handle->config->error_feedback_disabled = config->error_feedback_disabled;
         ota_handle->config->administrator_only_disabled = config->administrator_only_disabled;
+        ota_handle->config->channel = config->channel;
     }
+
+    if(ota_handle->config->channel) {
+        if(ota_handle->config->channel->id) { // Channel Id has higher priority over Name
+            if(!estr_eq(ota_handle->config->channel->id, firmware_message->channel_id)) {
+                goto _return; // ignore message
+            } else {
+                goto _channel_ok;
+            }
+        }
+
+        if(!ota_handle->config->channel->name) {
+            // there is no channel Id nor Name
+            ota_handle->error = DISCORD_OTA_ERR_INVALID_CHANNEL_CONFIG;
+            goto _error_quiet;
+        }
+
+        discord_channel_t** channels = NULL;
+        int channels_len = 0;
+        if((err = discord_guild_get_channels(
+            client,
+            &(discord_guild_t) { .id = firmware_message->guild_id },
+            &channels,
+            &channels_len
+        )) != ESP_OK) {
+            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_FETCH_CHANNELS;
+            goto _error_quiet;
+        }
+
+        discord_channel_t* channel = discord_channel_get_from_array_by_name(
+            channels, channels_len, ota_handle->config->channel->name
+        );
+
+        bool channel_found = channel != NULL;
+        bool correct_channel = channel_found && estr_eq(channel->id, firmware_message->channel_id);
+
+        cu_list_freex(channels, channels_len, discord_channel_free);
+
+        if(!correct_channel) {
+            goto _return; // ignore message
+        }
+    }
+_channel_ok:
 
     if(firmware_message->_attachments_len != 1) {
         ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
@@ -292,6 +338,8 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
 
     err = ESP_OK;
     goto _return;
+_error_quiet:
+    ota_handle->config->error_feedback_disabled = true; // be quiet
 _error:
     if(err == ESP_OK) { err = ESP_FAIL; }
     if(ota_handle->update_handle) { 
@@ -342,6 +390,7 @@ static void discord_ota_free(discord_ota_handle_t hndl) {
         return;
     }
 
+    free(hndl->config);
     free(hndl->buffer);
     if(hndl->update_handle) { 
         esp_ota_abort(hndl->update_handle);

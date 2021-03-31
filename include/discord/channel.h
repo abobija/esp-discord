@@ -23,6 +23,7 @@ typedef struct {
     char* name;
 } discord_channel_t;
 
+discord_channel_t* discord_channel_get_from_array_by_name(discord_channel_t** array, int array_len, const char* channel_name);
 void discord_channel_free(discord_channel_t* channel);
 
 #ifdef __cplusplus
