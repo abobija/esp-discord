@@ -335,6 +335,8 @@ static esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmwar
     size_t cmd_pieces_len = 0;
     char* subcmd = NULL;
 
+    ota->error = DISCORD_OTA_OK; // reset error from the last time
+
     if(firmware_message->author->bot) { // ignore messages from other bots
         goto _return;
     }
@@ -503,10 +505,20 @@ _ota_update:
         goto _error;
     }
 
+    // release buffer if it stays somehow allocated from the last time
+    // this should not happen but for any case...
+    if(ota->buffer) {
+        free(ota->buffer);
+        ota->buffer = NULL;
+    }
+
+    // allocate new buffer
     if(!(ota->buffer = malloc(DISCORD_OTA_BUFFER_SIZE))) {
         err = ESP_ERR_NO_MEM;
         goto _error;
     }
+    
+    ota->buffer_offset = 0;
 
     DISCORD_LOGI("Gathering new firmware informations...");
 
