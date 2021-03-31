@@ -343,10 +343,12 @@ _channel_ok:
     DISCORD_LOGI("%s", success_msg);
 
     if(!ota_handle->config->success_feedback_disabled) {
+        char* success_content = estr_cat(DISCORD_EMOJI_WHITE_CHECK_MARK " OTA success: `", success_msg, "`");
         discord_message_send(client, &(discord_message_t){
             .channel_id = firmware_message->channel_id,
-            .content = (char*) success_msg
+            .content = success_content
         }, NULL);
+        free(success_content);
     }
 
     esp_restart();
@@ -366,7 +368,7 @@ _error:
     DISCORD_LOGW("%s", error_msg);
 
     if(!ota_handle->config->error_feedback_disabled) {
-        char* err_content = estr_cat("Error: `", error_msg, "`");
+        char* err_content = estr_cat(DISCORD_EMOJI_X " OTA error: `", error_msg, "`");
         discord_message_send(client, &(discord_message_t){
             .channel_id = firmware_message->channel_id,
             .content = err_content
@@ -390,6 +392,10 @@ esp_err_t discord_ota_keep(bool keep_or_rollback) {
     if (ota_state != ESP_OTA_IMG_PENDING_VERIFY) {
         return err;
     }
+
+    DISCORD_LOGW("New firmware version is going to be %s", 
+        keep_or_rollback ? "preserved" : "rolled back"
+    );
 
     if (keep_or_rollback) {
         esp_ota_mark_app_valid_cancel_rollback();
