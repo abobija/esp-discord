@@ -242,11 +242,16 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
     }
 
     esp_err_t err = ESP_OK;
+    discord_ota_handle_t ota_handle = NULL;
     char** cmd_pieces = NULL;
     size_t cmd_pieces_len = 0;
     char* subcmd = NULL;
 
-    discord_ota_handle_t ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t,
+    if(firmware_message->author->bot) { // ignore messages from other bots
+        goto _return;
+    }
+    
+    ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t,
         .config = cu_ctor(discord_ota_config_t)
     );
 
