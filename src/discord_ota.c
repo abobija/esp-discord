@@ -26,6 +26,7 @@ DISCORD_LOG_DEFINE_BASE();
     ERR(DISCORD_OTA_ERR_INVALID_CHANNEL_CONFIG)           \
     ERR(DISCORD_OTA_ERR_FAIL_TO_FETCH_CHANNELS)           \
     ERR(DISCORD_OTA_ERR_OTA_CHANNEL_NOT_FOUND)            \
+    ERR(DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT)    \
 
 #define DCOTA_GENERATE_ENUM(ENUM) ENUM,
 #define DCOTA_GENERATE_STRING(STRING) #STRING,
@@ -191,10 +192,24 @@ esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_messa
     );
 
     if(config) {
+        ota_handle->config->prefix = STRDUP(config->prefix);
         ota_handle->config->success_feedback_disabled = config->success_feedback_disabled;
         ota_handle->config->error_feedback_disabled = config->error_feedback_disabled;
         ota_handle->config->administrator_only_disabled = config->administrator_only_disabled;
         ota_handle->config->channel = config->channel;
+    }
+
+    if(ota_handle->config->prefix == NULL) {
+        ota_handle->config->prefix = strdup(DISCORD_OTA_DEFAULT_PREFIX);
+    }
+
+    if(strlen(ota_handle->config->prefix) < 3) {
+        ota_handle->error = DISCORD_OTA_ERR_INVALID_OTA_MSG_PREFIX_LENGHT;
+        goto _error_quiet;
+    }
+
+    if(!estr_sw(firmware_message->content, ota_handle->config->prefix)) {
+        goto _return; // ignore message
     }
 
     if(ota_handle->config->channel) {
@@ -390,6 +405,7 @@ static void discord_ota_free(discord_ota_handle_t hndl) {
         return;
     }
 
+    free(hndl->config->prefix);
     free(hndl->config);
     free(hndl->buffer);
     if(hndl->update_handle) { 
