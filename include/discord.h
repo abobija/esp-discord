@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 #define DISCORD_VER_MAJOR 1
-#define DISCORD_VER_MINOR 0
+#define DISCORD_VER_MINOR 1
 #define DISCORD_VER_STR_(x) #x
 #define DISCORD_VER_STR(x) DISCORD_VER_STR_(x)
 #define DISCORD_VER_STRING DISCORD_VER_STR(DISCORD_VER_MAJOR) "." DISCORD_VER_STR(DISCORD_VER_MINOR)
@@ -121,7 +121,7 @@ typedef struct {
     size_t total_length;
 } discord_download_info_t;
 
-typedef void(*discord_download_handler_t)(discord_download_info_t* info);
+typedef esp_err_t(*discord_download_handler_t)(discord_download_info_t* info, void* arg);
 
 discord_handle_t discord_create(const discord_config_t* config);
 /**

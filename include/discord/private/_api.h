@@ -25,7 +25,7 @@ typedef struct {
 bool dcapi_response_is_success(discord_api_response_t* res);
 esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res);
 esp_err_t dcapi_response_free(discord_handle_t client, discord_api_response_t* res);
-esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response);
+esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response, void* arg);
 /**
  * GET request
  * 

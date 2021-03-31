@@ -264,7 +264,7 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
     discord_attachment_t* attachment = cu_ctor(discord_attachment_t,
         .id = _id->valuestring,
         .filename = _fname->valuestring,
-        .content_type = _ctype->valuestring,
+        .content_type = _ctype ? _ctype->valuestring : NULL,
         .size = cJSON_GetObjectItem(root, "size")->valueint,
         .url = _url->valuestring
     );
@@ -273,9 +273,10 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
 
     _id->valuestring =
     _fname->valuestring =
-    _ctype->valuestring =
     _url->valuestring =
     NULL;
+
+    if(_ctype != NULL) { _ctype->valuestring = NULL; }
 
     return attachment;
 }
