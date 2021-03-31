@@ -16,6 +16,7 @@ typedef struct {
 } discord_ota_config_t;
 
 esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message, discord_ota_config_t* config);
+esp_err_t discord_ota_keep(bool keep_or_rollback);
 
 #ifdef __cplusplus
 }

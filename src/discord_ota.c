@@ -21,6 +21,8 @@ DISCORD_LOG_DEFINE_BASE();
     ERR(DISCORD_OTA_ERR_IMAGE_CORRUPTED)                  \
     ERR(DISCORD_OTA_ERR_FAIL_TO_END)                      \
     ERR(DISCORD_OTA_ERR_FAIL_TO_MOUNT)                    \
+    ERR(DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS)  \
+    ERR(DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED)       \
 
 #define DCOTA_GENERATE_ENUM(ENUM) ENUM,
 #define DCOTA_GENERATE_STRING(STRING) #STRING,
@@ -39,6 +41,7 @@ static const char* discord_ota_err_string[] = {
 #define DISCORD_OTA_BUFFER_SIZE 1024
 
 typedef struct discord_ota {
+    discord_ota_config_t* config;
     void* buffer;
     int buffer_offset;
     esp_ota_handle_t update_handle;
@@ -173,18 +176,49 @@ _continue:
     return err;
 }
 
-esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_message, discord_ota_config_t* config) {
-    if(!handle || !firmware_message) {
+esp_err_t discord_ota(discord_handle_t client, discord_message_t* firmware_message, discord_ota_config_t* config) {
+    if(!client || !firmware_message) {
         return ESP_ERR_INVALID_ARG;
     }
 
     esp_err_t err = ESP_OK;
-    discord_ota_handle_t ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t);
+
+    discord_ota_handle_t ota_handle = cu_tctor(discord_ota_handle_t, discord_ota_t,
+        .config = cu_ctor(discord_ota_config_t)
+    );
+
+    if(config) {
+        ota_handle->config->success_feedback_disabled = config->success_feedback_disabled;
+        ota_handle->config->error_feedback_disabled = config->error_feedback_disabled;
+        ota_handle->config->administrator_only_disabled = config->administrator_only_disabled;
+    }
 
     if(firmware_message->_attachments_len != 1) {
         ota_handle->error = DISCORD_OTA_ERR_INVALID_NUM_OF_MSG_ATTACHMENTS;
         err = ESP_ERR_INVALID_ARG;
         goto _error;
+    }
+
+    if(!ota_handle->config->administrator_only_disabled) { // only admin can perform update
+        bool is_admin;
+
+        DISCORD_LOGI("Checking admin permissions...");
+
+        if((err = discord_member_has_permissions(
+            client,
+            firmware_message->member,
+            firmware_message->guild_id,
+            DISCORD_PERMISSION_ADMINISTRATOR,
+            &is_admin
+        )) != ESP_OK) {
+            ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_CHECK_ADMIN_PERMISSIONS;
+            goto _error;
+        }
+
+        if(!is_admin) {
+            ota_handle->error = DISCORD_OTA_ERR_ADMIN_PERMISSIONS_REQUIRED;
+            goto _error;
+        }
     }
 
     // Take first attachment as a new firmware
@@ -215,7 +249,7 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
 
     DISCORD_LOGI("Gathering new firmware informations...");
 
-    if((err = discord_message_download_attachment(handle, firmware_message, 0, &ota_download_handler, ota_handle)) != ESP_OK) {
+    if((err = discord_message_download_attachment(client, firmware_message, 0, &ota_download_handler, ota_handle)) != ESP_OK) {
         ota_handle->error = DISCORD_OTA_ERR_FAIL_TO_DOWNLOAD_FW;
         goto _error;
     }
@@ -246,10 +280,13 @@ esp_err_t discord_ota(discord_handle_t handle, discord_message_t* firmware_messa
 
     const char* success_msg = "New firmware has been successfully mounted. Rebooting...";
     DISCORD_LOGI("%s", success_msg);
-    discord_message_send(handle, &(discord_message_t){
-        .channel_id = firmware_message->channel_id,
-        .content = (char*) success_msg
-    }, NULL);
+
+    if(!ota_handle->config->success_feedback_disabled) {
+        discord_message_send(client, &(discord_message_t){
+            .channel_id = firmware_message->channel_id,
+            .content = (char*) success_msg
+        }, NULL);
+    }
 
     esp_restart();
 
@@ -264,12 +301,39 @@ _error:
 
     const char* error_msg = discord_ota_err_string[ota_handle->error];
     DISCORD_LOGW("%s", error_msg);
-    discord_message_send(handle, &(discord_message_t){
-        .channel_id = firmware_message->channel_id,
-        .content = (char*) error_msg
-    }, NULL);
+
+    if(!ota_handle->config->error_feedback_disabled) {
+        char* err_content = estr_cat("Error: `", error_msg, "`");
+        discord_message_send(client, &(discord_message_t){
+            .channel_id = firmware_message->channel_id,
+            .content = err_content
+        }, NULL);
+        free(err_content);
+    }
 _return:
     discord_ota_free(ota_handle);
+    return err;
+}
+
+esp_err_t discord_ota_keep(bool keep_or_rollback) {
+    esp_err_t err = ESP_OK;
+    esp_ota_img_states_t ota_state;
+    const esp_partition_t* running_partition = esp_ota_get_running_partition();
+
+    if ((err = esp_ota_get_state_partition(running_partition, &ota_state)) != ESP_OK) {
+        return err;
+    }
+
+    if (ota_state != ESP_OTA_IMG_PENDING_VERIFY) {
+        return err;
+    }
+
+    if (keep_or_rollback) {
+        esp_ota_mark_app_valid_cancel_rollback();
+    } else {
+        esp_ota_mark_app_invalid_rollback_and_reboot();
+    }
+
     return err;
 }
 
