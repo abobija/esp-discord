@@ -122,7 +122,8 @@ typedef enum {
     DISCORD_EVENT_MESSAGE_UPDATED,             /*<! Message updated */
     DISCORD_EVENT_MESSAGE_DELETED,             /*<! Message deleted */
     DISCORD_EVENT_MESSAGE_REACTION_ADDED,      /*<! Reaction added to message */
-    DISCORD_EVENT_MESSAGE_REACTION_REMOVED     /*<! Reaction removed from message */
+    DISCORD_EVENT_MESSAGE_REACTION_REMOVED,    /*<! Reaction removed from message */
+    DISCORD_EVENT_VOICE_STATE_UPDATED,         /*<! Voice state updated */
 } discord_event_t;
 
 typedef void* discord_event_data_ptr_t;

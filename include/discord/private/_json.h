@@ -12,6 +12,7 @@
 #include "discord/channel.h"
 #include "discord/role.h"
 #include "discord/attachment.h"
+#include "discord/voice_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,6 +89,8 @@ cJSON* discord_message_to_cjson(discord_message_t* msg);
 discord_emoji_t* discord_emoji_from_cjson(cJSON* root);
 
 discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root);
+
+discord_voice_state_t* discord_voice_state_from_cjson(cJSON* root);
 
 #ifdef __cplusplus
 }

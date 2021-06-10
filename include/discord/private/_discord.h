@@ -18,6 +18,8 @@ extern "C" {
 #include "discord.h"
 #include "discord_ota.h"
 
+#include "discord/session.h"
+
 #ifndef CONFIG_IDF_TARGET
 #define CONFIG_IDF_TARGET "esp32"
 #endif

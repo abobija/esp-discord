@@ -11,12 +11,13 @@ static struct {
     const char* name;
     discord_event_t event;
 } discord_event_name_map[] = {
-    { "READY",                   DISCORD_EVENT_READY },
-    { "MESSAGE_CREATE",          DISCORD_EVENT_MESSAGE_RECEIVED },
-    { "MESSAGE_DELETE",          DISCORD_EVENT_MESSAGE_DELETED },
-    { "MESSAGE_UPDATE",          DISCORD_EVENT_MESSAGE_UPDATED },
-    { "MESSAGE_REACTION_ADD",    DISCORD_EVENT_MESSAGE_REACTION_ADDED },
-    { "MESSAGE_REACTION_REMOVE", DISCORD_EVENT_MESSAGE_REACTION_REMOVED }
+    { "READY",                    DISCORD_EVENT_READY },
+    { "MESSAGE_CREATE",           DISCORD_EVENT_MESSAGE_RECEIVED },
+    { "MESSAGE_DELETE",           DISCORD_EVENT_MESSAGE_DELETED },
+    { "MESSAGE_UPDATE",           DISCORD_EVENT_MESSAGE_UPDATED },
+    { "MESSAGE_REACTION_ADD",     DISCORD_EVENT_MESSAGE_REACTION_ADDED },
+    { "MESSAGE_REACTION_REMOVE",  DISCORD_EVENT_MESSAGE_REACTION_REMOVED },
+    { "VOICE_STATE_UPDATE",       DISCORD_EVENT_VOICE_STATE_UPDATED },
 };
 
 static discord_event_t discord_model_event_by_name(const char* name) {
@@ -112,6 +113,9 @@ discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e,
         case DISCORD_EVENT_MESSAGE_REACTION_REMOVED:
             return discord_message_reaction_from_cjson(cjson);
         
+        case DISCORD_EVENT_VOICE_STATE_UPDATED:
+            return discord_voice_state_from_cjson(cjson);
+
         default:
             DISCORD_LOGW("Cannot recognize event type");
             return NULL;
@@ -510,4 +514,35 @@ discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root) {
     NULL;
 
     return react;
+}
+
+discord_voice_state_t* discord_voice_state_from_cjson(cJSON* root) {
+    if(!root)
+        return NULL;
+
+    cJSON* _gid = cJSON_GetObjectItem(root, "guild_id");
+    cJSON* _cid = cJSON_GetObjectItem(root, "channel_id");
+    cJSON* _uid = cJSON_GetObjectItem(root, "user_id");
+    cJSON* _member = cJSON_GetObjectItem(root, "member");
+
+    discord_voice_state_t* state = cu_ctor(discord_voice_state_t,
+        .guild_id    = _gid->valuestring,
+        .channel_id  = _cid ? _cid->valuestring : NULL,
+        .user_id     = _uid->valuestring,
+        .member      = discord_member_from_cjson(_member),
+        .deaf        = (bool) cJSON_GetObjectItem(root, "deaf")->valueint,
+        .mute        = (bool) cJSON_GetObjectItem(root, "mute")->valueint,
+        .self_deaf   = (bool) cJSON_GetObjectItem(root, "self_deaf")->valueint,
+        .self_mute   = (bool) cJSON_GetObjectItem(root, "self_mute")->valueint
+    );
+
+    // todo: memcheck
+
+    _gid->valuestring =
+    _uid->valuestring =
+    NULL;
+
+    if(_cid) { _cid->valuestring = NULL; }
+
+    return state;
 }
