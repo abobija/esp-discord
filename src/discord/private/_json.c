@@ -133,9 +133,9 @@ cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* prope
     cJSON* root = cJSON_CreateObject();
 
     // todo: memchecks
-    cJSON_AddItemToObject(root, "$os", cJSON_CreateStringReference(properties->$os));
-    cJSON_AddItemToObject(root, "$browser", cJSON_CreateStringReference(properties->$browser));
-    cJSON_AddItemToObject(root, "$device", cJSON_CreateStringReference(properties->$device));
+    cJSON_AddItemToObject(root, "os", cJSON_CreateStringReference(properties->os));
+    cJSON_AddItemToObject(root, "browser", cJSON_CreateStringReference(properties->browser));
+    cJSON_AddItemToObject(root, "device", cJSON_CreateStringReference(properties->device));
 
     return root;
 }

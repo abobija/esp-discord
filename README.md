@@ -2,7 +2,7 @@
 
 ```
    __    ___  _ _                         
- /'__`\/',__)( '_`\           v1.1
+ /'__`\/',__)( '_`\           v1.2
 (  ___/\__, \| (_) )                      
 `\____)(____/| ,__/'                      
      _       | |                        _ 
@@ -17,6 +17,8 @@
 ## Description
 
 C library for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component.
+
+Component supports IDF version `4.1` and above, up to `5.0`.
 
 ## How to use
 

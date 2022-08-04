@@ -409,9 +409,9 @@ esp_err_t dcgw_identify(discord_handle_t client) {
             .token = strdup(client->config->token),
             .intents = client->config->intents,
             .properties = cu_ctor(discord_identify_properties_t,
-                .$os = estr_cat("esp-idf (", esp_get_idf_version(), ")"),
-                .$browser = strdup("esp-discord (" DISCORD_VER_STRING ")"),
-                .$device = strdup(CONFIG_IDF_TARGET)
+                .os = estr_cat("esp-idf (", esp_get_idf_version(), ")"),
+                .browser = strdup("esp-discord (" DISCORD_VER_STRING ")"),
+                .device = strdup(CONFIG_IDF_TARGET)
             )
         )
     ));

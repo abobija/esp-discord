@@ -24,8 +24,8 @@ extern "C" {
 #define CONFIG_IDF_TARGET "esp32"
 #endif
 
-#define DISCORD_GW_URL                   "wss://gateway.discord.gg/?v=8&encoding=json"
-#define DISCORD_API_URL                  "https://discord.com/api/v8"
+#define DISCORD_GW_URL                   "wss://gateway.discord.gg/?v=10&encoding=json"
+#define DISCORD_API_URL                  "https://discord.com/api/v10"
 
 // this should go into menuconfig configuration
 #define DISCORD_DEFAULT_GW_BUFFER_SIZE   (3 * 1024)

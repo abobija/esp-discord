@@ -81,9 +81,9 @@ void discord_identify_properties_free(discord_identify_properties_t* properties)
     if(!properties)
         return;
 
-    free(properties->$os);
-    free(properties->$browser);
-    free(properties->$device);
+    free(properties->os);
+    free(properties->browser);
+    free(properties->device);
     free(properties);
 }
 

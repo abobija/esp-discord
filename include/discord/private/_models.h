@@ -26,9 +26,9 @@ typedef struct {
 typedef int discord_heartbeat_t;
 
 typedef struct {
-    char* $os;
-    char* $browser;
-    char* $device;
+    char* os;
+    char* browser;
+    char* device;
 } discord_identify_properties_t;
 
 typedef struct {
