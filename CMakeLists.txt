@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION AND EXISTS config AND NOT CONFIG_ESP_TLS_SKIP
             "\n Discord certificates missing. To generate certs please run next script:"
             "\n ${COMPONENT_DIR}/certgen.sh"
             "\n "
-            "\n On Windows script should be automatically open in Git-Bash by double-click on it."
+            "\n On Windows script should automatically be opened in Git-Bash by double-click on it."
             "\n If not, open Git-Bash (on Windows) and run script manually."
             "\n "
             "\n ****************************************************************************"
@@ -22,7 +22,7 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION AND EXISTS config AND NOT CONFIG_ESP_TLS_SKIP
 endif()
 
 idf_component_register(
-    SRCS cutils/src/estr.c
+    SRCS src/helpers/estr.c
          src/discord/private/_models.c
          src/discord/private/_gateway.c
          src/discord/private/_api.c
@@ -40,7 +40,7 @@ idf_component_register(
          src/discord/voice_state.c
          src/discord.c
          src/discord_ota.c
-    INCLUDE_DIRS include cutils/include
+    INCLUDE_DIRS include include/helpers
     REQUIRES json esp_websocket_client esp_http_client
     PRIV_REQUIRES app_update nvs_flash
     EMBED_TXTFILES ${CERTS}
