@@ -4,20 +4,11 @@ if(NOT CMAKE_BUILD_EARLY_EXPANSION AND EXISTS config AND NOT CONFIG_ESP_TLS_SKIP
     list(APPEND CERTS cert/gateway.pem cert/api.pem)
 
     if(NOT EXISTS ${COMPONENT_DIR}/cert/gateway.pem OR NOT EXISTS ${COMPONENT_DIR}/cert/api.pem)
-        string(CONCAT certs_missing_message
-            "\n ****************************************************************************"
-            "\n "
-            "\n Discord certificates missing. To generate certs please run next script:"
-            "\n ${COMPONENT_DIR}/certgen.sh"
-            "\n "
-            "\n On Windows script should automatically be opened in Git-Bash by double-click on it."
-            "\n If not, open Git-Bash (on Windows) and run script manually."
-            "\n "
-            "\n ****************************************************************************"
-        )
+        execute_process(COMMAND ${COMPONENT_DIR}/certgen.sh RESULT_VARIABLE CERTGEN_RESULT)
 
-        string(ASCII 27 ESCAPE)
-        message(FATAL_ERROR "${ESCAPE}[33m ${certs_missing_message} ${ESCAPE}[0m")
+        if(NOT CERTGEN_RESULT EQUAL "0")
+            message(FATAL_ERROR "Failed to generate Discord certificates\n${CERTGEN_RESULT}")
+        endif()
     endif()
 endif()
 

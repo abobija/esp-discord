@@ -1,3 +1,2 @@
 dependencies:
-  idf:
-    version: "^4.1.0"
+  idf: "^4.1"
