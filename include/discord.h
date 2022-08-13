@@ -31,6 +31,7 @@ extern "C" {
 #define DISCORD_INTENT_DIRECT_MESSAGES           (1 << 12)
 #define DISCORD_INTENT_DIRECT_MESSAGE_REACTIONS  (1 << 13)
 #define DISCORD_INTENT_DIRECT_MESSAGE_TYPING     (1 << 14)
+#define DISCORD_INTENT_MESSAGE_CONTENT           (1 << 15)
 
 // permissions
 
