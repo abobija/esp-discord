@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include "esp_http_client.h"
 #include "discord.h"
 
 #define DCAPI_POST(strcater, serializer, stream) ({ \
@@ -15,6 +16,15 @@ extern "C" {
     free(_uri); \
     _res;\
 })
+
+typedef struct {
+    esp_http_client_method_t method;
+    char* uri;
+    char* payload;
+    bool stream_response;
+    bool disable_auto_uri_free;
+    bool disable_auto_payload_free;
+} discord_api_request_t;
 
 typedef struct {
     int code;
