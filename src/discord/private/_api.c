@@ -211,14 +211,10 @@ static int dcapi_calculate_request_length(discord_api_request_t* request)
     return length;
 }
 
-static esp_err_t dcapi_request(discord_handle_t client, discord_api_request_t* request, discord_api_response_t** out_response) {
+static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method, discord_api_request_t* request, discord_api_response_t** out_response) {
     DISCORD_LOG_FOO();
 
-    bool stream_response = request->stream_response;
-
-    if(! out_response) { // overwrite stream_response if response reference is null
-        stream_response = false;
-    }
+    bool stream_response = out_response != NULL;
 
     esp_err_t err;
 
@@ -247,7 +243,7 @@ static esp_err_t dcapi_request(discord_handle_t client, discord_api_request_t* r
     // todo: error check
     free(url);
 
-    esp_http_client_set_method(http, request->method);
+    esp_http_client_set_method(http, method);
     // todo: error check
 
     int len = dcapi_calculate_request_length(request);
@@ -443,12 +439,10 @@ static void discord_api_request_free(discord_api_request_t* request)
     free(request);
 }
 
-static discord_api_request_t* dcapi_create_request(esp_http_client_method_t method, char* uri, char* payload, bool stream)
+static discord_api_request_t* dcapi_create_request(char* uri, char* payload)
 {
     discord_api_request_t* request = cu_ctor(discord_api_request_t,
-        .method = method,
         .uri = uri,
-        .stream_response = stream,
     );
 
     if(payload) {
@@ -463,25 +457,25 @@ static discord_api_request_t* dcapi_create_request(esp_http_client_method_t meth
     return request;
 }
 
-esp_err_t dcapi_get(discord_handle_t client, char* uri, char* payload, bool stream, discord_api_response_t** out_response) {
-    discord_api_request_t* request = dcapi_create_request(HTTP_METHOD_GET, uri, payload, stream);
-    esp_err_t err = dcapi_request(client, request, out_response);
+esp_err_t dcapi_get(discord_handle_t client, char* uri, char* payload, discord_api_response_t** out_response) {
+    discord_api_request_t* request = dcapi_create_request(uri, payload);
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_GET, request, out_response);
     discord_api_request_free(request);
 
     return err;
 }
 
-esp_err_t dcapi_post(discord_handle_t client, char* uri, char* payload, bool stream, discord_api_response_t** out_response) {
-    discord_api_request_t* request = dcapi_create_request(HTTP_METHOD_POST, uri, payload, stream);
-    esp_err_t err = dcapi_request(client, request, out_response);
+esp_err_t dcapi_post(discord_handle_t client, char* uri, char* payload, discord_api_response_t** out_response) {
+    discord_api_request_t* request = dcapi_create_request(uri, payload);
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_POST, request, out_response);
     discord_api_request_free(request);
 
     return err;
 }
 
-esp_err_t dcapi_put(discord_handle_t client, char* uri, char* payload, bool stream, discord_api_response_t** out_response) {
-    discord_api_request_t* request = dcapi_create_request(HTTP_METHOD_PUT, uri, payload, stream);
-    esp_err_t err = dcapi_request(client, request, out_response);
+esp_err_t dcapi_put(discord_handle_t client, char* uri, char* payload, discord_api_response_t** out_response) {
+    discord_api_request_t* request = dcapi_create_request(uri, payload);
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_PUT, request, out_response);
     discord_api_request_free(request);
 
     return err;

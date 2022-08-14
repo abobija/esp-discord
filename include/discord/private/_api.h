@@ -27,11 +27,9 @@ typedef struct {
 } discord_api_multipart_t;
 
 typedef struct {
-    esp_http_client_method_t method;
     char* uri;
     discord_api_multipart_t** multiparts;
     uint8_t multiparts_len;
-    bool stream_response;
     bool disable_auto_uri_free;
     bool disable_auto_payload_free;
 } discord_api_request_t;
@@ -51,19 +49,19 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
  * 
  * @note data will be automatically freed
  */ 
-esp_err_t dcapi_get(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response);
+esp_err_t dcapi_get(discord_handle_t client, char* uri, char* data, discord_api_response_t** out_response);
 /**
  * POST request
  * 
  * @note data will be automatically freed
  */ 
-esp_err_t dcapi_post(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response);
+esp_err_t dcapi_post(discord_handle_t client, char* uri, char* data, discord_api_response_t** out_response);
 /**
  * PUT request
  * 
  * @note data will be automatically freed
  */
-esp_err_t dcapi_put(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response);
+esp_err_t dcapi_put(discord_handle_t client, char* uri, char* data, discord_api_response_t** out_response);
 
 esp_err_t dcapi_destroy(discord_handle_t client);
 
