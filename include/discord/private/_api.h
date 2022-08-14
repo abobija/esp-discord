@@ -43,21 +43,27 @@ typedef struct {
 bool dcapi_response_is_success(discord_api_response_t* res);
 esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res);
 esp_err_t dcapi_response_free(discord_handle_t client, discord_api_response_t* res);
+esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method, discord_api_request_t* request, discord_api_response_t** out_response);
 esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response, void* arg);
 /**
- * GET request
+ * @brief Helper function for creating new request.
+ *        Function will automatically add payload as multipart of request
+ */
+discord_api_request_t* dcapi_create_request(char* uri, char* payload);
+/**
+ * @brief GET request
  * 
  * @note data will be automatically freed
  */ 
 esp_err_t dcapi_get(discord_handle_t client, char* uri, char* data, discord_api_response_t** out_response);
 /**
- * POST request
+ * @brief POST request
  * 
  * @note data will be automatically freed
  */ 
 esp_err_t dcapi_post(discord_handle_t client, char* uri, char* data, discord_api_response_t** out_response);
 /**
- * PUT request
+ * @brief PUT request
  * 
  * @note data will be automatically freed
  */
