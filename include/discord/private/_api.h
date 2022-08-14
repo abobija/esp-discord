@@ -8,6 +8,8 @@ extern "C" {
 #include "esp_http_client.h"
 #include "discord.h"
 
+#define DCAPI_REQUEST_BOUNDARY "esp-discord"
+
 #define DCAPI_POST(strcater, serializer, stream) ({ \
     char* _uri = strcater; \
     char* _json = serializer; \

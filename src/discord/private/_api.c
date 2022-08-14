@@ -177,7 +177,7 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
         // todo: error check
         free(auth);
 
-        esp_http_client_set_header(client->http, "Content-Type", "application/json");
+        esp_http_client_set_header(client->http, "Content-Type", "multipart/form-data; boundary=\"" DCAPI_REQUEST_BOUNDARY "\"");
         // todo: error check
     }
 
@@ -220,7 +220,18 @@ static esp_err_t dcapi_request(discord_handle_t client, discord_api_request_t* r
     esp_http_client_set_method(http, request->method);
     // todo: error check
 
+    const char* payload_boundary = "--" DCAPI_REQUEST_BOUNDARY
+        "\nContent-Disposition: form-data; name=\"payload_json\""
+        "\nContent-Type: application/json"
+        "\n\n";
+
+    const char* multipart_end = "\n--" DCAPI_REQUEST_BOUNDARY "--";
+
     int len = request->payload ? strlen(request->payload) : 0;
+
+    if(len > 0) {
+        len += strlen(payload_boundary) + strlen(multipart_end);
+    }
 
     bool connection_open = false;
     const uint8_t open_attempts = 3;
@@ -242,12 +253,16 @@ static esp_err_t dcapi_request(discord_handle_t client, discord_api_request_t* r
     }
 
     if(request->payload) {
-        DISCORD_LOGD("Writing data to request:\n%.*s", len, request->payload);
+        DISCORD_LOGD("Writing payload to request:\n%.*s", len, request->payload);
 
-        if(esp_http_client_write(http, request->payload, len) == ESP_FAIL) {
-            DISCORD_LOGW("Fail to write data to request");
-            xSemaphoreGive(client->api_lock);
-            return ESP_FAIL;
+        if(len > 0) {
+            if(esp_http_client_write(http, payload_boundary, strlen(payload_boundary)) == ESP_FAIL
+                || esp_http_client_write(http, request->payload, strlen(request->payload)) == ESP_FAIL
+                || esp_http_client_write(http, multipart_end, strlen(multipart_end)) == ESP_FAIL) {
+                    DISCORD_LOGW("Fail to write data to request");
+                    xSemaphoreGive(client->api_lock);
+                    return ESP_FAIL;
+                }
         }
 
         if(! request->disable_auto_payload_free) { free(request->payload); }
