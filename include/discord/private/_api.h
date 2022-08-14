@@ -23,6 +23,7 @@ typedef struct {
     char* data;
     int len;
     const char* name;
+    const char* filename;
     const char* mime_type;
 } discord_api_multipart_t;
 

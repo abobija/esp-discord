@@ -196,7 +196,15 @@ static int dcapi_calculate_request_length(discord_api_request_t* request)
         length += boundary_len;
         length += 39; // <\nContent-Disposition: form-data; name=">
         length += strlen(mpart->name);
-        length += 16; // <"\nContent-Type: >
+        length += 1;  // <">
+
+        if(mpart->filename) {
+            length += 12; // <; filename=">
+            length += strlen(mpart->filename);
+            length += 1;  // <">
+        }
+
+        length += 15; // <\nContent-Type: >
         length += strlen(mpart->mime_type);
         length += 2;  // <\n\n>
         length += mpart->len;
@@ -273,12 +281,21 @@ esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method
         for(uint8_t i = 0; i < request->multiparts_len; i++) {
             discord_api_multipart_t* mpart = request->multiparts[i];
 
+            char* filename_piece = NULL;
+
+            if(mpart->filename) {
+                filename_piece = estr_cat("; filename=\"", mpart->filename, "\"");
+            }
+
             char* boundary = estr_cat(
                 "--" DCAPI_REQUEST_BOUNDARY
-                "\nContent-Disposition: form-data; name=\"", mpart->name, "\""
+                "\nContent-Disposition: form-data; name=\"", mpart->name, "\"",
+                (mpart->filename ? filename_piece : ""),
                 "\nContent-Type: ", mpart->mime_type,
                 "\n\n"
             );
+
+            free(filename_piece);
 
             esp_http_client_write(http, boundary, strlen(boundary)); // TODO: check result
             free(boundary);
