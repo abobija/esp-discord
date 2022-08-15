@@ -19,6 +19,17 @@ static void discord_embed_footer_free(discord_embed_footer_t* footer)
     free(footer);
 }
 
+static void discord_embed_author_free(discord_embed_author_t* author)
+{
+    if(!author)
+        return;
+    
+    free(author->name);
+    free(author->url);
+    free(author->icon_url);
+    free(author);
+}
+
 void discord_embed_free(discord_embed_t* embed)
 {
     if(!embed)
@@ -30,5 +41,6 @@ void discord_embed_free(discord_embed_t* embed)
     discord_embed_footer_free(embed->footer);
     discord_embed_image_free(embed->thumbnail);
     discord_embed_image_free(embed->image);
+    discord_embed_author_free(embed->author);
     free(embed);
 }

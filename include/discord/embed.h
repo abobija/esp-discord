@@ -17,6 +17,12 @@ typedef struct {
 } discord_embed_image_t;
 
 typedef struct {
+    char* name;                       /*!< Name of author */
+    char* url;                        /*!< Url of author */
+    char* icon_url;                   /*!< Url of author icon (only supports http(s) and attachments) */
+} discord_embed_author_t;
+
+typedef struct {
     char* title;                      /*!< Title of embed. Limit: 256 */
     char* description;                /*!< Description of embed. Limit: 4096 */
     char* url;                        /*!< Url of embed */
@@ -24,6 +30,7 @@ typedef struct {
     discord_embed_footer_t* footer;   /*!< Footer information */
     discord_embed_image_t* thumbnail; /*!< Thumbnail information */
     discord_embed_image_t* image;     /*!< Image information */
+    discord_embed_author_t* author;   /*!< Author information */
 } discord_embed_t;
 
 void discord_embed_free(discord_embed_t* embed);
