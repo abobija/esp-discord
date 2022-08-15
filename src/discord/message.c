@@ -20,7 +20,7 @@ static discord_api_multipart_t* discord_message_create_multipart_from_attachment
 }
 
 esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message, discord_message_t** out_result) {
-    if(! client || ! message || ! message->content || ! message->channel_id) {
+    if(! client || ! message || ! message->channel_id) {
         DISCORD_LOGE("Invalid args");
         return ESP_ERR_INVALID_ARG;
     }
