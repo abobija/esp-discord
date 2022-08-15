@@ -67,6 +67,39 @@ extern "C" {
 #define DISCORD_PERMISSION_MANAGE_WEBHOOKS        0x20000000ULL  /*!< Allows management and editing of webhooks */
 #define DISCORD_PERMISSION_MANAGE_EMOJIS          0x40000000ULL  /*!< Allows management and editing of emojis */
 
+// colors (taken from https://bit.ly/3QMMXQr)
+
+#define DISCORD_COLOR_DEFAULT              (0)
+#define DISCORD_COLOR_AQUA                 (1752220)
+#define DISCORD_COLOR_DARK_AQUA            (1146986)
+#define DISCORD_COLOR_GREEN                (3066993)
+#define DISCORD_COLOR_DARK_GREEN           (2067276)
+#define DISCORD_COLOR_BLUE                 (3447003)
+#define DISCORD_COLOR_DARK_BLUE            (2123412)
+#define DISCORD_COLOR_PURPLE               (10181046)
+#define DISCORD_COLOR_DARK_PURPLE          (7419530)
+#define DISCORD_COLOR_LUMINOUS_VIVID_PINK  (15277667)
+#define DISCORD_COLOR_DARK_VIVID_PINK      (11342935)
+#define DISCORD_COLOR_GOLD                 (15844367)
+#define DISCORD_COLOR_DARK_GOLD            (12745742)
+#define DISCORD_COLOR_ORANGE               (15105570)
+#define DISCORD_COLOR_DARK_ORANGE          (11027200)
+#define DISCORD_COLOR_RED                  (15158332)
+#define DISCORD_COLOR_DARK_RED             (10038562)
+#define DISCORD_COLOR_GREY                 (9807270)
+#define DISCORD_COLOR_DARK_GREY            (9936031)
+#define DISCORD_COLOR_DARKER_GREY          (8359053)
+#define DISCORD_COLOR_LIGHT_GREY           (12370112)
+#define DISCORD_COLOR_NAVY                 (3426654)
+#define DISCORD_COLOR_DARK_NAVY            (2899536)
+#define DISCORD_COLOR_YELLOW               (16776960)
+#define DISCORD_COLOR_WHITE                (16777215)
+#define DISCORD_COLOR_BLURPLE              (5793266)
+#define DISCORD_COLOR_GREYPLE              (10070709)
+#define DISCORD_COLOR_DARK_BUT_NOT_BLACK   (2895667)
+#define DISCORD_COLOR_NOT_QUITE_BLACK      (2303786)
+#define DISCORD_COLOR_FUSCHIA              (15418782)
+
 typedef struct discord* discord_handle_t;
 
 typedef struct {

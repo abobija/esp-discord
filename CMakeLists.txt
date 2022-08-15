@@ -28,6 +28,7 @@ idf_component_register(
          src/discord/channel.c
          src/discord/role.c
          src/discord/attachment.c
+         src/discord/embed.c
          src/discord/voice_state.c
          src/discord.c
          src/discord_ota.c
