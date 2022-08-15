@@ -19,6 +19,9 @@ extern "C" {
     _res;\
 })
 
+// TODO: Maybe discord_api_multipart_t type needs to be deleted and use discord_attachment_t type instead?
+//       That will remove headache for making multiparts from attachment, and props are the same
+
 typedef struct {
     char* data;
     int len;
