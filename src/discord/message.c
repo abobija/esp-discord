@@ -7,6 +7,18 @@
 
 DISCORD_LOG_DEFINE_BASE();
 
+static discord_api_multipart_t* discord_message_create_multipart_from_attachment(discord_attachment_t* attachment)
+{
+    return cu_ctor(discord_api_multipart_t,
+        .name                  = estr_cat("files[", attachment->id, "]"),
+        .mime_type             = strdup(attachment->content_type),
+        .filename              = strdup(attachment->filename),
+        .data                  = (char*) attachment->_data,
+        .len                   = attachment->size,
+        .data_should_be_freed  = attachment->_data_should_be_freed,
+    );
+}
+
 esp_err_t discord_message_send(discord_handle_t client, discord_message_t* message, discord_message_t** out_result) {
     if(! client || ! message || ! message->content || ! message->channel_id) {
         DISCORD_LOGE("Invalid args");
@@ -19,16 +31,7 @@ esp_err_t discord_message_send(discord_handle_t client, discord_message_t* messa
     );
 
     for(uint8_t i = 0; i < message->_attachments_len; i++) {
-        discord_attachment_t* a = message->attachments[i];
-
-        dcapi_add_multipart_to_request(cu_ctor(discord_api_multipart_t,
-            .name                  = estr_cat("files[", a->id, "]"),
-            .mime_type             = strdup(a->content_type),
-            .filename              = strdup(a->filename),
-            .data                  = (char*) a->_data,
-            .len                   = a->size,
-            .data_should_be_freed = a->_data_should_be_freed,
-        ), req);
+        dcapi_add_multipart_to_request(discord_message_create_multipart_from_attachment(message->attachments[i]), req);
     }
 
     discord_api_response_t* res = NULL;
