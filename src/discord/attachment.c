@@ -1,7 +1,17 @@
 #include "discord/attachment.h"
 #include "esp_heap_caps.h"
 #include "cutils.h"
+#include "estr.h"
 #include "string.h"
+
+char* discord_attachment_refence(discord_attachment_t* attachment)
+{
+    if(!attachment || !attachment->filename) {
+        return NULL;
+    }
+
+    return estr_cat("attachment://", attachment->filename);
+}
 
 /**
  * @brief Function for releasing memory occupied by attachment. Property _data will not be freed.

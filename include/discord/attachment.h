@@ -26,6 +26,13 @@ typedef struct {
         attachment->url \
     );
 
+/**
+ * @brief Create reference string for an attachment that can be used in embeds
+ * 
+ * @param attachment Attachment for which reference needs to be created
+ * @return Reference string that can be used in embeds
+ */
+char* discord_attachment_refence(discord_attachment_t* attachment);
 void discord_attachment_free(discord_attachment_t* attachment);
 
 #ifdef __cplusplus
