@@ -22,11 +22,12 @@ esp_err_t discord_message_send(discord_handle_t client, discord_message_t* messa
         discord_attachment_t* a = message->attachments[i];
 
         dcapi_add_multipart_to_request(cu_ctor(discord_api_multipart_t,
-            .name = estr_cat("files[", a->id, "]"),
-            .mime_type = strdup(a->content_type),
-            .filename = strdup(a->filename),
-            .data = (char*) a->_data,
-            .len = a->size,
+            .name                  = estr_cat("files[", a->id, "]"),
+            .mime_type             = strdup(a->content_type),
+            .filename              = strdup(a->filename),
+            .data                  = (char*) a->_data,
+            .len                   = a->size,
+            .data_should_be_freed = a->_data_should_be_freed,
         ), req);
     }
 

@@ -464,8 +464,12 @@ static void discord_api_multipart_free(discord_api_multipart_t* multipart)
     free(multipart->name);
     free(multipart->filename);
     free(multipart->mime_type);
-    //free(multipart->data);
-    //multipart->len = 0;
+
+    if(multipart->data_should_be_freed) {
+        free(multipart->data);
+        multipart->len = 0;
+    }
+    
     free(multipart);
 }
 

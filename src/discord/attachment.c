@@ -17,5 +17,11 @@ void discord_attachment_free(discord_attachment_t* attachment)
     free(attachment->filename);
     free(attachment->content_type);
     free(attachment->url);
+
+    if(attachment->_data_should_be_freed) {
+        free(attachment->_data);
+        attachment->size = 0;
+    }
+
     free(attachment);
 }

@@ -25,6 +25,7 @@ typedef struct {
     char* name;
     char* filename;
     char* mime_type;
+    bool data_should_be_freed; /*<! Set to true if data should be freed by discord_api_multipart_free function */
 } discord_api_multipart_t;
 
 typedef struct {
