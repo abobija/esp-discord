@@ -85,6 +85,7 @@ esp_err_t discord_message_send(discord_handle_t client, discord_message_t* messa
 esp_err_t discord_message_react(discord_handle_t client, discord_message_t* message, const char* emoji);
 esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler, void* arg);
 esp_err_t discord_message_word_parse(const char* word, discord_message_word_t** out_word);
+esp_err_t discord_message_add_attachment(discord_message_t* message, discord_attachment_t* attachment);
 void discord_message_free(discord_message_t* message);
 
 #ifdef __cplusplus

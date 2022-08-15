@@ -15,7 +15,7 @@ esp_err_t discord_user_get_my_guilds(discord_handle_t client, discord_guild_t***
     esp_err_t err = ESP_OK;
     discord_api_response_t* res = NULL;
     
-    if((err = dcapi_get(client, strdup("/users/@me/guilds"), NULL, true, &res)) != ESP_OK) {
+    if((err = dcapi_get(client, strdup("/users/@me/guilds"), NULL, &res)) != ESP_OK) {
         DISCORD_LOGE("Fail to fetch guilds");
         return err;
     }

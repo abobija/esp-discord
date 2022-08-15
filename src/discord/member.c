@@ -21,7 +21,6 @@ esp_err_t discord_member_get(discord_handle_t client, char* guild_id, char* user
         client,
         estr_cat("/guilds/", guild_id, "/members/", user_id),
         NULL,
-        true,
         &res
     )) != ESP_OK) {
         return err;

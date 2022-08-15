@@ -14,7 +14,7 @@ typedef enum {
     DISCORD_CHANNEL_GROUP_DM,        /*<! a direct message between multiple users */
     DISCORD_CHANNEL_GUILD_CATEGORY,  /*<! an organizational category that contains up to 50 channels */
     DISCORD_CHANNEL_GUILD_NEWS,      /*<! a channel that users can follow and crosspost into their own server */
-    GUILD_NEWS_THREAD = 10,          /*<! a a temporary sub-channel within a GUILD_NEWS channel */
+    GUILD_NEWS_THREAD = 10,          /*<! a temporary sub-channel within a GUILD_NEWS channel */
     GUILD_PUBLIC_THREAD,             /*<! a temporary sub-channel within a GUILD_TEXT channel */
     GUILD_PRIVATE_THREAD,            /*<! a temporary sub-channel within a GUILD_TEXT channel that is only viewable by those invited and those with the MANAGE_THREADS permission */
     GUILD_STAGE_VOICE,               /*<! a voice channel for hosting events with an audience */

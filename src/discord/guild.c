@@ -16,7 +16,7 @@ esp_err_t discord_guild_get_channels(discord_handle_t client, discord_guild_t* g
     esp_err_t err = ESP_OK;
     discord_api_response_t* res = NULL;
     
-    if((err = dcapi_get(client, estr_cat("/guilds/", guild->id, "/channels"), NULL, true, &res)) != ESP_OK) {
+    if((err = dcapi_get(client, estr_cat("/guilds/", guild->id, "/channels"), NULL, &res)) != ESP_OK) {
         DISCORD_LOGE("Fail to fetch channels");
         return err;
     }

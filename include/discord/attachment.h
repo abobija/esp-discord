@@ -13,6 +13,8 @@ typedef struct {
     char* content_type;
     size_t size;
     char* url;
+    uint8_t* _data;
+    bool _data_should_be_freed; /*<! Set to true if _data should be freed by discord_attachment_free function */
 } discord_attachment_t;
 
 #define discord_attachment_dump_log(LOG_FOO, TAG, attachment) \

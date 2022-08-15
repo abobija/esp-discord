@@ -1,6 +1,5 @@
 #include "discord/private/_discord.h"
 #include "discord/private/_api.h"
-#include "esp_http_client.h"
 #include "cutils.h"
 #include "estr.h"
 
@@ -178,19 +177,53 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
         // todo: error check
         free(auth);
 
-        esp_http_client_set_header(client->http, "Content-Type", "application/json");
+        esp_http_client_set_header(client->http, "Content-Type", "multipart/form-data; boundary=\"" DCAPI_REQUEST_BOUNDARY "\"");
         // todo: error check
     }
 
     return ESP_OK;
 }
 
-static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method, char* uri, char* data, bool stream_response, bool free_uri_and_data, discord_api_response_t** out_response) {
+static int dcapi_calculate_request_length(discord_api_request_t* request)
+{
+    int length = 0;
+    const int boundary_len = sizeof(DCAPI_REQUEST_BOUNDARY) - 1;
+
+    for(uint8_t i = 0; i < request->multiparts_len; i++) {
+        discord_api_multipart_t* mpart = request->multiparts[i];
+
+        length += (i > 0 ? 1 : 0); // <\n>
+        length += 2;  // <-->
+        length += boundary_len;
+        length += 39; // <\nContent-Disposition: form-data; name=">
+        length += strlen(mpart->name);
+        length += 1;  // <">
+
+        if(mpart->filename) {
+            length += 12; // <; filename=">
+            length += strlen(mpart->filename);
+            length += 1;  // <">
+        }
+
+        length += 15; // <\nContent-Type: >
+        length += strlen(mpart->mime_type);
+        length += 2;  // <\n\n>
+        length += mpart->len;
+    }
+
+    if(request->multiparts_len > 0) {
+        length += 3;  // <\n-->
+        length += boundary_len;
+        length += 2;  // <-->
+    }
+
+    return length;
+}
+
+esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method, discord_api_request_t* request, discord_api_response_t** out_response) {
     DISCORD_LOG_FOO();
 
-    if(! out_response) { // overwrite stream_response if response reference is null
-        stream_response = false;
-    }
+    bool stream_response = out_response != NULL;
 
     esp_err_t err;
 
@@ -209,9 +242,12 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
     client->api_buffer_record = true; // always record first chunk which comes with headers because maybe will need to record error
     client->api_buffer_record_status = ESP_OK;
 
-    char* url = estr_cat(DISCORD_API_URL, uri);
+    char* url = estr_cat(DISCORD_API_URL, request->uri);
     // todo: memcheck
-    if(free_uri_and_data) { free(uri); }
+    if(! request->disable_auto_uri_free) {
+        free(request->uri);
+        request->uri = NULL;
+    }
     esp_http_client_set_url(http, url);
     // todo: error check
     free(url);
@@ -219,7 +255,7 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
     esp_http_client_set_method(http, method);
     // todo: error check
 
-    int len = data ? strlen(data) : 0;
+    int len = dcapi_calculate_request_length(request);
 
     bool connection_open = false;
     const uint8_t open_attempts = 3;
@@ -240,16 +276,59 @@ static esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t
         return err;
     }
 
-    if(data) {
-        DISCORD_LOGD("Writing data to request:\n%.*s", len, data);
+    if(len > 0) {
+        DISCORD_LOGD("Sending multiparts...");
 
-        if(esp_http_client_write(http, data, len) == ESP_FAIL) {
-            DISCORD_LOGW("Fail to write data to request");
-            xSemaphoreGive(client->api_lock);
-            return ESP_FAIL;
+        for(uint8_t i = 0; i < request->multiparts_len; i++) {
+            discord_api_multipart_t* mpart = request->multiparts[i];
+
+            char* filename_piece = NULL;
+
+            if(mpart->filename) {
+                filename_piece = estr_cat("; filename=\"", mpart->filename, "\"");
+            }
+
+            char* boundary = estr_cat(
+                (i > 0 ? "\n" : ""),
+                "--" DCAPI_REQUEST_BOUNDARY
+                "\nContent-Disposition: form-data; name=\"", mpart->name, "\"",
+                (mpart->filename ? filename_piece : ""),
+                "\nContent-Type: ", mpart->mime_type,
+                "\n\n"
+            );
+
+            free(filename_piece);
+
+            DISCORD_LOGD("%.*s", strlen(boundary), boundary);
+            esp_http_client_write(http, boundary, strlen(boundary)); // TODO: check result
+            free(boundary);
+
+            if(estr_eq(mpart->name, "payload_json")) {
+                DISCORD_LOGD("%.*s", mpart->len, mpart->data);
+            } else {
+                DISCORD_LOGD("Sending binary multipart data [size: %d]", mpart->len);
+            }
+
+            esp_http_client_write(http, mpart->data, mpart->len); // TODO: check result
+
+            // Automatic payload freeing is an optimization in order to free-up the memory for incoming response
+            if(! request->disable_auto_payload_free && i == 0 && estr_eq(mpart->name, "payload_json")) {
+                DISCORD_LOGD("Freeing payload multipart data");
+                free(mpart->data);
+                mpart->data = NULL;
+                mpart->len = 0;
+            }
         }
 
-        if(free_uri_and_data) { free(data); }
+        const char* multipart_end = "\n--" DCAPI_REQUEST_BOUNDARY "--";
+        DISCORD_LOGD("%.*s", strlen(multipart_end), multipart_end);
+        esp_http_client_write(http, multipart_end, strlen(multipart_end)); // TODO: check result
+
+        //if(... == ESP_FAIL) {
+        //    DISCORD_LOGW("Fail to write data to request");
+        //    xSemaphoreGive(client->api_lock);
+        //    return ESP_FAIL;
+        //}
     }
 
     DISCORD_LOGD("Sending request and fetching response...");
@@ -369,16 +448,81 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
     return ESP_OK;
 }
 
-esp_err_t dcapi_get(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response) {
-    return dcapi_request(client, HTTP_METHOD_GET, uri, data, stream, true, out_response);
+esp_err_t dcapi_add_multipart_to_request(discord_api_multipart_t* multipart, discord_api_request_t* request)
+{
+    request->multiparts = realloc(request->multiparts, ++request->multiparts_len * sizeof(discord_api_multipart_t*));
+    request->multiparts[request->multiparts_len - 1] = multipart;
+
+    return ESP_OK;
 }
 
-esp_err_t dcapi_post(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response) {
-    return dcapi_request(client, HTTP_METHOD_POST, uri, data, stream, true, out_response);
+static void discord_api_multipart_free(discord_api_multipart_t* multipart)
+{
+    if(!multipart)
+        return;
+    
+    free(multipart->name);
+    free(multipart->filename);
+    free(multipart->mime_type);
+
+    if(multipart->data_should_be_freed) {
+        free(multipart->data);
+        multipart->len = 0;
+    }
+    
+    free(multipart);
 }
 
-esp_err_t dcapi_put(discord_handle_t client, char* uri, char* data, bool stream, discord_api_response_t** out_response) {
-    return dcapi_request(client, HTTP_METHOD_PUT, uri, data, stream, true, out_response);
+void discord_api_request_free(discord_api_request_t* request)
+{
+    if(! request)
+        return;
+    
+    free(request->uri);
+    cu_list_freex(request->multiparts, request->multiparts_len, discord_api_multipart_free);
+    free(request);
+}
+
+discord_api_request_t* dcapi_create_request(char* uri, char* payload)
+{
+    discord_api_request_t* request = cu_ctor(discord_api_request_t,
+        .uri = uri,
+    );
+
+    if(payload) {
+        dcapi_add_multipart_to_request(cu_ctor(discord_api_multipart_t,
+            .name = strdup("payload_json"),
+            .mime_type = strdup("application/json"),
+            .data = payload,
+            .len = strlen(payload),
+        ), request);
+    }
+
+    return request;
+}
+
+esp_err_t dcapi_get(discord_handle_t client, char* uri, char* payload, discord_api_response_t** out_response) {
+    discord_api_request_t* request = dcapi_create_request(uri, payload);
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_GET, request, out_response);
+    discord_api_request_free(request);
+
+    return err;
+}
+
+esp_err_t dcapi_post(discord_handle_t client, char* uri, char* payload, discord_api_response_t** out_response) {
+    discord_api_request_t* request = dcapi_create_request(uri, payload);
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_POST, request, out_response);
+    discord_api_request_free(request);
+
+    return err;
+}
+
+esp_err_t dcapi_put(discord_handle_t client, char* uri, char* payload, discord_api_response_t** out_response) {
+    discord_api_request_t* request = dcapi_create_request(uri, payload);
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_PUT, request, out_response);
+    discord_api_request_free(request);
+
+    return err;
 }
 
 esp_err_t dcapi_destroy(discord_handle_t client) {

@@ -73,6 +73,7 @@ discord_member_t* discord_member_from_cjson(cJSON* root);
 cJSON* discord_member_to_cjson(discord_member_t* member);
 
 discord_attachment_t* discord_attachment_from_cjson(cJSON* root);
+cJSON* discord_attachment_to_cjson(discord_attachment_t* attachment);
 
 discord_guild_t* discord_guild_from_cjson(cJSON* root);
 cJSON* discord_guild_to_cjson(discord_guild_t* guild);
