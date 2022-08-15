@@ -338,6 +338,20 @@ static cJSON* discord_embed_author_to_cjson(discord_embed_author_t* author)
     return root;
 }
 
+static cJSON* discord_embed_field_to_cjson(discord_embed_field_t* field)
+{
+    if(!field)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(field->name) cJSON_AddItemToObject(root, "name", cJSON_CreateStringReference(field->name));
+    if(field->value) cJSON_AddItemToObject(root, "value", cJSON_CreateStringReference(field->value));
+    cJSON_AddBoolToObject(root, "inline", field->is_inline);
+
+    return root;
+}
+
 cJSON* discord_embed_to_cjson(discord_embed_t* embed)
 {
     if(!embed)
@@ -353,6 +367,16 @@ cJSON* discord_embed_to_cjson(discord_embed_t* embed)
     if(embed->image) cJSON_AddItemToObject(root, "image", discord_embed_image_to_cjson(embed->image));
     if(embed->thumbnail) cJSON_AddItemToObject(root, "thumbnail", discord_embed_image_to_cjson(embed->thumbnail));
     if(embed->author) cJSON_AddItemToObject(root, "author", discord_embed_author_to_cjson(embed->author));
+
+    if(embed->_fields_len > 0) {
+        cJSON* fields = cJSON_CreateArray();
+
+        for(uint8_t i = 0; i < embed->_fields_len; i++) {
+            cJSON_AddItemToArray(fields, discord_embed_field_to_cjson(embed->fields[i]));
+        }
+
+        cJSON_AddItemToObject(root, "fields", fields);
+    }
 
     return root;
 }
