@@ -157,6 +157,18 @@ esp_err_t discord_message_add_attachment(discord_message_t* message, discord_att
     return ESP_OK;
 }
 
+esp_err_t discord_message_add_embed(discord_message_t* message, discord_embed_t* embed)
+{
+    if(! message || ! embed) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    message->embeds = realloc(message->embeds, ++message->_embeds_len * sizeof(discord_embed_t*));
+    message->embeds[message->_embeds_len - 1] = embed;
+
+    return ESP_OK;
+}
+
 void discord_message_free(discord_message_t* message) {
     if(!message)
         return;
@@ -168,5 +180,6 @@ void discord_message_free(discord_message_t* message) {
     free(message->guild_id);
     discord_member_free(message->member);
     cu_list_freex(message->attachments, message->_attachments_len, discord_attachment_free);
+    cu_list_freex(message->embeds, message->_embeds_len, discord_embed_free);
     free(message);
 }

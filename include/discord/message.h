@@ -6,6 +6,7 @@
 #include "discord/member.h"
 #include "discord/message_reaction.h"
 #include "discord/attachment.h"
+#include "discord/embed.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +50,8 @@ typedef struct {
     discord_member_t* member;
     discord_attachment_t** attachments;
     uint8_t _attachments_len;
+    discord_embed_t** embeds;
+    uint8_t _embeds_len;
 } discord_message_t;
 
 typedef enum {
@@ -86,6 +89,7 @@ esp_err_t discord_message_react(discord_handle_t client, discord_message_t* mess
 esp_err_t discord_message_download_attachment(discord_handle_t client, discord_message_t* message, uint8_t attachment_index, discord_download_handler_t download_handler, void* arg);
 esp_err_t discord_message_word_parse(const char* word, discord_message_word_t** out_word);
 esp_err_t discord_message_add_attachment(discord_message_t* message, discord_attachment_t* attachment);
+esp_err_t discord_message_add_embed(discord_message_t* message, discord_embed_t* embed);
 void discord_message_free(discord_message_t* message);
 
 #ifdef __cplusplus

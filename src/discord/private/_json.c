@@ -299,6 +299,19 @@ cJSON* discord_attachment_to_cjson(discord_attachment_t* attachment) {
     return root;
 }
 
+cJSON* discord_embed_to_cjson(discord_embed_t* embed)
+{
+    if(!embed)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(embed->title) cJSON_AddItemToObject(root, "title", cJSON_CreateStringReference(embed->title));
+    if(embed->description) cJSON_AddItemToObject(root, "description", cJSON_CreateStringReference(embed->description));
+
+    return root;
+}
+
 discord_guild_t* discord_guild_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
@@ -488,6 +501,16 @@ cJSON* discord_message_to_cjson(discord_message_t* msg) {
         }
 
         cJSON_AddItemToObject(root, "attachments", attachments);
+    }
+
+    if(msg->_embeds_len > 0 && msg->embeds) {
+        cJSON* embeds = cJSON_CreateArray();
+
+        for(uint8_t i = 0; i < msg->_embeds_len; i++) {
+            cJSON_AddItemToArray(embeds, discord_embed_to_cjson(msg->embeds[i]));
+        }
+
+        cJSON_AddItemToObject(root, "embeds", embeds);
     }
 
     // todo: memchecks
