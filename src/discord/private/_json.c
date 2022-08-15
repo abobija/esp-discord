@@ -285,6 +285,20 @@ discord_attachment_t* discord_attachment_from_cjson(cJSON* root) {
     return attachment;
 }
 
+cJSON* discord_attachment_to_cjson(discord_attachment_t* attachment) {
+    if(!attachment)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(attachment->id) cJSON_AddItemToObject(root, "id", cJSON_CreateStringReference(attachment->id));
+    if(attachment->filename) cJSON_AddItemToObject(root, "filename", cJSON_CreateStringReference(attachment->filename));
+
+    // todo: memchecks
+
+    return root;
+}
+
 discord_guild_t* discord_guild_from_cjson(cJSON* root) {
     if(!root)
         return NULL;
@@ -465,6 +479,16 @@ cJSON* discord_message_to_cjson(discord_message_t* msg) {
     if(msg->author) cJSON_AddItemToObject(root, "author", discord_user_to_cjson(msg->author));
     if(msg->guild_id) cJSON_AddItemToObject(root, "guild_id", cJSON_CreateStringReference(msg->guild_id));
     if(msg->member) cJSON_AddItemToObject(root, "member", discord_member_to_cjson(msg->member));
+
+    if(msg->_attachments_len > 0 && msg->attachments) {
+        cJSON* attachments = cJSON_CreateArray();
+
+        for(uint8_t i = 0; i < msg->_attachments_len; i++) {
+            cJSON_AddItemToArray(attachments, discord_attachment_to_cjson(msg->attachments[i]));
+        }
+
+        cJSON_AddItemToObject(root, "attachments", attachments);
+    }
 
     // todo: memchecks
 

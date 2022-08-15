@@ -13,14 +13,26 @@ esp_err_t discord_message_send(discord_handle_t client, discord_message_t* messa
         return ESP_ERR_INVALID_ARG;
     }
 
-    discord_api_response_t* res = NULL;
-    
-    esp_err_t err = dcapi_post(
-        client,
+    discord_api_request_t* req = dcapi_create_request(
         estr_cat("/channels/", message->channel_id, "/messages"),
-        discord_json_serialize(message),
-        &res
+        discord_json_serialize(message)
     );
+
+    for(uint8_t i = 0; i < message->_attachments_len; i++) {
+        discord_attachment_t* a = message->attachments[i];
+
+        dcapi_add_multipart_to_request(cu_ctor(discord_api_multipart_t,
+            .name = estr_cat("files[", a->id, "]"),
+            .mime_type = strdup(a->content_type),
+            .filename = strdup(a->filename),
+            .data = (char*) a->_data,
+            .len = a->size,
+        ), req);
+    }
+
+    discord_api_response_t* res = NULL;
+    esp_err_t err = dcapi_request(client, HTTP_METHOD_POST, req, &res);
+    discord_api_request_free(req);
 
     if(err != ESP_OK) {
         return err;
@@ -121,6 +133,24 @@ esp_err_t discord_message_word_parse(const char* word, discord_message_word_t** 
 _return:
     *out_word = _word;
 	return ESP_OK;
+}
+
+esp_err_t discord_message_add_attachment(discord_message_t* message, discord_attachment_t* attachment)
+{
+    if(! message || ! attachment) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    message->attachments = realloc(message->attachments, ++message->_attachments_len * sizeof(discord_attachment_t*));
+    int index = message->_attachments_len - 1;
+
+    free(attachment->id);
+    int length = snprintf(NULL, 0, "%d", index);
+    attachment->id = malloc((length + 1) * sizeof(char));
+    snprintf(attachment->id, length + 1, "%d", index);
+
+    message->attachments[index] = attachment;
+    return ESP_OK;
 }
 
 void discord_message_free(discord_message_t* message) {

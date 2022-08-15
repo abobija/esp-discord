@@ -192,6 +192,7 @@ static int dcapi_calculate_request_length(discord_api_request_t* request)
     for(uint8_t i = 0; i < request->multiparts_len; i++) {
         discord_api_multipart_t* mpart = request->multiparts[i];
 
+        length += (i > 0 ? 1 : 0); // <\n>
         length += 2;  // <-->
         length += boundary_len;
         length += 39; // <\nContent-Disposition: form-data; name=">
@@ -288,6 +289,7 @@ esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method
             }
 
             char* boundary = estr_cat(
+                (i > 0 ? "\n" : ""),
                 "--" DCAPI_REQUEST_BOUNDARY
                 "\nContent-Disposition: form-data; name=\"", mpart->name, "\"",
                 (mpart->filename ? filename_piece : ""),
@@ -297,20 +299,29 @@ esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method
 
             free(filename_piece);
 
+            DISCORD_LOGD("%.*s", strlen(boundary), boundary);
             esp_http_client_write(http, boundary, strlen(boundary)); // TODO: check result
             free(boundary);
 
+            if(estr_eq(mpart->name, "payload_json")) {
+                DISCORD_LOGD("%.*s", mpart->len, mpart->data);
+            } else {
+                DISCORD_LOGD("Sending binary multipart data [size: %d]", mpart->len);
+            }
+
             esp_http_client_write(http, mpart->data, mpart->len); // TODO: check result
 
-            // Automatic payload freeing is optimization in order to free-up the memory for incoming response
+            // Automatic payload freeing is an optimization in order to free-up the memory for incoming response
             if(! request->disable_auto_payload_free && i == 0 && estr_eq(mpart->name, "payload_json")) {
-                DISCORD_LOGD("Freeing request payload");
+                DISCORD_LOGD("Freeing payload multipart data");
                 free(mpart->data);
+                mpart->data = NULL;
                 mpart->len = 0;
             }
         }
 
         const char* multipart_end = "\n--" DCAPI_REQUEST_BOUNDARY "--";
+        DISCORD_LOGD("%.*s", strlen(multipart_end), multipart_end);
         esp_http_client_write(http, multipart_end, strlen(multipart_end)); // TODO: check result
 
         //if(... == ESP_FAIL) {
@@ -437,7 +448,7 @@ esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_downl
     return ESP_OK;
 }
 
-static esp_err_t dcapi_add_multipart_to_request(discord_api_multipart_t* multipart, discord_api_request_t* request)
+esp_err_t dcapi_add_multipart_to_request(discord_api_multipart_t* multipart, discord_api_request_t* request)
 {
     request->multiparts = realloc(request->multiparts, ++request->multiparts_len * sizeof(discord_api_multipart_t*));
     request->multiparts[request->multiparts_len - 1] = multipart;
@@ -445,14 +456,26 @@ static esp_err_t dcapi_add_multipart_to_request(discord_api_multipart_t* multipa
     return ESP_OK;
 }
 
-static void discord_api_request_free(discord_api_request_t* request)
+static void discord_api_multipart_free(discord_api_multipart_t* multipart)
+{
+    if(!multipart)
+        return;
+    
+    free(multipart->name);
+    free(multipart->filename);
+    free(multipart->mime_type);
+    //free(multipart->data);
+    //multipart->len = 0;
+    free(multipart);
+}
+
+void discord_api_request_free(discord_api_request_t* request)
 {
     if(! request)
         return;
     
     free(request->uri);
-    // multipart members are static props for now and there is no need to free() them
-    cu_list_free(request->multiparts, request->multiparts_len);
+    cu_list_freex(request->multiparts, request->multiparts_len, discord_api_multipart_free);
     free(request);
 }
 
@@ -464,8 +487,8 @@ discord_api_request_t* dcapi_create_request(char* uri, char* payload)
 
     if(payload) {
         dcapi_add_multipart_to_request(cu_ctor(discord_api_multipart_t,
-            .name = "payload_json",
-            .mime_type = "application/json",
+            .name = strdup("payload_json"),
+            .mime_type = strdup("application/json"),
             .data = payload,
             .len = strlen(payload),
         ), request);

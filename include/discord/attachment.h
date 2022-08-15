@@ -13,6 +13,7 @@ typedef struct {
     char* content_type;
     size_t size;
     char* url;
+    uint8_t* _data;
 } discord_attachment_t;
 
 #define discord_attachment_dump_log(LOG_FOO, TAG, attachment) \

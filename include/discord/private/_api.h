@@ -22,9 +22,9 @@ extern "C" {
 typedef struct {
     char* data;
     int len;
-    const char* name;
-    const char* filename;
-    const char* mime_type;
+    char* name;
+    char* filename;
+    char* mime_type;
 } discord_api_multipart_t;
 
 typedef struct {
@@ -46,6 +46,8 @@ esp_err_t dcapi_response_to_esp_err(discord_api_response_t* res);
 esp_err_t dcapi_response_free(discord_handle_t client, discord_api_response_t* res);
 esp_err_t dcapi_request(discord_handle_t client, esp_http_client_method_t method, discord_api_request_t* request, discord_api_response_t** out_response);
 esp_err_t dcapi_download(discord_handle_t client, const char* url, discord_download_handler_t download_handler, discord_api_response_t** out_response, void* arg);
+esp_err_t dcapi_add_multipart_to_request(discord_api_multipart_t* multipart, discord_api_request_t* request);
+void discord_api_request_free(discord_api_request_t* request);
 /**
  * @brief Helper function for creating new request.
  *        Function will automatically add payload as multipart of request
