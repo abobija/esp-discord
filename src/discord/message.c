@@ -13,7 +13,7 @@ static discord_api_multipart_t* discord_message_create_multipart_from_attachment
         .name                  = estr_cat("files[", attachment->id, "]"),
         .mime_type             = strdup(attachment->content_type),
         .filename              = strdup(attachment->filename),
-        .data                  = (char*) attachment->_data,
+        .data                  = attachment->_data,
         .len                   = attachment->size,
         .data_should_be_freed  = attachment->_data_should_be_freed,
     );
