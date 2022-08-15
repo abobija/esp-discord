@@ -6,5 +6,6 @@ void discord_embed_free(discord_embed_t* embed) {
 
     free(embed->title);
     free(embed->description);
+    free(embed->url);
     free(embed);
 }
