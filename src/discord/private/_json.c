@@ -312,6 +312,18 @@ static cJSON* discord_embed_footer_to_cjson(discord_embed_footer_t* footer)
     return root;
 }
 
+static cJSON* discord_embed_image_to_cjson(discord_embed_image_t* image)
+{
+    if(!image)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(image->url) cJSON_AddItemToObject(root, "url", cJSON_CreateStringReference(image->url));
+
+    return root;
+}
+
 cJSON* discord_embed_to_cjson(discord_embed_t* embed)
 {
     if(!embed)
@@ -324,6 +336,8 @@ cJSON* discord_embed_to_cjson(discord_embed_t* embed)
     if(embed->url) cJSON_AddItemToObject(root, "url", cJSON_CreateStringReference(embed->url));
     cJSON_AddNumberToObject(root, "color", embed->color);
     if(embed->footer) cJSON_AddItemToObject(root, "footer", discord_embed_footer_to_cjson(embed->footer));
+    if(embed->image) cJSON_AddItemToObject(root, "image", discord_embed_image_to_cjson(embed->image));
+    if(embed->thumbnail) cJSON_AddItemToObject(root, "thumbnail", discord_embed_image_to_cjson(embed->thumbnail));
 
     return root;
 }
