@@ -309,6 +309,7 @@ cJSON* discord_embed_to_cjson(discord_embed_t* embed)
     if(embed->title) cJSON_AddItemToObject(root, "title", cJSON_CreateStringReference(embed->title));
     if(embed->description) cJSON_AddItemToObject(root, "description", cJSON_CreateStringReference(embed->description));
     if(embed->url) cJSON_AddItemToObject(root, "url", cJSON_CreateStringReference(embed->url));
+    cJSON_AddNumberToObject(root, "color", embed->color);
 
     return root;
 }
