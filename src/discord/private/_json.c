@@ -299,6 +299,19 @@ cJSON* discord_attachment_to_cjson(discord_attachment_t* attachment) {
     return root;
 }
 
+static cJSON* discord_embed_footer_to_cjson(discord_embed_footer_t* footer)
+{
+    if(!footer)
+        return NULL;
+    
+    cJSON* root = cJSON_CreateObject();
+
+    if(footer->text) cJSON_AddItemToObject(root, "text", cJSON_CreateStringReference(footer->text));
+    if(footer->icon_url) cJSON_AddItemToObject(root, "icon_url", cJSON_CreateStringReference(footer->icon_url));
+
+    return root;
+}
+
 cJSON* discord_embed_to_cjson(discord_embed_t* embed)
 {
     if(!embed)
@@ -310,6 +323,7 @@ cJSON* discord_embed_to_cjson(discord_embed_t* embed)
     if(embed->description) cJSON_AddItemToObject(root, "description", cJSON_CreateStringReference(embed->description));
     if(embed->url) cJSON_AddItemToObject(root, "url", cJSON_CreateStringReference(embed->url));
     cJSON_AddNumberToObject(root, "color", embed->color);
+    if(embed->footer) cJSON_AddItemToObject(root, "footer", discord_embed_footer_to_cjson(embed->footer));
 
     return root;
 }
