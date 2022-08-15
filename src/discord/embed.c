@@ -65,13 +65,11 @@ void discord_embed_free(discord_embed_t* embed)
     discord_embed_image_free(embed->image);
     discord_embed_author_free(embed->author);
 
-    if(embed->_fields_len > 0 && embed->fields) {
-        for(uint8_t i = 0; i < embed->_fields_len; i++) {
-            discord_embed_field_free(embed->fields[i]);
-        }
-
-        embed->_fields_len = 0;
+    for(uint8_t i = 0; i < embed->_fields_len; i++) {
+        discord_embed_field_free(embed->fields[i]);
     }
+
+    embed->_fields_len = 0;
 
     free(embed);
 }
