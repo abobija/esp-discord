@@ -8,10 +8,11 @@ extern "C" {
 #include "discord.h"
 #include "discord/channel.h"
 
-typedef struct {
-    char* id;
-    char* name;
-    char* permissions;
+typedef struct
+{
+    char *id;
+    char *name;
+    char *permissions;
 } discord_guild_t;
 
 /**
@@ -22,8 +23,9 @@ typedef struct {
  * @param out_length Pointer to variable where the lenght of the channels array will be stored
  * @return ESP_OK on success
  */
-esp_err_t discord_guild_get_channels(discord_handle_t client, discord_guild_t* guild, discord_channel_t*** out_channels, int* out_length);
-void discord_guild_free(discord_guild_t* guild);
+esp_err_t discord_guild_get_channels(
+    discord_handle_t client, discord_guild_t *guild, discord_channel_t ***out_channels, int *out_length);
+void discord_guild_free(discord_guild_t *guild);
 
 #ifdef __cplusplus
 }
