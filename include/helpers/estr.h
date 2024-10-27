@@ -10,11 +10,12 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-#define CU_ERR_ESTR_BASE                    (-1000)
-#define CU_ERR_ESTR_INVALID_WHITESPACE      (CU_ERR_ESTR_BASE - 1)
-#define CU_ERR_ESTR_INVALID_OUT_OF_BOUNDS   (CU_ERR_ESTR_BASE - 2)
+#define CU_ERR_ESTR_BASE                  (-1000)
+#define CU_ERR_ESTR_INVALID_WHITESPACE    (CU_ERR_ESTR_BASE - 1)
+#define CU_ERR_ESTR_INVALID_OUT_OF_BOUNDS (CU_ERR_ESTR_BASE - 2)
 
-typedef struct {
+typedef struct
+{
     bool length;
     unsigned int minlen;
     unsigned int maxlen;
@@ -34,7 +35,7 @@ typedef struct {
  * @param str2 Second string
  * @return true if first and second strings are equal
  */
-bool estr_eq(const char* str1, const char* str2);
+bool estr_eq(const char *str1, const char *str2);
 
 /**
  * @brief Check if two strings are equal
@@ -43,7 +44,7 @@ bool estr_eq(const char* str1, const char* str2);
  * @param n Number of character that needs to be tested
  * @return true if first and second strings are equal
  */
-bool estrn_eq(const char* str1, const char* str2, size_t n);
+bool estrn_eq(const char *str1, const char *str2, size_t n);
 
 /**
  * @brief Check if one string starts with another
@@ -52,7 +53,7 @@ bool estrn_eq(const char* str1, const char* str2, size_t n);
  * @return true if first string starts with second one.
  *         In special cases when second or both strings are empty, function will return false
  */
-bool estr_sw(const char* str1, const char* str2);
+bool estr_sw(const char *str1, const char *str2);
 
 /**
  * @brief Check if string starts with character
@@ -61,7 +62,7 @@ bool estr_sw(const char* str1, const char* str2);
  * @return true if string starts with character
  *         In special case when string is empty, function will return false
  */
-bool estr_sw_chr(const char* str, char chr);
+bool estr_sw_chr(const char *str, char chr);
 
 /**
  * @brief Check if one string ends with another
@@ -70,7 +71,7 @@ bool estr_sw_chr(const char* str, char chr);
  * @return true if first string ends with second one.
  *         In special cases when second or both strings are empty, function will return false
  */
-bool estr_ew(const char* str1, const char* str2);
+bool estr_ew(const char *str1, const char *str2);
 
 /**
  * @brief Check if string ends with character
@@ -79,7 +80,7 @@ bool estr_ew(const char* str1, const char* str2);
  * @return true if string ends with character
  *         In special case when string is empty, function will return false
  */
-bool estr_ew_chr(const char* str, char chr);
+bool estr_ew_chr(const char *str, char chr);
 
 /**
  * @brief Check if all characters in string are digits
@@ -87,7 +88,7 @@ bool estr_ew_chr(const char* str, char chr);
  * @param n Number of characters that needs to be tested
  * @return true if all characters are digits
  */
-bool estrn_is_digit_only(const char* str, size_t n);
+bool estrn_is_digit_only(const char *str, size_t n);
 
 /**
  * @brief Count number of occurences of character in string
@@ -96,7 +97,7 @@ bool estrn_is_digit_only(const char* str, size_t n);
  * @param n Number of string characters that needs to be tested
  * @return Number of character occurences
  */
-size_t estrn_chrcnt(const char* str, char chr, size_t n);
+size_t estrn_chrcnt(const char *str, char chr, size_t n);
 
 /**
  * @brief Split string using character. Resulting list needs to be freed (cu_list_free can be used)
@@ -105,12 +106,12 @@ size_t estrn_chrcnt(const char* str, char chr, size_t n);
  * @param out_len Pointer to outer variable in which be stored length of resulting list
  * @return List of strings after splitting
  */
-char** estr_split(const char* str, const char chr, size_t* out_len);
+char **estr_split(const char *str, const char chr, size_t *out_len);
 
 /**
  * @brief Don't use this function. Use estr_cat macro instead.
  */
-char* _estr_cat(const char* str, ...);
+char *_estr_cat(const char *str, ...);
 
 /**
  * @brief Http url string encoding.
@@ -118,7 +119,7 @@ char* _estr_cat(const char* str, ...);
  * @param str String which needs to be encoded
  * @return Pointer to encoded string
  */
-char* estr_url_encode(const char* str);
+char *estr_url_encode(const char *str);
 
 /**
  * @brief Replace string with another string. Result needs to be freed
@@ -127,7 +128,7 @@ char* estr_url_encode(const char* str);
  * @param with Replacement for rep
  * @return Pointer to result or NULL on failure
  */
-char* estr_rep(const char* orig, const char* rep, const char* with);
+char *estr_rep(const char *orig, const char *rep, const char *with);
 
 /**
  * @brief Checks if character is alphanumeric
@@ -149,7 +150,7 @@ bool estr_chr_is_ws(char chr);
  * @return true if string is trimmed.
  *         If special case when string is null, false will be returned.
  */
-bool estr_is_trimmed(const char* str);
+bool estr_is_trimmed(const char *str);
 
 /**
  * @brief Checks if string contains unescaped character
@@ -158,14 +159,14 @@ bool estr_is_trimmed(const char* str);
  * @return true if string contains unescaped character.
  *         In special case when string is null, false will be returned
  */
-bool estr_contains_unescaped_chr(const char* str, char chr);
+bool estr_contains_unescaped_chr(const char *str, char chr);
 
 /**
  * @brief Checks if string is empty (string is empty if it contains only whitespace chars or his length is zero)
  * @param str String
  * @return true if string is empty (or NULL)
  */
-bool estr_is_empty_ws(const char* str);
+bool estr_is_empty_ws(const char *str);
 
 /**
  * @brief Make string by repeating character multiple times.
@@ -174,7 +175,7 @@ bool estr_is_empty_ws(const char* str);
  * @param times How much time chr needs to be repeated
  * @return pointer to allocated null-terminated string, or NULL on failure (no memory) or if times == 0
  */
-char* estr_repeat_chr(char chr, unsigned int times);
+char *estr_repeat_chr(char chr, unsigned int times);
 
 /**
  * @brief Check if string contains whitespace
@@ -182,7 +183,7 @@ char* estr_repeat_chr(char chr, unsigned int times);
  * @return true if string contains whitespace, otherwise false.
  *         If str is NULL, false will be returned.
  */
-bool estr_contains_ws(const char* str);
+bool estr_contains_ws(const char *str);
 
 /**
  * @brief Validate string by schema
@@ -190,7 +191,7 @@ bool estr_contains_ws(const char* str);
  * @param validation Validation schema
  * @return CU_OK if string is valid
  */
-cu_err_t estr_validate(const char* str, estr_validation_t* validation);
+cu_err_t estr_validate(const char *str, estr_validation_t *validation);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 # esp-discord
 
-[![Component Registry](https://img.shields.io/github/v/release/abobija/esp-discord?sort=date&display_name=release&style=for-the-badge&logo=espressif&logoColor=white&label=Latest%20version)](https://components.espressif.com/components/abobija/esp-discord)
+![CI](https://img.shields.io/github/actions/workflow/status/abobija/esp-discord/validate.yaml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white) [![Component Registry](https://img.shields.io/github/v/release/abobija/esp-discord?sort=date&display_name=release&style=for-the-badge&logo=espressif&logoColor=white&label=Latest%20version)](https://components.espressif.com/components/abobija/esp-discord)
 
 ```
    __    ___  _ _                         

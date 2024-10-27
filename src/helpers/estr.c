@@ -4,76 +4,84 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-bool estr_eq(const char* str1, const char* str2) {
-    if(!str1 || !str2)
+bool estr_eq(const char *str1, const char *str2)
+{
+    if (!str1 || !str2)
         return false;
-    
+
     return strcmp(str1, str2) == 0;
 }
 
-bool estrn_eq(const char* str1, const char* str2, size_t n) {
-    if(!str1 || !str2)
+bool estrn_eq(const char *str1, const char *str2, size_t n)
+{
+    if (!str1 || !str2)
         return false;
-    
+
     return strncmp(str1, str2, n) == 0;
 }
 
-bool estr_sw(const char* str1, const char* str2) {
-    if(!str1 || !str2) {
+bool estr_sw(const char *str1, const char *str2)
+{
+    if (!str1 || !str2) {
         return false;
     }
 
     size_t i = 0;
-    for(; str2[i] && str1[i] && str2[i] == str1[i]; i++);
-    
+    for (; str2[i] && str1[i] && str2[i] == str1[i]; i++)
+        ;
+
     return i > 0 && !str2[i];
 }
 
-bool estr_sw_chr(const char* str, char chr) {
+bool estr_sw_chr(const char *str, char chr)
+{
     return !str ? false : str[0] == chr;
 }
 
-bool estr_ew(const char* str1, const char* str2) {
-	if(!str1 || !str2)
-		return false;
-	
-	size_t len1 = strlen(str1);
+bool estr_ew(const char *str1, const char *str2)
+{
+    if (!str1 || !str2)
+        return false;
 
-	if(len1 == 0)
-		return false;
+    size_t len1 = strlen(str1);
+
+    if (len1 == 0)
+        return false;
 
     size_t len2 = strlen(str2);
-    
-	if(len2 > len1 || len2 == 0) // str2 is bigger or empty
-		return false;
-	
+
+    if (len2 > len1 || len2 == 0) // str2 is bigger or empty
+        return false;
+
     size_t diff = len1 - len2;
 
-    if(diff == 0) {
+    if (diff == 0) {
         return estr_eq(str1, str2);
     }
-    
-	for(size_t i = len2, j = len1; i > 0; i--, j--) {
-        if(str2[i - 1] != str1[j - 1]) {
+
+    for (size_t i = len2, j = len1; i > 0; i--, j--) {
+        if (str2[i - 1] != str1[j - 1]) {
             return false;
         }
     }
 
-	return true;
+    return true;
 }
 
-bool estr_ew_chr(const char* str, char chr) {
+bool estr_ew_chr(const char *str, char chr)
+{
     return !str ? false : str[strlen(str) - 1] == chr;
 }
 
-bool estrn_is_digit_only(const char* str, size_t n) {
-    if(!str)
+bool estrn_is_digit_only(const char *str, size_t n)
+{
+    if (!str)
         return false;
 
     size_t len = strlen(str);
     size_t limit = n <= len ? n : len;
 
-    for(size_t i = 0; i < limit; i++) {
+    for (size_t i = 0; i < limit; i++) {
         if (str[i] < '0' || str[i] > '9')
             return false;
     }
@@ -81,68 +89,81 @@ bool estrn_is_digit_only(const char* str, size_t n) {
     return true;
 }
 
-size_t estrn_chrcnt(const char* str, char chr, size_t n) {
-    if(!str) {
+size_t estrn_chrcnt(const char *str, char chr, size_t n)
+{
+    if (!str) {
         return 0;
     }
-    
-	size_t cnt = 0;
+
+    size_t cnt = 0;
     size_t len = strlen(str);
     size_t limit = n <= len ? n : len;
 
-	for(size_t i = 0; i < limit; i++) {
-		if(str[i] == chr)
-			cnt++;
-	}
+    for (size_t i = 0; i < limit; i++) {
+        if (str[i] == chr)
+            cnt++;
+    }
 
-	return cnt;
+    return cnt;
 }
 
-char** estr_split(const char* str, const char chr, size_t* out_len) {
-    if(!str || !out_len)
+char **estr_split(const char *str, const char chr, size_t *out_len)
+{
+    if (!str || !out_len)
         return NULL;
 
-    char* ptr = (char*) str;
+    char *ptr = (char *)str;
     char prev = '\0';
     size_t len = 0;
 
-    while(*ptr) {
-        if(prev && ((*ptr == chr && prev != chr) || (!*(ptr + 1) && *ptr != chr))) len++;
+    while (*ptr) {
+        if (prev && ((*ptr == chr && prev != chr) || (!*(ptr + 1) && *ptr != chr)))
+            len++;
         prev = *ptr;
         ptr++;
     }
 
-    char** result = NULL;
+    char **result = NULL;
 
-    if((*out_len = len) <= 0) {
-        if(!*str || *str == chr)
+    if ((*out_len = len) <= 0) {
+        if (!*str || *str == chr)
             return NULL;
-        
-        result = calloc(*out_len = 1, sizeof(char*));
-        if(!result) { *out_len = 0; return NULL; }
+
+        result = calloc(*out_len = 1, sizeof(char *));
+        if (!result) {
+            *out_len = 0;
+            return NULL;
+        }
         result[0] = strdup(str);
-        if(!result[0]) { *out_len = 0; free(result); return NULL; }
+        if (!result[0]) {
+            *out_len = 0;
+            free(result);
+            return NULL;
+        }
         return result;
     }
 
-    result = calloc(len, sizeof(char*));
-    if(!result) { *out_len = 0; return NULL; }
+    result = calloc(len, sizeof(char *));
+    if (!result) {
+        *out_len = 0;
+        return NULL;
+    }
 
-    char* start = (char*) str;
+    char *start = (char *)str;
     ptr = start;
     prev = '\0';
     size_t i = 0;
-    
-    while(*ptr) {
-        if(*ptr != chr && prev == chr)
+
+    while (*ptr) {
+        if (*ptr != chr && prev == chr)
             start = ptr;
-        
+
         bool offset_one = !*(ptr + 1) && *ptr != chr;
 
-        if(prev && ((*ptr == chr && prev != chr) || offset_one)) {
+        if (prev && ((*ptr == chr && prev != chr) || offset_one)) {
             size_t piece_len = (offset_one ? ptr + 1 : ptr) - start;
             result[i] = malloc(piece_len + 1);
-            if(!result[i]) {
+            if (!result[i]) {
                 size_t _tmp = i + 1;
                 cu_list_tfree(result, size_t, _tmp);
                 *out_len = 0;
@@ -160,28 +181,29 @@ char** estr_split(const char* str, const char chr, size_t* out_len) {
     return result;
 }
 
-char* _estr_cat(const char* str, ...) {
-    const char* first = str;
+char *_estr_cat(const char *str, ...)
+{
+    const char *first = str;
     size_t length = 0;
     va_list count;
     va_list copy;
 
     va_start(count, str);
     va_copy(copy, count);
-    while(str) {
+    while (str) {
         length += strlen(str);
-        str = va_arg(count, const char*);
+        str = va_arg(count, const char *);
     }
     va_end(count);
 
-    if(length <= 0) {
+    if (length <= 0) {
         va_end(copy);
         return NULL;
     }
-    
-    char* res = malloc(length + 1);
 
-    if(!res) {
+    char *res = malloc(length + 1);
+
+    if (!res) {
         va_end(copy);
         return NULL;
     }
@@ -189,37 +211,44 @@ char* _estr_cat(const char* str, ...) {
     size_t offset = 0;
     str = first;
 
-    while(str) {
+    while (str) {
         size_t _len = strlen(str);
 
-        if(_len > 0) {
+        if (_len > 0) {
             memcpy(res + offset, str, _len);
             offset += _len;
         }
 
-        str = va_arg(copy, const char*);
+        str = va_arg(copy, const char *);
     }
     va_end(copy);
-    
+
     res[length] = '\0';
 
     return res;
 }
 
-char* estr_url_encode(const char* str) {
-    if(!str) { return NULL; }
+char *estr_url_encode(const char *str)
+{
+    if (!str) {
+        return NULL;
+    }
     static char hex[] = "0123456789abcdef";
     size_t _len = strlen(str);
-    char* buf = malloc(_len * 3 + 1); // optimize?
-    if(!buf) { return NULL; }
-    char* pbuf = buf;
+    char *buf = malloc(_len * 3 + 1); // optimize?
+    if (!buf) {
+        return NULL;
+    }
+    char *pbuf = buf;
 
-    for(size_t i = 0; i < _len; i++) {
+    for (size_t i = 0; i < _len; i++) {
         if (estr_is_alnum(str[i]) || strchr(".-_~", str[i])) {
             *pbuf++ = str[i];
-        } else if (str[i] == ' ') {
+        }
+        else if (str[i] == ' ') {
             *pbuf++ = '+';
-        } else {
+        }
+        else {
             *pbuf++ = '%';
             *pbuf++ = hex[(str[i] >> 4) & 15];
             *pbuf++ = hex[str[i] & 15];
@@ -231,13 +260,14 @@ char* estr_url_encode(const char* str) {
     return buf;
 }
 
-char* estr_rep(const char *orig, const char *rep, const char *with) {
+char *estr_rep(const char *orig, const char *rep, const char *with)
+{
     // Taken from: https://stackoverflow.com/a/779960
     // It's a little bit modified
 
     if (!orig || !rep || !with)
         return NULL;
-    
+
     char *result;  // the return string
     char *ins;     // the next insert point
     char *tmp;     // varies
@@ -245,15 +275,15 @@ char* estr_rep(const char *orig, const char *rep, const char *with) {
     int len_with;  // length of with (the string to replace rep with)
     int len_front; // distance between rep and end of last rep
     int count;     // number of replacements
-    
+
     len_rep = strlen(rep);
     if (len_rep == 0)
         return NULL; // empty rep causes infinite loop during count
-    
+
     len_with = strlen(with);
 
     // count the number of replacements needed
-    ins = (char*) orig;
+    ins = (char *)orig;
     for (count = 0; (tmp = strstr(ins, rep)); ++count) {
         ins = tmp + len_rep;
     }
@@ -279,34 +309,32 @@ char* estr_rep(const char *orig, const char *rep, const char *with) {
     return result;
 }
 
-bool estr_is_alnum(char chr) {
+bool estr_is_alnum(char chr)
+{
     return isalnum(chr);
 }
 
-bool estr_chr_is_ws(char chr) {
-    return chr == ' '||
-        chr == '\t' ||
-        chr == '\r' ||
-        chr == '\n' ||
-        chr == '\v' ||
-        chr == '\f';
+bool estr_chr_is_ws(char chr)
+{
+    return chr == ' ' || chr == '\t' || chr == '\r' || chr == '\n' || chr == '\v' || chr == '\f';
 }
 
-bool estr_is_trimmed(const char* str) {
-    return !str ? false :
-        (!estr_chr_is_ws(str[0]) && !estr_chr_is_ws(str[strlen(str) - 1]));
+bool estr_is_trimmed(const char *str)
+{
+    return !str ? false : (!estr_chr_is_ws(str[0]) && !estr_chr_is_ws(str[strlen(str) - 1]));
 }
 
-bool estr_contains_unescaped_chr(const char* str, char chr) {
-    if(!str) {
+bool estr_contains_unescaped_chr(const char *str, char chr)
+{
+    if (!str) {
         return false;
     }
 
-    char* curr = (char*) str;
-    char* prev = NULL;
+    char *curr = (char *)str;
+    char *prev = NULL;
 
-    while(*curr) {
-        if(*curr == chr && (!prev || *prev != '\\')) {
+    while (*curr) {
+        if (*curr == chr && (!prev || *prev != '\\')) {
             return true;
         }
 
@@ -316,15 +344,16 @@ bool estr_contains_unescaped_chr(const char* str, char chr) {
     return false;
 }
 
-bool estr_is_empty_ws(const char* str) {
-    if(! str) {
+bool estr_is_empty_ws(const char *str)
+{
+    if (!str) {
         return true;
     }
 
-    char* ptr = (char*) str;
+    char *ptr = (char *)str;
 
-    while(*ptr) {
-        if(!estr_chr_is_ws(*ptr++)) {
+    while (*ptr) {
+        if (!estr_chr_is_ws(*ptr++)) {
             return false;
         }
     }
@@ -332,18 +361,19 @@ bool estr_is_empty_ws(const char* str) {
     return true;
 }
 
-char* estr_repeat_chr(char chr, unsigned int times) {
-    if(times == 0) {
+char *estr_repeat_chr(char chr, unsigned int times)
+{
+    if (times == 0) {
         return NULL;
     }
 
-    char* str = malloc(times + 1);
+    char *str = malloc(times + 1);
 
-    if(!str) {
+    if (!str) {
         return NULL;
     }
 
-    for(unsigned int i = 0; i < times; i++) {
+    for (unsigned int i = 0; i < times; i++) {
         str[i] = chr;
     }
 
@@ -352,15 +382,16 @@ char* estr_repeat_chr(char chr, unsigned int times) {
     return str;
 }
 
-bool estr_contains_ws(const char* str) {
-    if(!str) {
+bool estr_contains_ws(const char *str)
+{
+    if (!str) {
         return false;
     }
 
-    char* ptr = (char*) str;
+    char *ptr = (char *)str;
 
-    while(*ptr) {
-        if(estr_chr_is_ws(*ptr++)) {
+    while (*ptr) {
+        if (estr_chr_is_ws(*ptr++)) {
             return true;
         }
     }
@@ -368,23 +399,24 @@ bool estr_contains_ws(const char* str) {
     return false;
 }
 
-cu_err_t estr_validate(const char* str, estr_validation_t* validation) {
-    if(!str || !validation) {
+cu_err_t estr_validate(const char *str, estr_validation_t *validation)
+{
+    if (!str || !validation) {
         return CU_ERR_INVALID_ARG;
     }
 
-    if(validation->no_whitespace && estr_contains_ws(str)) {
+    if (validation->no_whitespace && estr_contains_ws(str)) {
         return CU_ERR_ESTR_INVALID_WHITESPACE;
     }
 
-    if(validation->length) {
+    if (validation->length) {
         unsigned int len = strlen(str);
 
-        if(validation->minlen > 0 && validation->maxlen == 0) {
+        if (validation->minlen > 0 && validation->maxlen == 0) {
             validation->maxlen = validation->minlen;
         }
 
-        if(len < validation->minlen || len > validation->maxlen) {
+        if (len < validation->minlen || len > validation->maxlen) {
             return CU_ERR_ESTR_INVALID_OUT_OF_BOUNDS;
         }
     }

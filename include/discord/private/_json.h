@@ -18,82 +18,100 @@
 extern "C" {
 #endif
 
-#define discord_json_serialize_(obj, to_cjson_fnc) \
-    ({ cJSON* cjson = to_cjson_fnc(obj); char* json = cJSON_PrintUnformatted(cjson); cJSON_Delete(cjson); json; })
-
-#define discord_json_serialize(obj) discord_json_serialize_(obj, discord_ ##obj ##_to_cjson)
-
-#define discord_json_deserialize(type, from_cjson_fnc, json, length) ({ \
-        type* obj = NULL; \
-        cJSON* cjson = cJSON_ParseWithLength(json, length); \
-        if(cjson) { obj = from_cjson_fnc(cjson); cJSON_Delete(cjson); } \
-        else { DISCORD_LOGW("JSON parsing (syntax?) error"); } \
-        obj; \
+#define discord_json_serialize_(obj, to_cjson_fnc)                                                                     \
+    ({                                                                                                                 \
+        cJSON *cjson = to_cjson_fnc(obj);                                                                              \
+        char *json = cJSON_PrintUnformatted(cjson);                                                                    \
+        cJSON_Delete(cjson);                                                                                           \
+        json;                                                                                                          \
     })
 
-#define discord_json_deserialize_(obj_name, json, length) \
-    discord_json_deserialize(discord_ ##obj_name ##_t, discord_ ##obj_name ##_from_cjson, json, length)
+#define discord_json_serialize(obj) discord_json_serialize_(obj, discord_##obj##_to_cjson)
 
-#define discord_json_list_deserialize(type, from_cjson_fnc, json, length, out_length) ({ \
-        cJSON* cjson = cJSON_ParseWithLength(json, length); \
-        type** list = NULL; \
-        if(!cjson) { DISCORD_LOGW("JSON parsing (syntax?) error"); } \
-        else if(cJSON_IsArray(cjson)) { \
-            int _len = cJSON_GetArraySize(cjson); \
-            list = calloc(_len, sizeof(type*)); \
-            if(list) { \
-                for(int i = 0; i < _len; i++) { list[i] = from_cjson_fnc(cJSON_GetArrayItem(cjson, i)); } \
-                if((out_length)) { *(out_length) = _len; } \
-            } \
-        } \
-        cJSON_Delete(cjson); \
-        list; \
+#define discord_json_deserialize(type, from_cjson_fnc, json, length)                                                   \
+    ({                                                                                                                 \
+        type *obj = NULL;                                                                                              \
+        cJSON *cjson = cJSON_ParseWithLength(json, length);                                                            \
+        if (cjson) {                                                                                                   \
+            obj = from_cjson_fnc(cjson);                                                                               \
+            cJSON_Delete(cjson);                                                                                       \
+        }                                                                                                              \
+        else {                                                                                                         \
+            DISCORD_LOGW("JSON parsing (syntax?) error");                                                              \
+        }                                                                                                              \
+        obj;                                                                                                           \
     })
 
-#define discord_json_list_deserialize_(obj_name, json, length, out_length) \
-    discord_json_list_deserialize(discord_ ##obj_name ##_t, discord_ ##obj_name ##_from_cjson, json, length, out_length)
+#define discord_json_deserialize_(obj_name, json, length)                                                              \
+    discord_json_deserialize(discord_##obj_name##_t, discord_##obj_name##_from_cjson, json, length)
 
-cJSON* discord_payload_to_cjson(discord_payload_t* payload);
-discord_payload_t* discord_payload_from_cjson(cJSON* cjson);
+#define discord_json_list_deserialize(type, from_cjson_fnc, json, length, out_length)                                  \
+    ({                                                                                                                 \
+        cJSON *cjson = cJSON_ParseWithLength(json, length);                                                            \
+        type **list = NULL;                                                                                            \
+        if (!cjson) {                                                                                                  \
+            DISCORD_LOGW("JSON parsing (syntax?) error");                                                              \
+        }                                                                                                              \
+        else if (cJSON_IsArray(cjson)) {                                                                               \
+            int _len = cJSON_GetArraySize(cjson);                                                                      \
+            list = calloc(_len, sizeof(type *));                                                                       \
+            if (list) {                                                                                                \
+                for (int i = 0; i < _len; i++) {                                                                       \
+                    list[i] = from_cjson_fnc(cJSON_GetArrayItem(cjson, i));                                            \
+                }                                                                                                      \
+                if ((out_length)) {                                                                                    \
+                    *(out_length) = _len;                                                                              \
+                }                                                                                                      \
+            }                                                                                                          \
+        }                                                                                                              \
+        cJSON_Delete(cjson);                                                                                           \
+        list;                                                                                                          \
+    })
 
-discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e, cJSON* cjson);
+#define discord_json_list_deserialize_(obj_name, json, length, out_length)                                             \
+    discord_json_list_deserialize(discord_##obj_name##_t, discord_##obj_name##_from_cjson, json, length, out_length)
 
-cJSON* discord_heartbeat_to_cjson(discord_heartbeat_t* heartbeat);
+cJSON *discord_payload_to_cjson(discord_payload_t *payload);
+discord_payload_t *discord_payload_from_cjson(cJSON *cjson);
 
-cJSON* discord_identify_properties_to_cjson(discord_identify_properties_t* properties);
+discord_payload_data_t discord_dispatch_event_data_from_cjson(discord_event_t e, cJSON *cjson);
 
-cJSON* discord_identify_to_cjson(discord_identify_t* identify);
+cJSON *discord_heartbeat_to_cjson(discord_heartbeat_t *heartbeat);
 
-discord_session_t* discord_session_from_cjson(cJSON* root);
+cJSON *discord_identify_properties_to_cjson(discord_identify_properties_t *properties);
 
-discord_user_t* discord_user_from_cjson(cJSON* root);
-cJSON* discord_user_to_cjson(discord_user_t* user);
+cJSON *discord_identify_to_cjson(discord_identify_t *identify);
 
-discord_member_t* discord_member_from_cjson(cJSON* root);
-cJSON* discord_member_to_cjson(discord_member_t* member);
+discord_session_t *discord_session_from_cjson(cJSON *root);
 
-discord_attachment_t* discord_attachment_from_cjson(cJSON* root);
-cJSON* discord_attachment_to_cjson(discord_attachment_t* attachment);
+discord_user_t *discord_user_from_cjson(cJSON *root);
+cJSON *discord_user_to_cjson(discord_user_t *user);
 
-cJSON* discord_embed_to_cjson(discord_embed_t* embed);
+discord_member_t *discord_member_from_cjson(cJSON *root);
+cJSON *discord_member_to_cjson(discord_member_t *member);
 
-discord_guild_t* discord_guild_from_cjson(cJSON* root);
-cJSON* discord_guild_to_cjson(discord_guild_t* guild);
+discord_attachment_t *discord_attachment_from_cjson(cJSON *root);
+cJSON *discord_attachment_to_cjson(discord_attachment_t *attachment);
 
-discord_channel_t* discord_channel_from_cjson(cJSON* root);
-cJSON* discord_channel_to_cjson(discord_channel_t* channel);
+cJSON *discord_embed_to_cjson(discord_embed_t *embed);
 
-discord_role_t* discord_role_from_cjson(cJSON* root);
-cJSON* discord_role_to_cjson(discord_role_t* role);
+discord_guild_t *discord_guild_from_cjson(cJSON *root);
+cJSON *discord_guild_to_cjson(discord_guild_t *guild);
 
-discord_message_t* discord_message_from_cjson(cJSON* root);
-cJSON* discord_message_to_cjson(discord_message_t* msg);
+discord_channel_t *discord_channel_from_cjson(cJSON *root);
+cJSON *discord_channel_to_cjson(discord_channel_t *channel);
 
-discord_emoji_t* discord_emoji_from_cjson(cJSON* root);
+discord_role_t *discord_role_from_cjson(cJSON *root);
+cJSON *discord_role_to_cjson(discord_role_t *role);
 
-discord_message_reaction_t* discord_message_reaction_from_cjson(cJSON* root);
+discord_message_t *discord_message_from_cjson(cJSON *root);
+cJSON *discord_message_to_cjson(discord_message_t *msg);
 
-discord_voice_state_t* discord_voice_state_from_cjson(cJSON* root);
+discord_emoji_t *discord_emoji_from_cjson(cJSON *root);
+
+discord_message_reaction_t *discord_message_reaction_from_cjson(cJSON *root);
+
+discord_voice_state_t *discord_voice_state_from_cjson(cJSON *root);
 
 #ifdef __cplusplus
 }
