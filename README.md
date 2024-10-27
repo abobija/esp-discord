@@ -18,7 +18,7 @@
 
 ## Description
 
-Library (component) for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component. Supporting IDF version `^4.1`.
+Library (component) for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component.
 
 ## Installation
 
