@@ -19,3 +19,31 @@ jobs:
         uses: jidicula/clang-format-action@v4.13.0
         with:
           clang-format-version: 18
+  
+  build_examples:
+    name: "Build example"
+    runs-on: ubuntu-latest
+
+    needs:
+      - unit_test
+
+    strategy:
+      matrix:
+        example:
+          - echo
+        idf_ver:
+          - release-v5.3
+        idf_target:
+          - esp32
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: esp-discord
+
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          path: esp-discord/examples/${{ matrix.example }}
+          esp_idf_version: ${{ matrix.idf_ver }}
+          target: ${{ matrix.idf_target }}
