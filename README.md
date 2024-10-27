@@ -39,7 +39,7 @@ To run [`echo`](examples/echo) example, create it as follows:
 idf.py create-project-from-example "abobija/esp-discord:echo"
 ```
 
-Then build and flash it as usual:
+Follow instructions from the project's README, then build and flash it as usual:
 
 ```bash
 cd echo
