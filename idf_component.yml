@@ -1,4 +1,4 @@
-version: "1.3.0"
+version: "2.0.0"
 description: "Library for hosting Discord Bots"
 url: "https://github.com/abobija/esp-discord"
 repository: "https://github.com/abobija/esp-discord.git"
