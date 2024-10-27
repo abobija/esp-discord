@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include "discord.h"
 #include "discord/private/_gateway.h"
 #include "discord/private/_api.h"
@@ -395,5 +396,8 @@ esp_err_t discord_destroy(discord_handle_t client)
 
 uint64_t discord_tick_ms()
 {
-    return esp_timer_get_time() / 1000;
+    struct timeval now;
+    gettimeofday(&now, NULL);
+
+    return (uint32_t)((now.tv_sec * 1000000 + now.tv_usec) / 1000);
 }

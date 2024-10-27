@@ -32,10 +32,17 @@ idf_component_register(
          src/discord/voice_state.c
          src/discord.c
          src/discord_ota.c
-    INCLUDE_DIRS include include/helpers
-    REQUIRES json esp_websocket_client esp_http_client
-    PRIV_REQUIRES app_update nvs_flash
-    EMBED_TXTFILES ${CERTS}
+    INCLUDE_DIRS
+        include
+        include/helpers
+    REQUIRES
+        json
+        esp_http_client
+    PRIV_REQUIRES
+        app_update
+        nvs_flash
+    EMBED_TXTFILES
+        ${CERTS}
 )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-missing-field-initializers)

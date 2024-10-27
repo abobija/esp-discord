@@ -1,3 +1,4 @@
+#include "esp_image_format.h"
 #include "esp_ota_ops.h"
 #include "discord/private/_discord.h"
 #include "discord_ota.h"
@@ -330,10 +331,10 @@ static esp_err_t ota_status_message_content(discord_ota_handle_t ota_hndl, char 
     char *rapp_sha = partition_sha256(rapp.app_elf_sha256, sizeof(rapp.app_elf_sha256));
 
     char uptime[25];
-    sprintf(uptime, "%lld ms", esp_timer_get_time() / 1000);
+    sprintf(uptime, "%" PRIu64 " ms", discord_tick_ms());
 
     char free_heap[15];
-    sprintf(free_heap, "%d bytes", esp_get_free_heap_size());
+    sprintf(free_heap, "%" PRIu32 " bytes", esp_get_free_heap_size());
 
     char *content = estr_cat("```yaml",
         "\nUptime: ",

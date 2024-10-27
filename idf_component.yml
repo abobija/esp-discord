@@ -13,4 +13,5 @@ files:
     - "docs/**/*"
     - "test/**/*"
 dependencies:
-  idf: "^4.1"
+  idf: "^5.3"
+  espressif/esp_websocket_client: ^1.2.3
