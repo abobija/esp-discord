@@ -20,12 +20,30 @@
 
 Library (component) for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component. Supporting IDF version `^4.1`.
 
-## How to use
+## Installation
 
 This directory is an ESP-IDF component. Clone it (or add it as submodule) into `components` directory of the project, or add it as dependency:
 
-```console
+```bash
 idf.py add-dependency "abobija/esp-discord"
+```
+
+## Create project from example
+
+> [!TIP]
+> To find more interesting examples, go to [examples](examples) folder.
+
+To run [`echo`](examples/echo) example, create it as follows:
+
+```bash
+idf.py create-project-from-example "abobija/esp-discord:echo"
+```
+
+Follow instructions from the project's README, then build and flash it as usual:
+
+```bash
+cd echo
+idf.py build flash monitor
 ```
 
 ### Demo video
@@ -34,7 +52,7 @@ idf.py add-dependency "abobija/esp-discord"
 
 ## Examples
 
-Examples of using [esp-discord](https://github.com/abobija/esp-discord) can be found in separated [esp-discord-examples](https://github.com/abobija/esp-discord-examples) repository.
+More examples of using [esp-discord](https://github.com/abobija/esp-discord) can be found in separated [esp-discord-examples](https://github.com/abobija/esp-discord-examples) repository.
 
 ## Author
 

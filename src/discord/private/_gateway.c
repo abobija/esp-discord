@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "discord/private/_gateway.h"
 #include "discord/private/_json.h"
 #include "discord/message.h"
@@ -129,7 +130,7 @@ static void dcgw_websocket_event_handler(void *handler_arg, esp_event_base_t bas
         return;
     }
 
-    DISCORD_LOGD("ws event (event=%d, op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
+    DISCORD_LOGD("ws event (event=%" PRIu32 ", op_code=%d, payload_len=%d, data_len=%d, payload_offset=%d)",
         event_id,
         data->op_code,
         data->payload_len,
@@ -137,6 +138,7 @@ static void dcgw_websocket_event_handler(void *handler_arg, esp_event_base_t bas
         data->payload_offset);
 
     switch (event_id) {
+        case WEBSOCKET_EVENT_BEFORE_CONNECT:
         case WEBSOCKET_EVENT_CONNECTED:
             client->state = DISCORD_STATE_CONNECTING;
             break;
@@ -160,7 +162,7 @@ static void dcgw_websocket_event_handler(void *handler_arg, esp_event_base_t bas
             break;
 
         default:
-            DISCORD_LOGW("Unknown ws event %d", event_id);
+            DISCORD_LOGW("Unknown ws event %" PRIu32, event_id);
             break;
     }
 }
@@ -198,13 +200,16 @@ esp_err_t dcgw_init(discord_handle_t client)
     extern const uint8_t gateway_crt[] asm("_binary_gateway_pem_start");
 #endif
 
-    esp_websocket_client_config_t ws_cfg = { .uri = DISCORD_GW_URL,
+    esp_websocket_client_config_t ws_cfg = {
+        .uri = DISCORD_GW_URL,
         .buffer_size = 512,
 #ifndef CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY
         .cert_pem = (const char *)gateway_crt,
 #endif
         .task_stack = 5 * 1024,
-        .disable_auto_reconnect = true };
+        .disable_auto_reconnect = true,
+        .network_timeout_ms = 5000,
+    };
 
     if (!(client->ws = esp_websocket_client_init(&ws_cfg))) {
         DISCORD_LOGE("Fail to create ws client");
@@ -431,7 +436,7 @@ esp_err_t dcgw_identify(discord_handle_t client)
                 .intents = client->config->intents,
                 .properties = cu_ctor(discord_identify_properties_t,
                     .os = estr_cat("esp-idf (", esp_get_idf_version(), ")"),
-                    .browser = strdup("esp-discord (" DISCORD_VER_STRING ")"),
+                    .browser = strdup("esp-discord (" CONFIG_IDF_TARGET ")"),
                     .device = strdup(CONFIG_IDF_TARGET)))));
 }
 

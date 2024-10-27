@@ -171,7 +171,7 @@ static esp_err_t dcapi_init_lazy(discord_handle_t client, bool download, const c
         return ESP_FAIL;
     }
 
-    char *user_agent = estr_cat("DiscordBot (esp-discord, " DISCORD_VER_STRING ") esp-idf/", esp_get_idf_version());
+    char *user_agent = estr_cat("DiscordBot (esp-discord, " CONFIG_IDF_TARGET ") esp-idf/", esp_get_idf_version());
     // todo: memcheck
     esp_http_client_set_header(client->http, "User-Agent", user_agent);
     // todo: error check
