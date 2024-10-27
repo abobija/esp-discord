@@ -436,7 +436,7 @@ esp_err_t dcgw_identify(discord_handle_t client)
                 .intents = client->config->intents,
                 .properties = cu_ctor(discord_identify_properties_t,
                     .os = estr_cat("esp-idf (", esp_get_idf_version(), ")"),
-                    .browser = strdup("esp-discord (" DISCORD_VER_STRING ")"),
+                    .browser = strdup("esp-discord (" CONFIG_IDF_TARGET ")"),
                     .device = strdup(CONFIG_IDF_TARGET)))));
 }
 
