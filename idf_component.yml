@@ -1,2 +1,16 @@
+version: "1.3.0"
+description: "Library for hosting Discord Bots"
+url: "https://github.com/abobija/esp-discord"
+repository: "https://github.com/abobija/esp-discord.git"
+license: "MIT"
+maintainers:
+  - "Alija Bobija <bobija.alija@gmail.com>"
+tags:
+  - discord
+  - bot
+files:
+  exclude:
+    - "docs/**/*"
+    - "test/**/*"
 dependencies:
   idf: "^4.1"
