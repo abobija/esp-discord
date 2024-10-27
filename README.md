@@ -1,8 +1,10 @@
-# :robot: esp-discord
+# esp-discord
+
+[![Component Registry](https://img.shields.io/github/v/release/abobija/esp-discord?sort=date&display_name=release&style=for-the-badge&logo=espressif&logoColor=white&label=Latest%20version)](https://components.espressif.com/components/abobija/esp-discord)
 
 ```
    __    ___  _ _                         
- /'__`\/',__)( '_`\           v1.3
+ /'__`\/',__)( '_`\                       
 (  ___/\__, \| (_) )                      
 `\____)(____/| ,__/'                      
      _       | |                        _ 
@@ -16,11 +18,15 @@
 
 ## Description
 
-C library for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component. Supports IDF version `4.1` and above, up to `5.0`.
+Library (component) for making Discord Bots on the ESP32, packaged as [ESP-IDF](https://github.com/espressif/esp-idf) component. Supporting IDF version `^4.1`.
 
 ## How to use
 
-This directory is an ESP-IDF component. Clone it (or add it as submodule) into `components` directory of the project.
+This directory is an ESP-IDF component. Clone it (or add it as submodule) into `components` directory of the project, or add it as dependency:
+
+```console
+idf.py add-dependency "abobija/esp-discord"
+```
 
 ### Demo video
 
