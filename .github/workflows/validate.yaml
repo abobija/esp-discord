@@ -19,7 +19,7 @@ jobs:
            python-version: '3.x'
       - run: pip install clang-format~=18.0
       - name: 'clang-format check'
-        run: git ls-files *.c *.h *.cpp *.hpp | xargs clang-format --dry-run --Werror -style=file
+        run: git ls-files *.c *.h *.cpp *.hpp | xargs clang-format -style=file --dry-run --Werror
 
   build_examples:
     name: "Build example"
