@@ -12,21 +12,20 @@ jobs:
   format_check:
     name: "Check formatting"
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-      - name: 'clang-format check'
-        uses: jidicula/clang-format-action@v4.13.0
+      - uses: actions/setup-python@v5
         with:
-          clang-format-version: 18
-  
+           python-version: '3.x'
+      - run: pip install clang-format~=18
+      - name: 'clang-format check'
+        run: find . -regex '.*\.\(cpp\|hpp\|cu\|c\|h\|cc\|hh\)' -exec clang-format -style=file
+
   build_examples:
     name: "Build example"
     runs-on: ubuntu-latest
-
     needs:
       - format_check
-
     strategy:
       matrix:
         example:
@@ -37,12 +36,10 @@ jobs:
           - release-v5.5
         idf_target:
           - esp32
-
     steps:
       - uses: actions/checkout@v4
         with:
           path: esp-discord
-
       - name: Build
         uses: espressif/esp-idf-ci-action@v1
         with:
