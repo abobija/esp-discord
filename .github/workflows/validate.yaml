@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
            python-version: '3.x'
-      - run: pip install clang-format~=18
+      - run: pip install clang-format~=18.0
       - name: 'clang-format check'
         run: find . -regex '.*\.\(cpp\|hpp\|cu\|c\|h\|cc\|hh\)' -exec clang-format -style=file
 
